@@ -3,6 +3,13 @@ from repositories.security_repository import SecurityRepository
 from repositories.price_repository import PriceRepository
 from repositories.input_repository import InputRepository
 from dashboard.dashboard import Dashboard
+import streamlit as st
+
+st.set_page_config(
+    page_title="ETF Monitor",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
 
 
 def main():
