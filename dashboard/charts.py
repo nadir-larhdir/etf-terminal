@@ -1,0 +1,66 @@
+import plotly.graph_objects as go
+from services.analytics_service import AnalyticsService
+
+
+class ChartBuilder:
+    def __init__(self):
+        self.analytics = AnalyticsService()
+
+    def build_price_chart(self, hist, ticker: str, start_date, end_date):
+        filtered = self.analytics.filter_history_by_dates(hist, start_date, end_date)
+        stats = self.analytics.compute_stats(filtered)
+        close = filtered["close"]
+        above = close.where(close >= stats["mean_price"])
+        below = close.where(close < stats["mean_price"])
+
+        price_min = min(float(close.min()), stats["lower_band"])
+        price_max = max(float(close.max()), stats["upper_band"])
+        padding = max((price_max - price_min) * 0.12, 0.25)
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=filtered.index, y=[stats["upper_band"]] * len(filtered), mode="lines", name="+1 Sigma", line=dict(color="#FFD166", width=1, dash="dot")))
+        fig.add_trace(go.Scatter(x=filtered.index, y=[stats["lower_band"]] * len(filtered), mode="lines", name="-1 Sigma", line=dict(color="#FFD166", width=1, dash="dot"), fill="tonexty", fillcolor="rgba(255, 209, 102, 0.10)"))
+        fig.add_trace(go.Scatter(x=filtered.index, y=above, mode="lines", name="Above Mean", line=dict(color="#00C176", width=2), connectgaps=False))
+        fig.add_trace(go.Scatter(x=filtered.index, y=below, mode="lines", name="Below Mean", line=dict(color="#FF5A36", width=2), connectgaps=False))
+        fig.add_trace(go.Scatter(x=filtered.index, y=[stats["mean_price"]] * len(filtered), mode="lines", name="Mean", line=dict(color="#FF9F1A", width=1.3)))
+        fig.update_layout(
+            title=f"{ticker} Price ({start_date} to {end_date})",
+            template="plotly_dark",
+            paper_bgcolor="#000000",
+            plot_bgcolor="#000000",
+            font=dict(color="#F4F1DE", family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace', size=12),
+            margin=dict(l=20, r=20, t=50, b=20),
+            height=430,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, bgcolor="rgba(0,0,0,0)"),
+            xaxis=dict(showgrid=True, gridcolor="#2A2A2A", zeroline=False, range=[filtered.index.min(), filtered.index.max()], rangeslider=dict(visible=False), fixedrange=True),
+            yaxis=dict(showgrid=True, gridcolor="#2A2A2A", zeroline=False, range=[price_min - padding, price_max + padding], tickformat=".2f", fixedrange=True),
+        )
+        return fig
+
+    def build_volume_chart(self, hist, ticker: str, start_date, end_date):
+        filtered = self.analytics.filter_history_by_dates(hist, start_date, end_date)
+        volume = filtered["volume"]
+        mean_volume = float(volume.mean())
+        colors = ["#00C176" if v >= mean_volume else "#FF5A36" for v in volume]
+        max_volume = float(volume.max())
+        step = 5_000_000 if max_volume <= 50_000_000 else 10_000_000 if max_volume <= 100_000_000 else 20_000_000
+        tick_vals = list(range(0, int(max_volume * 1.15) + step, step))
+        tick_text = [self.analytics.format_volume_label(v) for v in tick_vals]
+
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=filtered.index, y=volume, name="Volume", marker_color=colors))
+        fig.add_trace(go.Scatter(x=filtered.index, y=[mean_volume] * len(filtered), mode="lines", name="Mean Volume", line=dict(color="#FF9F1A", width=1.3)))
+        fig.update_layout(
+            title=f"{ticker} Volume ({start_date} to {end_date})",
+            template="plotly_dark",
+            paper_bgcolor="#000000",
+            plot_bgcolor="#000000",
+            font=dict(color="#F4F1DE", family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace', size=12),
+            margin=dict(l=20, r=20, t=50, b=20),
+            height=430,
+            bargap=0.18,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, bgcolor="rgba(0,0,0,0)"),
+            xaxis=dict(showgrid=True, gridcolor="#2A2A2A", zeroline=False, range=[filtered.index.min(), filtered.index.max()], rangeslider=dict(visible=False), fixedrange=True),
+            yaxis=dict(showgrid=True, gridcolor="#2A2A2A", zeroline=False, tickmode="array", tickvals=tick_vals, ticktext=tick_text, range=[0, max_volume * 1.15], fixedrange=True),
+        )
+        return fig
