@@ -2,6 +2,7 @@ from db.connection import get_engine
 from repositories.security_repository import SecurityRepository
 from repositories.price_repository import PriceRepository
 from repositories.input_repository import InputRepository
+from repositories.metadata_repository import MetadataRepository
 from dashboard.dashboard import Dashboard
 import streamlit as st
 
@@ -17,7 +18,9 @@ def main():
     security_repo = SecurityRepository(engine)
     price_repo = PriceRepository(engine)
     input_repo = InputRepository(engine)
-    app = Dashboard(security_repo, price_repo, input_repo)
+    metadata_repo = MetadataRepository(engine)
+
+    app = Dashboard(security_repo, price_repo, input_repo, metadata_repo)
     app.run()
 
 

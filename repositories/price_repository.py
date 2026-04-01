@@ -9,6 +9,11 @@ class PriceRepository:
     def upsert_prices(self, df: pd.DataFrame):
         df.to_sql("price_history", self.engine, if_exists="append", index=False)
 
+    def replace_ticker_prices(self, ticker: str, df: pd.DataFrame):
+        with self.engine.begin() as conn:
+            conn.exec_driver_sql("DELETE FROM price_history WHERE ticker = ?", (ticker,))
+            df.to_sql("price_history", conn, if_exists="append", index=False)
+
     def get_price_history(self, ticker: str, start_date=None, end_date=None) -> pd.DataFrame:
         query = """
         SELECT date, open, high, low, close, adj_close, volume

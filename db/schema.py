@@ -39,3 +39,20 @@ def create_tables(engine):
             PRIMARY KEY (ticker, date)
         )
         """))
+
+        conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS security_metadata (
+            ticker TEXT PRIMARY KEY,
+            conid TEXT,
+            long_name TEXT,
+            description TEXT,
+            issuer TEXT,
+            benchmark_index TEXT,
+            category TEXT,
+            duration_bucket TEXT,
+            currency TEXT,
+            exchange TEXT,
+            source TEXT,
+            updated_at TEXT
+        )
+        """))
