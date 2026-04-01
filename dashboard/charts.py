@@ -243,3 +243,144 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
+
+# ================== ADDED FUNCTIONS ==================
+
+def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
+    fig = go.Figure()
+
+    # Main Z line
+    fig.add_trace(
+        go.Scatter(
+            x=z_series.index,
+            y=z_series,
+            mode="lines",
+            name="Z-Score",
+            line=dict(color="#B8B1A3", width=1.5),
+        )
+    )
+
+    # Sigma lines
+    for level, label in [(2, "+2σ"), (1, "+1σ"), (0, "Mean"), (-1, "-1σ"), (-2, "-2σ")]:
+        fig.add_trace(
+            go.Scatter(
+                x=z_series.index,
+                y=[level] * len(z_series),
+                mode="lines",
+                name=label,
+                line=dict(
+                    color="#FF9F1A" if level == 0 else "#FFD166",
+                    width=1,
+                    dash="dot" if level != 0 else "solid",
+                ),
+                hoverinfo="skip",
+            )
+        )
+
+    # Highlight extreme points
+    extreme_mask = z_series.abs() >= 2
+    fig.add_trace(
+        go.Scatter(
+            x=z_series.index[extreme_mask],
+            y=z_series[extreme_mask],
+            mode="markers",
+            name="Extreme",
+            marker=dict(color="#FF5A36", size=6),
+        )
+    )
+
+    fig.update_layout(
+        title=dict(text=f"RV Z-Score: {ticker_a}/{ticker_b}", x=0.02, xanchor="left"),
+        template="plotly_dark",
+        paper_bgcolor="#000000",
+        plot_bgcolor="#000000",
+        font=dict(
+            color="#F3F0E8",
+            family='"SFMono-Regular", Menlo, Monaco, Consolas, monospace',
+            size=12,
+        ),
+        height=420,
+        margin=dict(l=20, r=20, t=50, b=30),
+        legend=dict(orientation="h", y=1.02, x=0.5, xanchor="center"),
+        xaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
+        yaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def render_return_spread_chart(ratio_series: pd.Series, ticker_a: str, ticker_b: str):
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Scatter(
+            x=ratio_series.index,
+            y=ratio_series,
+            mode="lines",
+            name="Ratio",
+            line=dict(color="#00ADB5", width=1.5),
+        )
+    )
+
+    fig.update_layout(
+        title=dict(text=f"Return Spread: {ticker_a}/{ticker_b}", x=0.02, xanchor="left"),
+        template="plotly_dark",
+        paper_bgcolor="#000000",
+        plot_bgcolor="#000000",
+        font=dict(
+            color="#F3F0E8",
+            family='"SFMono-Regular", Menlo, Monaco, Consolas, monospace',
+            size=12,
+        ),
+        height=420,
+        margin=dict(l=20, r=20, t=50, b=30),
+        xaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
+        yaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def render_beta_adjusted_z_chart(z_series: pd.Series, beta_series: pd.Series, ticker_a: str, ticker_b: str):
+    adj_z = z_series * beta_series
+
+    fig = go.Figure()
+
+    fig.add_trace(
+        go.Scatter(
+            x=adj_z.index,
+            y=adj_z,
+            mode="lines",
+            name="Beta-Adj Z",
+            line=dict(color="#00ADB5", width=1.5),
+        )
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=adj_z.index,
+            y=[0] * len(adj_z),
+            mode="lines",
+            name="Mean",
+            line=dict(color="#FF9F1A", width=1),
+        )
+    )
+
+    fig.update_layout(
+        title=dict(text=f"Beta-Adjusted Z: {ticker_a}/{ticker_b}", x=0.02, xanchor="left"),
+        template="plotly_dark",
+        paper_bgcolor="#000000",
+        plot_bgcolor="#000000",
+        font=dict(
+            color="#F3F0E8",
+            family='"SFMono-Regular", Menlo, Monaco, Consolas, monospace',
+            size=12,
+        ),
+        height=420,
+        margin=dict(l=20, r=20, t=50, b=30),
+        xaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
+        yaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
+    )
+
+    st.plotly_chart(fig, use_container_width=True)

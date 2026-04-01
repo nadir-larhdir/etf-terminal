@@ -5,6 +5,7 @@ from dashboard.header_panel import HeaderPanel
 from dashboard.graphs_tab import GraphsTab
 from dashboard.analytics_tab import AnalyticsTab
 from dashboard.rv_tab import RVTab
+from dashboard.controls import BloombergControls
 
 
 class Dashboard:
@@ -17,6 +18,7 @@ class Dashboard:
         self.graphs_tab = GraphsTab()
         self.analytics_tab = AnalyticsTab()
         self.rv_tab = RVTab(price_repo)
+        self.controls = BloombergControls()
 
 
     def run(self):
@@ -34,7 +36,11 @@ class Dashboard:
         selector_col, desc_col = st.columns([1, 2.4])
 
         with selector_col:
-            selected_security = st.selectbox("Security", tickers)
+            selected_security = self.controls.render_select(
+                "Security",
+                tickers,
+                key="main_security_selector",
+            )
 
         metadata = self.metadata_repo.get_metadata(selected_security)
 

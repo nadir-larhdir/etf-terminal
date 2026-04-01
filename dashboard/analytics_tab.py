@@ -1,10 +1,13 @@
-
-
 import pandas as pd
 import streamlit as st
 
+from dashboard.context_panel import ContextPanel
+
 
 class AnalyticsTab:
+    def __init__(self) -> None:
+        self.context_panel = ContextPanel()
+
     def render(self, hist: pd.DataFrame) -> None:
         st.subheader("Analytics")
 
@@ -49,25 +52,11 @@ class AnalyticsTab:
             st.metric("RANGE POS", f"{range_position:.2%}")
 
         # --- Liquidity panel ---
-        st.markdown(
-            f"""
-            <div style="
-                border: 1px solid #2A2A2A;
-                background-color: #050505;
-                padding: 0.60rem 0.75rem;
-                border-radius: 2px;
-                margin-top: 0.35rem;
-            ">
-                <div style="color:#FF9F1A; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.35px; margin-bottom:0.18rem;">
-                    Liquidity Regime
-                </div>
-                <div style="color:#F3F0E8; font-size:0.96rem; font-weight:700; margin-bottom:0.18rem;">
-                    {liquidity_regime}
-                </div>
-                <div style="color:#B8B1A3; font-size:0.88rem; line-height:1.45;">
-                    Based on current volume versus the trailing 30-day average and its standardized z-score.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
+        self.context_panel.render(
+            title="Liquidity Regime",
+            headline=liquidity_regime,
+            body="Based on current volume versus the trailing 30-day average and its standardized z-score.",
+            accent_color="#00ADB5",
+            margin_top="0.35rem",
+            margin_bottom="0.00rem",
         )

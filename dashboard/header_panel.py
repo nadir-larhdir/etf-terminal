@@ -1,10 +1,13 @@
-
-
 import pandas as pd
 import streamlit as st
 
+from dashboard.context_panel import ContextPanel
+
 
 class HeaderPanel:
+    def __init__(self) -> None:
+        self.context_panel = ContextPanel()
+
     def render_description(
         self,
         securities: pd.DataFrame,
@@ -15,36 +18,29 @@ class HeaderPanel:
         security_name = selected_row["name"]
         asset_class = selected_row["asset_class"]
 
-        st.markdown(
-            f"""
-            <div style="
-                border: 1px solid #2A2A2A;
-                background-color: #050505;
-                padding: 0.60rem 0.75rem;
-                margin-top: 1.55rem;
-                border-radius: 2px;
-            ">
-                <div style="color:#FF9F1A; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.35px; margin-bottom:0.18rem;">
-                    ETF Description
-                </div>
-                <div style="color:#F3F0E8; font-size:0.96rem; font-weight:700; margin-bottom:0.28rem;">
-                    {selected_security} — {metadata.get('long_name', security_name) if metadata else security_name}
-                </div>
-                <div style="color:#B8B1A3; font-size:0.92rem; line-height:1.45; margin-bottom:0.35rem;">
-                    {metadata.get('description', f'This ETF is currently classified in the dashboard as {asset_class}.') if metadata else f'This ETF is currently classified in the dashboard as {asset_class}.'}
-                </div>
-                <div style="color:#B8B1A3; font-size:0.88rem; line-height:1.45;">
-                    <span style="color:#F3F0E8; font-weight:700;">Category:</span> {metadata.get('category', asset_class) if metadata else asset_class}
-                    &nbsp;&nbsp;|&nbsp;&nbsp;
-                    <span style="color:#F3F0E8; font-weight:700;">Benchmark:</span> {metadata.get('benchmark_index', 'N/A') if metadata else 'N/A'}
-                    &nbsp;&nbsp;|&nbsp;&nbsp;
-                    <span style="color:#F3F0E8; font-weight:700;">Duration:</span> {metadata.get('duration_bucket', 'N/A') if metadata else 'N/A'}
-                    &nbsp;&nbsp;|&nbsp;&nbsp;
-                    <span style="color:#F3F0E8; font-weight:700;">Issuer:</span> {metadata.get('issuer', 'N/A') if metadata else 'N/A'}
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
+        headline = f"{selected_security} — {metadata.get('long_name', security_name) if metadata else security_name}"
+        body = metadata.get(
+            "description",
+            f"This ETF is currently classified in the dashboard as {asset_class}.",
+        ) if metadata else f"This ETF is currently classified in the dashboard as {asset_class}."
+
+        footer = (
+            f"<span style='color:#F3F0E8; font-weight:700;'>Category:</span> {metadata.get('category', asset_class) if metadata else asset_class}"
+            f"&nbsp;&nbsp;|&nbsp;&nbsp;"
+            f"<span style='color:#F3F0E8; font-weight:700;'>Benchmark:</span> {metadata.get('benchmark_index', 'N/A') if metadata else 'N/A'}"
+            f"&nbsp;&nbsp;|&nbsp;&nbsp;"
+            f"<span style='color:#F3F0E8; font-weight:700;'>Duration:</span> {metadata.get('duration_bucket', 'N/A') if metadata else 'N/A'}"
+            f"&nbsp;&nbsp;|&nbsp;&nbsp;"
+            f"<span style='color:#F3F0E8; font-weight:700;'>Issuer:</span> {metadata.get('issuer', 'N/A') if metadata else 'N/A'}"
+        )
+
+        self.context_panel.render(
+            title="ETF Description",
+            headline=headline,
+            body=body,
+            footer=footer,
+            margin_top="1.55rem",
+            margin_bottom="0.00rem",
         )
 
     def render_header_strip(self, hist: pd.DataFrame, selected_security: str) -> None:

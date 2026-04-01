@@ -2,14 +2,24 @@ import math
 from typing import cast
 import pandas as pd
 import streamlit as st
-import plotly.graph_objects as go
 
-from dashboard.charts import compute_default_date_range
+from dashboard.context_panel import ContextPanel
+from dashboard.table_styles import BloombergTable
+from dashboard.controls import BloombergControls
+from dashboard.charts import (
+    compute_default_date_range,
+    render_zscore_chart,
+    render_return_spread_chart,
+    render_beta_adjusted_z_chart,
+)
 
 
 class RVTab:
     def __init__(self, price_repo):
         self.price_repo = price_repo
+        self.context_panel = ContextPanel()
+        self.table = BloombergTable()
+        self.controls = BloombergControls()
 
     def _compute_window_z(self, series: pd.Series, window: int) -> float:
         window_series = series.tail(min(window, len(series)))
@@ -63,153 +73,7 @@ class RVTab:
             with cols[idx % columns]:
                 st.metric(label, value)
 
-    def _render_signal_panel(self, trade_bias: str, rv_signal_paragraph: str) -> None:
-        st.markdown(
-            f"""
-            <div style="
-                border: 1px solid #2A2A2A;
-                background-color: #050505;
-                padding: 0.60rem 0.75rem;
-                border-radius: 2px;
-                margin-top: 0.35rem;
-                margin-bottom: 0.50rem;
-            ">
-                <div style="color:#FF9F1A; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.35px; margin-bottom:0.18rem;">
-                    RV Signal
-                </div>
-                <div style="color:#F3F0E8; font-size:0.96rem; font-weight:700; margin-bottom:0.18rem;">
-                    {trade_bias}
-                </div>
-                <div style="color:#B8B1A3; font-size:0.88rem; line-height:1.45;">
-                    {rv_signal_paragraph}
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
 
-    def _render_entry_exit_panel(self, trade_bias: str) -> None:
-        st.markdown(
-            f"""
-            <div style="
-                border: 1px solid #2A2A2A;
-                background-color: #050505;
-                padding: 0.60rem 0.75rem;
-                border-radius: 2px;
-                margin-top: 0.20rem;
-                margin-bottom: 0.50rem;
-            ">
-                <div style="color:#FF9F1A; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.35px; margin-bottom:0.18rem;">
-                    Entry / Exit Framework
-                </div>
-                <div style="color:#B8B1A3; font-size:0.88rem; line-height:1.55;">
-                    Enter mean-reversion trades when the displayed-window z-score moves beyond ±2.0. Consider trimming risk as the signal re-enters the ±1.0 zone, and treat a move back near 0.0 as a take-profit / exit region. If the z-score extends beyond ±3.0 or pair correlation deteriorates sharply, reassess the trade as a potential stop / invalidation scenario. Current read: <span style="color:#F3F0E8; font-weight:700;">{trade_bias}</span>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    def _render_zscore_chart(
-        self,
-        rv_merged: pd.DataFrame,
-        selected_security: str,
-        compare_security: str,
-    ) -> None:
-        z_min = min(float(rv_merged["zscore"].min()), -2.0)
-        z_max = max(float(rv_merged["zscore"].max()), 2.0)
-        z_padding = max((z_max - z_min) * 0.12, 0.25)
-
-        z_fig = go.Figure()
-        z_fig.add_trace(
-            go.Scatter(
-                x=rv_merged.index,
-                y=rv_merged["zscore"],
-                mode="lines",
-                name="Z-Score",
-                line=dict(color="#7EC8FF", width=2.2),
-                hovertemplate="%{x|%b %d, %Y}<br>Z-SCORE: %{y:,.2f}<extra></extra>",
-            )
-        )
-
-        extreme_points = rv_merged.loc[rv_merged["zscore"].abs() >= 2.0]
-        if not extreme_points.empty:
-            z_fig.add_trace(
-                go.Scatter(
-                    x=extreme_points.index,
-                    y=extreme_points["zscore"],
-                    mode="markers",
-                    name="|Z| >= 2",
-                    marker=dict(
-                        color="#FF5A36",
-                        size=8,
-                        symbol="circle",
-                        line=dict(color="#FFD166", width=1),
-                    ),
-                    hovertemplate="%{x|%b %d, %Y}<br>EXTREME Z: %{y:,.2f}<extra></extra>",
-                )
-            )
-
-        for level, name, color, dash in [
-            (0.0, "Mean", "#FF9F1A", "solid"),
-            (1.0, "+1σ", "#FFD166", "dot"),
-            (-1.0, "-1σ", "#FFD166", "dot"),
-            (2.0, "+2σ", "#FF5A36", "dash"),
-            (-2.0, "-2σ", "#FF5A36", "dash"),
-        ]:
-            z_fig.add_trace(
-                go.Scatter(
-                    x=rv_merged.index,
-                    y=[level] * len(rv_merged),
-                    mode="lines",
-                    name=name,
-                    line=dict(color=color, width=1.4 if level == 0 else 1, dash=dash),
-                    hovertemplate=f"{name}: %{{y:,.2f}}<extra></extra>",
-                )
-            )
-
-        z_fig.update_layout(
-            title=dict(text=f"{selected_security} / {compare_security} RV Z-Score", x=0.02, xanchor="left"),
-            template="plotly_dark",
-            paper_bgcolor="#000000",
-            plot_bgcolor="#000000",
-            font=dict(
-                color="#F3F0E8",
-                family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                size=12,
-            ),
-            margin=dict(l=20, r=20, t=50, b=30),
-            height=520,
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="center",
-                x=0.5,
-                font=dict(size=10),
-                bgcolor="rgba(0,0,0,0)",
-            ),
-            xaxis=dict(
-                title="Date",
-                showgrid=True,
-                gridcolor="#2A2A2A",
-                zeroline=False,
-                range=[rv_merged.index.min(), rv_merged.index.max()],
-                rangeslider=dict(visible=False),
-                fixedrange=True,
-            ),
-            yaxis=dict(
-                title="Z-Score",
-                showgrid=True,
-                gridcolor="#2A2A2A",
-                zeroline=False,
-                range=[z_min - z_padding, z_max + z_padding],
-                tickformat=".2f",
-                fixedrange=True,
-            ),
-        )
-
-        st.plotly_chart(z_fig, use_container_width=True)
 
     def _render_pair_screener(
         self,
@@ -277,7 +141,7 @@ class RVTab:
                     by=["ABS Z", "STABILITY"],
                     ascending=[False, False],
                 ).head(12)
-                st.dataframe(screener_df, use_container_width=True, hide_index=True)
+                self.table.render(screener_df, hide_index=True)
             else:
                 st.info("No RV screening candidates available for the selected window.")
 
@@ -285,14 +149,11 @@ class RVTab:
         st.subheader("RV Analysis")
 
         rv_candidates = [ticker for ticker in tickers if ticker != selected_security]
-        compare_security = st.selectbox(
+        compare_security = self.controls.render_select(
             "Compare With",
             rv_candidates,
             key=f"rv_compare_{selected_security}",
         )
-        if compare_security is None:
-            st.warning("No comparison ETF selected.")
-            return
 
         compare_hist = self.price_repo.get_price_history(compare_security)
         if compare_hist.empty:
@@ -310,37 +171,25 @@ class RVTab:
             st.warning("No overlapping history available for RV analysis.")
             return
 
-        rv_c1, rv_c2, rv_c3 = st.columns([1, 1, 1])
-        with rv_c1:
-            rv_period = st.selectbox(
-                "RV Window",
-                ["5D", "30D", "3M", "6M", "1Y"],
-                index=3,
-                key=f"rv_period_{selected_security}_{compare_security}",
-            )
+        rv_period = self.controls.render_select(
+            "RV Window",
+            ["5D", "30D", "3M", "6M", "1Y"],
+            index=3,
+            key=f"rv_period_{selected_security}_{compare_security}",
+        )
 
         rv_default_start, rv_default_end = compute_default_date_range(merged, rv_period)
 
-        with rv_c2:
-            rv_start_date = st.date_input(
-                "RV Start Date",
-                value=rv_default_start,
-                min_value=merged.index.min().date(),
-                max_value=merged.index.max().date(),
-                key=f"rv_start_{selected_security}_{compare_security}_{rv_period}",
-            )
-
-        with rv_c3:
-            rv_end_date = st.date_input(
-                "RV End Date",
-                value=rv_default_end,
-                min_value=merged.index.min().date(),
-                max_value=merged.index.max().date(),
-                key=f"rv_end_{selected_security}_{compare_security}_{rv_period}",
-            )
-
-        if rv_start_date > rv_end_date:
-            rv_start_date, rv_end_date = rv_end_date, rv_start_date
+        rv_start_date, rv_end_date = self.controls.render_date_range(
+            start_label="RV Start Date",
+            end_label="RV End Date",
+            default_start=rv_default_start,
+            default_end=rv_default_end,
+            min_date=merged.index.min().date(),
+            max_date=merged.index.max().date(),
+            start_key=f"rv_start_{selected_security}_{compare_security}_{rv_period}",
+            end_key=f"rv_end_{selected_security}_{compare_security}_{rv_period}",
+        )
 
         merged_dates = pd.to_datetime(merged.index)
         rv_merged = merged.loc[
@@ -482,7 +331,7 @@ class RVTab:
         rv_merged["comp_cumret"] = rv_merged["close_comp"] / float(rv_merged["close_comp"].iloc[0]) - 1.0
         rv_merged["cum_spread"] = rv_merged["base_cumret"] - current_beta * rv_merged["comp_cumret"]
 
-        st.caption(f"Displaying RV analysis from {rv_start_date} to {rv_end_date}")
+        st.caption(f"Displaying RV analysis from {rv_start_date.date()} to {rv_end_date.date()}")
         st.markdown("<div style='margin-bottom:0.35rem;'></div>", unsafe_allow_html=True)
 
         self._render_metric_grid(
@@ -518,11 +367,30 @@ class RVTab:
             3,
         )
 
-        self._render_signal_panel(trade_bias, rv_signal_paragraph)
-        st.caption(
-            "RV modules active: ratio z-score, return spread, rolling correlation, rolling beta, regime labels, half-life proxy, vol-adjusted score, window comparison, liquidity overlay, signal history, beta-adjusted z-score, forward reversion stats, stability score, and pair screener."
+        self.context_panel.render(
+            title="RV Signal",
+            headline=trade_bias,
+            body=rv_signal_paragraph,
+            footer=(
+                "RV modules active: ratio z-score, return spread, rolling correlation, rolling beta, "
+                "regime labels, half-life proxy, vol-adjusted score, window comparison, liquidity overlay, "
+                "signal history, beta-adjusted z-score, forward reversion stats, stability score, and pair screener."
+            ),
         )
-        self._render_entry_exit_panel(trade_bias)
+
+        self.context_panel.render(
+            title="Entry / Exit Framework",
+            headline="Mean-reversion trading framework",
+            body=(
+                "Enter mean-reversion trades when the displayed-window z-score moves beyond ±2.0. "
+                "Consider trimming risk as the signal re-enters the ±1.0 zone, and treat a move back near 0.0 "
+                "as a take-profit / exit region. If the z-score extends beyond ±3.0 or pair correlation "
+                "deteriorates sharply, reassess the trade as a potential stop / invalidation scenario."
+            ),
+            footer=f"Current read: <span style='color:#F3F0E8; font-weight:700;'>{trade_bias}</span>",
+            margin_top="0.20rem",
+            margin_bottom="0.50rem",
+        )
 
         f1, f2, f3 = st.columns(3)
         with f1:
@@ -532,141 +400,16 @@ class RVTab:
         with f3:
             st.metric("FWD 20D REV", f"{fwd_20_avg:+.2f}%", f"{fwd_20_hit:.0%} hit | n={fwd_20_n}")
 
-        self._render_zscore_chart(rv_merged, selected_security, compare_security)
+        render_zscore_chart(rv_merged["zscore"], selected_security, compare_security)
 
-        spread_fig = go.Figure()
-        spread_fig.add_trace(
-            go.Scatter(
-                x=rv_merged.index,
-                y=rv_merged["cum_spread"],
-                mode="lines",
-                name="Cum Return Spread",
-                line=dict(color="#00C176", width=2.0),
-                hovertemplate="%{x|%b %d, %Y}<br>CUM SPREAD: %{y:.2%}<extra></extra>",
-            )
-        )
-        spread_fig.add_trace(
-            go.Scatter(
-                x=rv_merged.index,
-                y=[0.0] * len(rv_merged),
-                mode="lines",
-                name="Zero",
-                line=dict(color="#FF9F1A", width=1.2),
-                hovertemplate="ZERO: %{y:.2%}<extra></extra>",
-            )
-        )
-        spread_min = float(rv_merged["cum_spread"].min())
-        spread_max = float(rv_merged["cum_spread"].max())
-        spread_padding = max((spread_max - spread_min) * 0.12, 0.0025)
-        spread_fig.update_layout(
-            title=dict(text=f"{selected_security} / {compare_security} Cumulative Return Spread", x=0.02, xanchor="left"),
-            template="plotly_dark",
-            paper_bgcolor="#000000",
-            plot_bgcolor="#000000",
-            font=dict(
-                color="#F3F0E8",
-                family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                size=12,
-            ),
-            margin=dict(l=20, r=20, t=50, b=30),
-            height=420,
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="center",
-                x=0.5,
-                font=dict(size=10),
-                bgcolor="rgba(0,0,0,0)",
-            ),
-            xaxis=dict(
-                title="Date",
-                showgrid=True,
-                gridcolor="#2A2A2A",
-                zeroline=False,
-                range=[rv_merged.index.min(), rv_merged.index.max()],
-                rangeslider=dict(visible=False),
-                fixedrange=True,
-            ),
-            yaxis=dict(
-                title="Return Spread",
-                showgrid=True,
-                gridcolor="#2A2A2A",
-                zeroline=False,
-                range=[spread_min - spread_padding, spread_max + spread_padding],
-                tickformat=".2%",
-                fixedrange=True,
-            ),
-        )
-        st.plotly_chart(spread_fig, use_container_width=True)
+        render_return_spread_chart(rv_merged["cum_spread"], selected_security, compare_security)
 
-        beta_z_min = min(float(rv_merged["beta_adj_z"].min()), -2.0)
-        beta_z_max = max(float(rv_merged["beta_adj_z"].max()), 2.0)
-        beta_z_padding = max((beta_z_max - beta_z_min) * 0.12, 0.25)
-
-        beta_z_fig = go.Figure()
-        beta_z_fig.add_trace(
-            go.Scatter(
-                x=rv_merged.index,
-                y=rv_merged["beta_adj_z"],
-                mode="lines",
-                name="Beta-Adj Z",
-                line=dict(color="#B8B1A3", width=2.0),
-                hovertemplate="%{x|%b %d, %Y}<br>BETA-ADJ Z: %{y:,.2f}<extra></extra>",
-            )
+        render_beta_adjusted_z_chart(
+            rv_merged["beta_adj_z"],
+            pd.Series(1.0, index=rv_merged.index),
+            selected_security,
+            compare_security,
         )
-        for level, name in [(0.0, "Mean"), (2.0, "+2σ"), (-2.0, "-2σ")]:
-            beta_z_fig.add_trace(
-                go.Scatter(
-                    x=rv_merged.index,
-                    y=[level] * len(rv_merged),
-                    mode="lines",
-                    name=name,
-                    line=dict(color="#FF9F1A" if level == 0 else "#FF5A36", width=1.2 if level == 0 else 1, dash="solid" if level == 0 else "dash"),
-                    hovertemplate=f"{name}: %{{y:,.2f}}<extra></extra>",
-                )
-            )
-        beta_z_fig.update_layout(
-            title=dict(text=f"{selected_security} / {compare_security} Beta-Adjusted Spread Z-Score", x=0.02, xanchor="left"),
-            template="plotly_dark",
-            paper_bgcolor="#000000",
-            plot_bgcolor="#000000",
-            font=dict(
-                color="#F3F0E8",
-                family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                size=12,
-            ),
-            margin=dict(l=20, r=20, t=50, b=30),
-            height=420,
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="center",
-                x=0.5,
-                font=dict(size=10),
-                bgcolor="rgba(0,0,0,0)",
-            ),
-            xaxis=dict(
-                title="Date",
-                showgrid=True,
-                gridcolor="#2A2A2A",
-                zeroline=False,
-                range=[rv_merged.index.min(), rv_merged.index.max()],
-                rangeslider=dict(visible=False),
-                fixedrange=True,
-            ),
-            yaxis=dict(
-                title="Beta-Adj Z",
-                showgrid=True,
-                gridcolor="#2A2A2A",
-                zeroline=False,
-                range=[beta_z_min - beta_z_padding, beta_z_max + beta_z_padding],
-                tickformat=".2f",
-                fixedrange=True,
-            ),
-        )
-        st.plotly_chart(beta_z_fig, use_container_width=True)
 
         signal_history = rv_merged[["zscore"]].copy().reset_index()
         signal_history["regime"] = signal_history["zscore"].apply(
@@ -701,4 +444,5 @@ class RVTab:
         self._render_pair_screener(rv_candidates, hist, rv_start_date, rv_end_date, selected_security)
 
         with st.expander("Show RV signal history"):
-            st.dataframe(signal_history, use_container_width=True, hide_index=True)
+            signal_history = self.table.format_signal_history(signal_history)
+            self.table.render(signal_history, hide_index=True)
