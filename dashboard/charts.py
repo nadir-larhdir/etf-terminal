@@ -57,6 +57,18 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
     fig.add_trace(
         go.Scatter(
             x=filtered.index,
+            y=close_series,
+            mode="lines",
+            name="Price",
+            line=dict(color="#B8B1A3", width=1.2),
+            hoverinfo="skip",
+            showlegend=False,
+        )
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=filtered.index,
             y=[upper_band] * len(filtered),
             mode="lines",
             name="+1σ",
