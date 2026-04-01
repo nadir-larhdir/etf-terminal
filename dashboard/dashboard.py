@@ -73,4 +73,27 @@ class Dashboard:
         render_volume_chart(hist, selected_security, start_date, end_date)
 
         with st.expander(f"Show {selected_security} raw price history"):
-            st.dataframe(hist.tail(20), use_container_width=True)
+            display_hist = hist.tail(20).copy().reset_index()
+            display_hist = display_hist.rename(columns={"index": "date"})
+
+            if "date" in display_hist.columns:
+                display_hist["date"] = display_hist["date"].dt.strftime("%Y-%m-%d")
+
+            for col in ["open", "high", "low", "close", "adj_close"]:
+                if col in display_hist.columns:
+                    display_hist[col] = display_hist[col].map(lambda x: f"{x:,.2f}")
+
+            if "volume" in display_hist.columns:
+                display_hist["volume"] = display_hist["volume"].map(lambda x: f"{int(x):,}")
+
+            display_hist = display_hist.rename(columns={
+                "date": "DATE",
+                "open": "OPEN",
+                "high": "HIGH",
+                "low": "LOW",
+                "close": "CLOSE",
+                "adj_close": "ADJ CLOSE",
+                "volume": "VOLUME",
+            })
+
+            st.dataframe(display_hist, use_container_width=True, hide_index=True)

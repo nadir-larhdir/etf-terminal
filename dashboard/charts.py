@@ -61,7 +61,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             mode="lines",
             name="+1σ",
             line=dict(color="#FFD166", width=1, dash="dot"),
-            hovertemplate="+1σ: %{y:.2f}<extra></extra>",
+            hovertemplate="+1σ: %{y:,.2f}<extra></extra>",
         )
     )
     fig.add_trace(
@@ -73,7 +73,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             line=dict(color="#FFD166", width=1, dash="dot"),
             fill="tonexty",
             fillcolor="rgba(255, 209, 102, 0.10)",
-            hovertemplate="-1σ: %{y:.2f}<extra></extra>",
+            hovertemplate="-1σ: %{y:,.2f}<extra></extra>",
         )
     )
     fig.add_trace(
@@ -83,7 +83,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             mode="lines",
             name="Above Mean",
             line=dict(color="#00C176", width=2.5),
-            hovertemplate="%{x|%Y-%m-%d}<br>Price: %{y:.2f}<extra></extra>",
+            hovertemplate="%{x|%b %d, %Y}<br>PX_LAST: %{y:,.2f}<extra></extra>",
             connectgaps=False,
         )
     )
@@ -94,7 +94,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             mode="lines",
             name="Below Mean",
             line=dict(color="#FF5A36", width=2.5),
-            hovertemplate="%{x|%Y-%m-%d}<br>Price: %{y:.2f}<extra></extra>",
+            hovertemplate="%{x|%b %d, %Y}<br>PX_LAST: %{y:,.2f}<extra></extra>",
             connectgaps=False,
         )
     )
@@ -105,7 +105,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             mode="lines",
             name="Mean",
             line=dict(color="#FF9F1A", width=1.5),
-            hovertemplate="Mean: %{y:.2f}<extra></extra>",
+            hovertemplate="MEAN: %{y:,.2f}<extra></extra>",
         )
     )
 
@@ -172,7 +172,7 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             y=volume_series,
             name="Volume",
             marker_color=bar_colors,
-            hovertemplate="%{x|%Y-%m-%d}<br>Volume: %{y:,.0f}<extra></extra>",
+            hovertemplate="%{x|%b %d, %Y}<br>VOLUME: %{y:,.0f}<extra></extra>",
         )
     )
     fig.add_trace(
@@ -182,7 +182,7 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             mode="lines",
             name="Mean",
             line=dict(color="#FF9F1A", width=1.5),
-            hovertemplate="Mean: %{y:,.0f}<extra></extra>",
+            hovertemplate="MEAN: %{y:,.0f}<extra></extra>",
         )
     )
 
@@ -192,9 +192,9 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
         paper_bgcolor="#000000",
         plot_bgcolor="#000000",
         font=dict(
-        color="#F3F0E8",
-        family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-        size=12,
+            color="#F3F0E8",
+            family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+            size=12,
         ),
         margin=dict(l=20, r=20, t=50, b=30),
         height=520,
