@@ -52,6 +52,9 @@ def create_tables(engine):
             duration_bucket TEXT,
             currency TEXT,
             exchange TEXT,
+            expense_ratio REAL,
+            total_assets REAL,
+            quote_type TEXT,
             source TEXT,
             updated_at TEXT
         )
