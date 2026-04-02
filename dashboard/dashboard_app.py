@@ -1,6 +1,6 @@
 import streamlit as st
 
-from config import normalize_asset_class
+from config import APP_ENV, normalize_asset_class
 from dashboard.components import DashboardControls, SecurityHeader
 from dashboard.home_page import HomePage
 from dashboard.news_page import NewsPage
@@ -54,7 +54,9 @@ class DashboardApp:
                 st.session_state["active_view"] = "News"
                 st.rerun()
         with nav_col4:
-            st.caption(f"Current View: {st.session_state['active_view']}")
+            st.caption(
+                f"Current View: {st.session_state['active_view']} | Environment: {APP_ENV.upper()}"
+            )
 
         if st.session_state["active_view"] == "Home":
             self.home_page.render(securities)
