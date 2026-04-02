@@ -9,9 +9,11 @@ from dashboard.components.charts import (
 from dashboard.components.info_panel import InfoPanel
 from dashboard.components.controls import DashboardControls
 from dashboard.components.security_header import SecurityHeader
+from dashboard.styles.table_styles import DashboardTable
 
 __all__ = [
     "DashboardControls",
+    "DashboardTable",
     "InfoPanel",
     "SecurityHeader",
     "compute_default_date_range",

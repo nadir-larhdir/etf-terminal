@@ -111,6 +111,10 @@ class DashboardTable:
                     display_df[col] = numeric_series.map(
                         lambda x: f"{x:.0f}" if pd.notna(x) else ""
                     )
+                elif (numeric_series.dropna() % 1 == 0).all():
+                    display_df[col] = numeric_series.map(
+                        lambda x: f"{int(x):,}" if pd.notna(x) else ""
+                    )
                 else:
                     display_df[col] = numeric_series.map(
                         lambda x: f"{x:.2f}" if pd.notna(x) else ""

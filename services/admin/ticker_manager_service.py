@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import yfinance as yf
 
+from config import normalize_asset_class
 from scripts.market.enrich_metadata_from_yfinance import build_metadata_row
 
 
@@ -79,7 +80,8 @@ class TickerManagerService:
             )
 
         metadata_row = build_metadata_row(normalized)
-        asset_class = asset_class_override or self._derive_asset_class(metadata_row)
+        inferred_asset_class = asset_class_override or self._derive_asset_class(metadata_row)
+        asset_class = normalize_asset_class(inferred_asset_class)
         metadata_row["ticker"] = normalized
 
         return TickerProfile(
@@ -145,9 +147,9 @@ class TickerManagerService:
                 return "UST Long"
             return "UST Broad"
         if "high yield" in search_blob:
-            return "Credit HY"
+            return "HY Credit"
         if "investment grade" in search_blob or "corporate" in search_blob or "credit" in search_blob:
-            return "Credit IG"
+            return "IG Credit"
         if "mortgage" in search_blob or "mbs" in search_blob:
             return "MBS"
         if "municipal" in search_blob or "muni" in search_blob:

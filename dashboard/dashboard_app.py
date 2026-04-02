@@ -1,6 +1,9 @@
 import streamlit as st
 
+from config import normalize_asset_class
 from dashboard.components import DashboardControls, SecurityHeader
+from dashboard.home_page import HomePage
+from dashboard.news_page import NewsPage
 from dashboard.styles import apply_dashboard_theme
 from dashboard.tabs import AnalyticsTab, GraphsTab, RVTab
 from repositories.market import InputRepository, MetadataRepository, PriceRepository, SecurityRepository
@@ -16,6 +19,8 @@ class DashboardApp:
         self.price_repo = price_repo
         self.input_repo = input_repo
         self.metadata_repo = metadata_repo
+        self.home_page = HomePage(price_repo)
+        self.news_page = NewsPage()
         self.security_header = SecurityHeader()
         self.graphs_tab = GraphsTab()
         self.analytics_tab = AnalyticsTab()
@@ -32,9 +37,41 @@ class DashboardApp:
             st.warning("No active securities found in the database.")
             return
 
+        if "active_view" not in st.session_state:
+            st.session_state["active_view"] = "Home"
+
+        nav_col1, nav_col2, nav_col3, nav_col4 = st.columns([0.8, 1.0, 0.8, 3.4], vertical_alignment="center")
+        with nav_col1:
+            if st.button("Home", key="nav_home", use_container_width=True):
+                st.session_state["active_view"] = "Home"
+                st.rerun()
+        with nav_col2:
+            if st.button("Dashboard", key="nav_dashboard", use_container_width=True):
+                st.session_state["active_view"] = "Dashboard"
+                st.rerun()
+        with nav_col3:
+            if st.button("News", key="nav_news", use_container_width=True):
+                st.session_state["active_view"] = "News"
+                st.rerun()
+        with nav_col4:
+            st.caption(f"Current View: {st.session_state['active_view']}")
+
+        if st.session_state["active_view"] == "Home":
+            self.home_page.render(securities)
+            return
+
+        if st.session_state["active_view"] == "News":
+            self.news_page.render()
+            return
+
+        self._render_dashboard(securities)
+
+    def _render_dashboard(self, securities):
+        """Render the analytical dashboard workspace after the home page entry point."""
+
         if "asset_class" not in securities.columns:
             securities["asset_class"] = "Other"
-        securities["asset_class"] = securities["asset_class"].fillna("Other")
+        securities["asset_class"] = securities["asset_class"].fillna("Other").map(normalize_asset_class)
 
         asset_classes = sorted([asset for asset in securities["asset_class"].dropna().unique().tolist() if asset])
         universe_options = ["All"] + asset_classes
