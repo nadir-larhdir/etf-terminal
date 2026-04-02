@@ -31,6 +31,8 @@ APP_ENV = get_app_env()
 DB_PATH = BASE_DIR / ENV_DB_FILENAMES[APP_ENV]
 FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
 FMP_BASE_URL = "https://financialmodelingprep.com/stable"
+FRED_API_KEY = os.getenv("FRED_API_KEY", "").strip()
+FRED_BASE_URL = "https://api.stlouisfed.org/fred"
 
 
 def load_config() -> dict:
