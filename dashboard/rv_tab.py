@@ -128,7 +128,6 @@ class RVTab:
             screener_rows.append(
                 {
                     "PAIR": f"{selected_security}/{candidate}",
-                    "ABS Z": round(abs(cand_z), 2),
                     "Z": round(cand_z, 2),
                     "20D CORR": round(cand_corr, 2),
                     "STABILITY": round(cand_stability, 0),
@@ -138,9 +137,10 @@ class RVTab:
         with st.expander("Show RV pair screener"):
             if screener_rows:
                 screener_df = pd.DataFrame(screener_rows).sort_values(
-                    by=["ABS Z", "STABILITY"],
+                    by=["Z", "STABILITY"],
                     ascending=[False, False],
                 ).head(12)
+                screener_df = self.table.format_screener(screener_df)
                 self.table.render(screener_df, hide_index=True)
             else:
                 st.info("No RV screening candidates available for the selected window.")
@@ -171,24 +171,22 @@ class RVTab:
             st.warning("No overlapping history available for RV analysis.")
             return
 
-        rv_period = self.controls.render_select(
-            "RV Window",
-            ["5D", "30D", "3M", "6M", "1Y"],
-            index=3,
-            key=f"rv_period_{selected_security}_{compare_security}",
-        )
+        default_rv_period = "6M"
+        rv_default_start, rv_default_end = compute_default_date_range(merged, default_rv_period)
 
-        rv_default_start, rv_default_end = compute_default_date_range(merged, rv_period)
-
-        rv_start_date, rv_end_date = self.controls.render_date_range(
+        rv_period, rv_start_date, rv_end_date = self.controls.render_window_and_dates(
+            window_label="RV Window",
+            window_options=["5D", "30D", "3M", "6M", "1Y"],
+            window_index=3,
+            window_key=f"rv_period_{selected_security}_{compare_security}",
             start_label="RV Start Date",
             end_label="RV End Date",
             default_start=rv_default_start,
             default_end=rv_default_end,
             min_date=merged.index.min().date(),
             max_date=merged.index.max().date(),
-            start_key=f"rv_start_{selected_security}_{compare_security}_{rv_period}",
-            end_key=f"rv_end_{selected_security}_{compare_security}_{rv_period}",
+            start_key=f"rv_start_{selected_security}_{compare_security}_{default_rv_period}",
+            end_key=f"rv_end_{selected_security}_{compare_security}_{default_rv_period}",
         )
 
         merged_dates = pd.to_datetime(merged.index)

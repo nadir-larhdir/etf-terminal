@@ -1,12 +1,19 @@
-
-
+from typing import Literal
 import pandas as pd
 import streamlit as st
 
 
 class BloombergControls:
-    def render_select(self, label: str, options: list[str], *, index: int = 0, key: str) -> str:
-        return st.selectbox(label, options, index=index, key=key)
+    def render_select(
+        self,
+        label: str,
+        options: list[str],
+        *,
+        index: int = 0,
+        key: str,
+        width: int | Literal["stretch"] = "stretch",
+    ) -> str:
+        return st.selectbox(label, options, index=index, key=key, width=width)
 
     def render_date_range(
         self,
@@ -64,8 +71,9 @@ class BloombergControls:
         max_date,
         start_key: str,
         end_key: str,
+        width: int | Literal["stretch"] = "stretch",
     ) -> tuple[str, pd.Timestamp, pd.Timestamp]:
-        c1, c2, c3 = st.columns([1, 1, 1])
+        c1, c2, c3 = st.columns([0.9, 1, 1])
 
         with c1:
             selected_window = st.selectbox(
@@ -73,6 +81,7 @@ class BloombergControls:
                 window_options,
                 index=window_index,
                 key=window_key,
+                width=width,
             )
 
         with c2:

@@ -18,24 +18,22 @@ class GraphsTab:
     def render(self, hist: pd.DataFrame, selected_security: str) -> None:
         st.subheader("Charts")
 
-        selected_period = self.controls.render_select(
-            "Preset Window",
-            ["5D", "30D", "3M", "6M", "1Y"],
-            index=3,
-            key=f"graphs_period_{selected_security}",
-        )
+        default_period = "6M"
+        default_start, default_end = compute_default_date_range(hist, default_period)
 
-        default_start, default_end = compute_default_date_range(hist, selected_period)
-
-        start_date, end_date = self.controls.render_date_range(
+        selected_period, start_date, end_date = self.controls.render_window_and_dates(
+            window_label="Preset Window",
+            window_options=["5D", "30D", "3M", "6M", "1Y"],
+            window_index=3,
+            window_key=f"graphs_period_{selected_security}",
             start_label="Start Date",
             end_label="End Date",
             default_start=default_start,
             default_end=default_end,
             min_date=hist.index.min().date(),
             max_date=hist.index.max().date(),
-            start_key=f"start_{selected_security}_{selected_period}",
-            end_key=f"end_{selected_security}_{selected_period}",
+            start_key=f"start_{selected_security}_{default_period}",
+            end_key=f"end_{selected_security}_{default_period}",
         )
 
         st.caption(f"Displaying {selected_security} from {start_date.date()} to {end_date.date()}")

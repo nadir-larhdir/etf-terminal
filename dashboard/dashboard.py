@@ -33,7 +33,7 @@ class Dashboard:
             st.warning("No active securities found in the database.")
             return
 
-        selector_col, desc_col = st.columns([1, 2.4])
+        selector_col, desc_col = st.columns([0.7, 2.7])
 
         with selector_col:
             selected_security = self.controls.render_select(
