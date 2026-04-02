@@ -1,5 +1,6 @@
 streamlit
 pandas
 sqlalchemy
-yfinance
 plotly
+requests
+python-dotenv

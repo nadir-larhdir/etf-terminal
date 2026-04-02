@@ -17,7 +17,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--period",
         default="1y",
-        help="yfinance period to use for full, gap-fill, or missing-only loads and for new tickers in incremental mode.",
+        help="Lookback window to use for full, gap-fill, or missing-only loads and for new tickers in incremental mode.",
     )
     parser.add_argument(
         "--overlap-days",
