@@ -56,6 +56,16 @@ TABLE_DEFINITIONS = {
             updated_at TEXT
         )
     """,
+    "macro_data": """
+        CREATE TABLE IF NOT EXISTS macro_data (
+            series_id TEXT NOT NULL,
+            date TEXT NOT NULL,
+            value REAL,
+            source TEXT,
+            updated_at TEXT,
+            PRIMARY KEY (series_id, date)
+        )
+    """,
 }
 
 
