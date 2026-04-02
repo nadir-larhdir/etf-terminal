@@ -14,7 +14,11 @@ class HeaderPanel:
         selected_security: str,
         metadata: dict | None,
     ) -> None:
-        selected_row = securities.loc[securities["ticker"] == selected_security].iloc[0]
+        selected_matches = securities.loc[securities["ticker"].astype(str) == str(selected_security)]
+        if selected_matches.empty:
+            st.warning(f"Security metadata not found for {selected_security}.")
+            return
+        selected_row = selected_matches.iloc[0]
         security_name = selected_row["name"]
         asset_class = selected_row["asset_class"]
 

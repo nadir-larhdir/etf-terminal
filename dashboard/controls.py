@@ -1,9 +1,71 @@
 from typing import Literal
+
 import pandas as pd
 import streamlit as st
 
 
 class BloombergControls:
+    def render_security_select(
+        self,
+        label: str,
+        securities: pd.DataFrame,
+        *,
+        key: str,
+        width: int | Literal["stretch"] = "stretch",
+    ) -> str:
+        options_df = securities.copy()
+
+        if options_df.empty or "ticker" not in options_df.columns:
+            return ""
+
+        if "asset_class" not in options_df.columns:
+            options_df["asset_class"] = "Other"
+        if "name" not in options_df.columns:
+            options_df["name"] = options_df["ticker"]
+
+        options_df["ticker"] = options_df["ticker"].astype(str)
+        options_df["asset_class"] = options_df["asset_class"].fillna("Other").astype(str)
+        options_df["name"] = options_df["name"].fillna(options_df["ticker"]).astype(str)
+
+        options_df = options_df.sort_values(["asset_class", "ticker"]).reset_index(drop=True)
+
+        search_value = st.text_input(
+            f"Search {label}",
+            value="",
+            key=f"{key}_search",
+            placeholder="Type ticker...",
+        ).strip().upper()
+
+        if search_value:
+            filtered_df = options_df.loc[
+                options_df["ticker"].str.upper().str.contains(search_value, na=False)
+            ].copy()
+            if filtered_df.empty:
+                filtered_df = options_df.loc[
+                    options_df["name"].str.upper().str.contains(search_value, na=False)
+                ].copy()
+        else:
+            filtered_df = options_df.copy()
+
+        ticker_options = filtered_df["ticker"].tolist()
+        if not ticker_options:
+            st.caption("No matching securities.")
+            return ""
+
+        label_map = {
+            row["ticker"]: str(row["ticker"])
+            for _, row in filtered_df.iterrows()
+        }
+
+        selected = st.selectbox(
+            label,
+            ticker_options,
+            key=key,
+            width=width,
+            format_func=lambda ticker: label_map.get(str(ticker), str(ticker)),
+        )
+        return str(selected) if selected is not None else ""
+
     def render_select(
         self,
         label: str,
@@ -13,7 +75,10 @@ class BloombergControls:
         key: str,
         width: int | Literal["stretch"] = "stretch",
     ) -> str:
-        return st.selectbox(label, options, index=index, key=key, width=width)
+        if not options:
+            return ""
+        selected = st.selectbox(label, options, index=index, key=key, width=width)
+        return str(selected) if selected is not None else ""
 
     def render_date_range(
         self,

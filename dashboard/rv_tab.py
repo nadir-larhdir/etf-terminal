@@ -1,5 +1,3 @@
-import math
-from typing import cast
 import pandas as pd
 import streamlit as st
 
@@ -12,6 +10,8 @@ from dashboard.charts import (
     render_return_spread_chart,
     render_beta_adjusted_z_chart,
 )
+from models.security import Security
+from models.security_pair import SecurityPair
 
 
 class RVTab:
@@ -21,51 +21,7 @@ class RVTab:
         self.table = BloombergTable()
         self.controls = BloombergControls()
 
-    def _compute_window_z(self, series: pd.Series, window: int) -> float:
-        window_series = series.tail(min(window, len(series)))
-        if len(window_series) <= 1:
-            return 0.0
-        mean_val = float(window_series.mean())
-        std_val = float(window_series.std(ddof=0))
-        return ((float(window_series.iloc[-1]) - mean_val) / std_val) if std_val != 0 else 0.0
 
-    def _compute_forward_reversion_stats(
-        self,
-        full_ratio: pd.Series,
-        full_z_series: pd.Series,
-        horizon: int,
-    ) -> tuple[float, float, int]:
-        event_dates: list[object] = []
-        prev_is_extreme = False
-        for dt, z_val in full_z_series.items():
-            is_extreme = abs(float(z_val)) >= 2.0
-            if is_extreme and not prev_is_extreme:
-                event_dates.append(dt)
-            prev_is_extreme = is_extreme
-
-        favorable_moves: list[float] = []
-        for dt in event_dates:
-            if dt not in full_ratio.index:
-                continue
-            idx = full_ratio.index.get_loc(dt)
-            if not isinstance(idx, int):
-                continue
-            future_idx = idx + horizon
-            if future_idx >= len(full_ratio):
-                continue
-            start_ratio = cast(float, full_ratio.iat[idx])
-            end_ratio = cast(float, full_ratio.iat[future_idx])
-            z0 = cast(float, full_z_series.iat[idx])
-            raw_move = ((end_ratio / start_ratio) - 1.0) * 100 if start_ratio != 0 else 0.0
-            favorable_move = (-1.0 if z0 > 0 else 1.0) * raw_move
-            favorable_moves.append(favorable_move)
-
-        if not favorable_moves:
-            return 0.0, 0.0, 0
-
-        avg_move = sum(favorable_moves) / len(favorable_moves)
-        hit_rate = sum(1.0 for x in favorable_moves if x > 0) / len(favorable_moves)
-        return avg_move, hit_rate, len(favorable_moves)
 
     def _render_metric_grid(self, metrics, columns: int) -> None:
         cols = st.columns(columns)
@@ -78,61 +34,24 @@ class RVTab:
     def _render_pair_screener(
         self,
         rv_candidates,
-        hist: pd.DataFrame,
+        security: Security,
         rv_start_date,
         rv_end_date,
         selected_security: str,
     ) -> None:
         screener_rows = []
         for candidate in rv_candidates:
-            candidate_hist = self.price_repo.get_price_history(candidate)
+            candidate_obj = Security(candidate)
+            candidate_hist = candidate_obj.load_history(self.price_repo)
             if candidate_hist.empty:
                 continue
 
-            candidate_merged = hist[["close"]].join(
-                candidate_hist[["close"]],
-                how="inner",
-                lsuffix="_base",
-                rsuffix="_comp",
-            ).dropna()
-            candidate_dates = pd.to_datetime(candidate_merged.index)
-            candidate_merged = candidate_merged.loc[
-                (candidate_dates >= pd.Timestamp(rv_start_date)) & (candidate_dates <= pd.Timestamp(rv_end_date))
-            ].copy()
+            pair = SecurityPair(security, candidate_obj)
+            candidate_merged = pair.filtered_prices(start_date=rv_start_date, end_date=rv_end_date)
             if len(candidate_merged) < 10:
                 continue
 
-            candidate_merged["ratio"] = candidate_merged["close_base"] / candidate_merged["close_comp"]
-            cand_ratio_mean = float(candidate_merged["ratio"].mean())
-            cand_ratio_std = float(candidate_merged["ratio"].std(ddof=0)) if len(candidate_merged) > 1 else 0.0
-            cand_z = ((float(candidate_merged["ratio"].iloc[-1]) - cand_ratio_mean) / cand_ratio_std) if cand_ratio_std != 0 else 0.0
-
-            cand_ret_base = candidate_merged["close_base"].pct_change()
-            cand_ret_comp = candidate_merged["close_comp"].pct_change()
-            corr_series = cand_ret_base.rolling(20).corr(cand_ret_comp).dropna()
-            cand_corr = float(corr_series.iloc[-1]) if not corr_series.empty else 0.0
-            cand_beta_series = cand_ret_base.rolling(20).cov(cand_ret_comp) / cand_ret_comp.rolling(20).var()
-            cand_beta_stability = float(cand_beta_series.dropna().std(ddof=0)) if len(cand_beta_series.dropna()) > 1 else 0.0
-            cand_ratio_autocorr = float(candidate_merged["ratio"].autocorr(lag=1)) if len(candidate_merged) > 3 else 0.0
-            cand_half_life_component = (
-                max(min(1 - abs(((-math.log(2) / math.log(cand_ratio_autocorr)) if 0 < cand_ratio_autocorr < 1 else 0.0) - 10) / 20, 1.0), 0.0)
-                if 0 < cand_ratio_autocorr < 1
-                else 0.0
-            )
-            cand_stability = 100 * (
-                0.45 * max(min(abs(cand_corr), 1.0), 0.0)
-                + 0.30 * cand_half_life_component
-                + 0.25 * max(min(1 / (1 + cand_beta_stability), 1.0), 0.0)
-            )
-
-            screener_rows.append(
-                {
-                    "PAIR": f"{selected_security}/{candidate}",
-                    "Z": round(cand_z, 2),
-                    "20D CORR": round(cand_corr, 2),
-                    "STABILITY": round(cand_stability, 0),
-                }
-            )
+            screener_rows.append(pair.screener_row(start_date=rv_start_date, end_date=rv_end_date))
 
         with st.expander("Show RV pair screener"):
             if screener_rows:
@@ -145,20 +64,27 @@ class RVTab:
             else:
                 st.info("No RV screening candidates available for the selected window.")
 
-    def render(self, hist: pd.DataFrame, tickers, selected_security: str) -> None:
+    def render(self, security: Security, tickers) -> None:
         st.subheader("RV Analysis")
+        hist = security.history
+        selected_security = security.ticker
 
         rv_candidates = [ticker for ticker in tickers if ticker != selected_security]
-        compare_security = self.controls.render_select(
-            "Compare With",
-            rv_candidates,
-            key=f"rv_compare_{selected_security}",
-        )
+        compare_col, _ = st.columns([0.32, 0.68])
+        with compare_col:
+            compare_security = self.controls.render_select(
+                "Compare With",
+                rv_candidates,
+                key=f"rv_compare_{selected_security}",
+            )
 
-        compare_hist = self.price_repo.get_price_history(compare_security)
+        compare_obj = Security(compare_security)
+        compare_hist = compare_obj.load_history(self.price_repo)
         if compare_hist.empty:
             st.warning(f"No price history found for {compare_security}.")
             return
+
+        pair = SecurityPair(security, compare_obj)
 
         merged = hist[["close", "volume"]].join(
             compare_hist[["close", "volume"]],
@@ -198,88 +124,71 @@ class RVTab:
             st.warning("No overlapping RV history available for the selected dates.")
             return
 
-        rv_merged["ratio"] = rv_merged["close_base"] / rv_merged["close_comp"]
+        ratio_series = pair.ratio(start_date=rv_start_date, end_date=rv_end_date)
+        ratio_series = ratio_series.loc[rv_merged.index]
+        rv_merged["ratio"] = ratio_series
         ratio_mean = float(rv_merged["ratio"].mean())
         ratio_std = float(rv_merged["ratio"].std(ddof=0)) if len(rv_merged) > 1 else 0.0
-        rv_merged["zscore"] = (rv_merged["ratio"] - ratio_mean) / ratio_std if ratio_std != 0 else 0.0
+
+        zscore_series = pair.ratio_zscore(start_date=rv_start_date, end_date=rv_end_date)
+        zscore_series = zscore_series.loc[rv_merged.index]
+        rv_merged["zscore"] = zscore_series if not zscore_series.empty else 0.0
 
         current_ratio = float(rv_merged["ratio"].iloc[-1])
         current_z = float(rv_merged["zscore"].iloc[-1])
-        abs_dev_pct = ((current_ratio / ratio_mean) - 1.0) * 100 if ratio_mean != 0 else 0.0
+        abs_dev_pct = pair.ratio_deviation_pct(start_date=rv_start_date, end_date=rv_end_date)
 
-        returns_base = rv_merged["close_base"].pct_change()
-        returns_comp = rv_merged["close_comp"].pct_change()
         ratio_returns = rv_merged["ratio"].pct_change()
 
-        corr_20_series = returns_base.rolling(20).corr(returns_comp)
-        corr_60_series = returns_base.rolling(60).corr(returns_comp)
+        corr_20_series = pair.rolling_correlation(window=20)
+        corr_20_series = corr_20_series.loc[rv_merged.index.intersection(corr_20_series.index)]
         current_corr_20 = float(corr_20_series.dropna().iloc[-1]) if not corr_20_series.dropna().empty else 0.0
+
+        corr_60_series = pair.rolling_correlation(window=60)
+        corr_60_series = corr_60_series.loc[rv_merged.index.intersection(corr_60_series.index)]
         current_corr_60 = float(corr_60_series.dropna().iloc[-1]) if not corr_60_series.dropna().empty else 0.0
 
-        beta_series = returns_base.rolling(20).cov(returns_comp) / returns_comp.rolling(20).var()
+        beta_series = pair.rolling_beta(window=20)
+        beta_series = beta_series.loc[rv_merged.index.intersection(beta_series.index)]
         if not beta_series.dropna().empty:
             current_beta = float(beta_series.dropna().iloc[-1])
             beta_stability = float(beta_series.dropna().std(ddof=0)) if len(beta_series.dropna()) > 1 else 0.0
         else:
-            comp_var = float(returns_comp.var(ddof=0)) if len(returns_comp.dropna()) > 1 else 0.0
-            current_beta = float(returns_base.cov(returns_comp) / comp_var) if comp_var != 0 else 1.0
+            current_beta = 1.0
             beta_stability = 0.0
 
         realized_vol = float(ratio_returns.std(ddof=0)) * (252 ** 0.5) if len(ratio_returns.dropna()) > 1 else 0.0
         vol_adj_score = current_z / realized_vol if realized_vol != 0 else 0.0
 
         lag1_autocorr = float(rv_merged["ratio"].autocorr(lag=1)) if len(rv_merged) > 3 else 0.0
-        half_life = -math.log(2) / math.log(lag1_autocorr) if 0 < lag1_autocorr < 1 else 0.0
+        half_life = pair.half_life_proxy(start_date=rv_start_date, end_date=rv_end_date)
 
-        if current_z >= 2.0:
-            rv_regime = "RICH / EXTREME"
-            trade_bias = f"Fade rich: Short {selected_security} / Long {compare_security}"
-        elif current_z >= 1.0:
-            rv_regime = "RICH"
-            trade_bias = f"Monitor richening in {selected_security} vs {compare_security}"
-        elif current_z <= -2.0:
-            rv_regime = "CHEAP / EXTREME"
-            trade_bias = f"Fade cheap: Long {selected_security} / Short {compare_security}"
-        elif current_z <= -1.0:
-            rv_regime = "CHEAP"
-            trade_bias = f"Monitor cheapening in {selected_security} vs {compare_security}"
-        else:
-            rv_regime = "NEUTRAL"
-            trade_bias = "No strong RV dislocation signal"
+        rv_regime = pair.regime_label(start_date=rv_start_date, end_date=rv_end_date)
+        trade_bias = pair.trade_bias(start_date=rv_start_date, end_date=rv_end_date)
 
-        if 0 < lag1_autocorr < 0.6:
-            mr_quality = "Strong MR"
-        elif 0.6 <= lag1_autocorr < 0.85:
-            mr_quality = "Moderate MR"
-        else:
-            mr_quality = "Weak / Unstable"
+        mr_quality = pair.mean_reversion_quality(start_date=rv_start_date, end_date=rv_end_date)
 
         base_vol_ratio = (float(hist["volume"].iloc[-1]) / float(hist["volume"].tail(30).mean())) if float(hist["volume"].tail(30).mean()) != 0 else 0.0
         comp_vol_ratio = (float(compare_hist["volume"].iloc[-1]) / float(compare_hist["volume"].tail(30).mean())) if float(compare_hist["volume"].tail(30).mean()) != 0 else 0.0
 
-        full_ratio = merged["close_base"] / merged["close_comp"]
-        z_30d = self._compute_window_z(full_ratio, 30)
-        z_90d = self._compute_window_z(full_ratio, 90)
-        z_180d = self._compute_window_z(full_ratio, 180)
+        z_30d = pair.window_zscore(30)
+        z_90d = pair.window_zscore(90)
+        z_180d = pair.window_zscore(180)
 
-        rv_merged["beta_adj_spread"] = rv_merged["close_base"] - current_beta * rv_merged["close_comp"]
-        spread_mean = float(rv_merged["beta_adj_spread"].mean())
-        spread_std = float(rv_merged["beta_adj_spread"].std(ddof=0)) if len(rv_merged) > 1 else 0.0
-        rv_merged["beta_adj_z"] = (rv_merged["beta_adj_spread"] - spread_mean) / spread_std if spread_std != 0 else 0.0
+        beta_adj_spread = pair.beta_adjusted_spread(beta=current_beta, start_date=rv_start_date, end_date=rv_end_date)
+        beta_adj_spread = beta_adj_spread.loc[rv_merged.index]
+        rv_merged["beta_adj_spread"] = beta_adj_spread
+
+        beta_adj_z = pair.beta_adjusted_zscore(beta=current_beta, start_date=rv_start_date, end_date=rv_end_date)
+        beta_adj_z = beta_adj_z.loc[rv_merged.index]
+        rv_merged["beta_adj_z"] = beta_adj_z if not beta_adj_z.empty else 0.0
         current_beta_adj_z = float(rv_merged["beta_adj_z"].iloc[-1])
 
-        corr_component = max(min((abs(current_corr_20) + abs(current_corr_60)) / 2, 1.0), 0.0)
-        hl_component = max(min(1 - abs(half_life - 10) / 20, 1.0), 0.0) if half_life > 0 else 0.0
-        beta_component = max(min(1 / (1 + beta_stability), 1.0), 0.0)
-        stability_score = 100 * (0.45 * corr_component + 0.30 * hl_component + 0.25 * beta_component)
+        stability_score = pair.stability_score(start_date=rv_start_date, end_date=rv_end_date)
 
-        full_ratio_mean = float(full_ratio.mean())
-        full_ratio_std = float(full_ratio.std(ddof=0)) if len(full_ratio) > 1 else 0.0
-        full_z_series = (full_ratio - full_ratio_mean) / full_ratio_std if full_ratio_std != 0 else pd.Series(0.0, index=full_ratio.index)
-
-        fwd_5_avg, fwd_5_hit, fwd_5_n = self._compute_forward_reversion_stats(full_ratio, full_z_series, 5)
-        fwd_10_avg, fwd_10_hit, fwd_10_n = self._compute_forward_reversion_stats(full_ratio, full_z_series, 10)
-        fwd_20_avg, fwd_20_hit, fwd_20_n = self._compute_forward_reversion_stats(full_ratio, full_z_series, 20)
+        fwd_5_avg, fwd_5_hit, fwd_5_n = pair.forward_reversion_stats(5)
+        fwd_10_avg, fwd_10_hit, fwd_10_n = pair.forward_reversion_stats(10)
+        fwd_20_avg, fwd_20_hit, fwd_20_n = pair.forward_reversion_stats(20)
 
         if abs(current_z) >= 2.0:
             stretch_comment = (
@@ -439,7 +348,7 @@ class RVTab:
             }
         ).tail(12)
 
-        self._render_pair_screener(rv_candidates, hist, rv_start_date, rv_end_date, selected_security)
+        self._render_pair_screener(rv_candidates, security, rv_start_date, rv_end_date, selected_security)
 
         with st.expander("Show RV signal history"):
             signal_history = self.table.format_signal_history(signal_history)

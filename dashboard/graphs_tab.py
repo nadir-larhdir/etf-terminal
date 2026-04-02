@@ -1,4 +1,3 @@
-import pandas as pd
 import streamlit as st
 
 from dashboard.charts import (
@@ -8,6 +7,7 @@ from dashboard.charts import (
 )
 from dashboard.table_styles import BloombergTable
 from dashboard.controls import BloombergControls
+from models.security import Security
 
 
 class GraphsTab:
@@ -15,8 +15,11 @@ class GraphsTab:
         self.table = BloombergTable()
         self.controls = BloombergControls()
 
-    def render(self, hist: pd.DataFrame, selected_security: str) -> None:
+    def render(self, security: Security) -> None:
         st.subheader("Charts")
+
+        hist = security.history
+        selected_security = security.ticker
 
         default_period = "6M"
         default_start, default_end = compute_default_date_range(hist, default_period)

@@ -1,25 +1,27 @@
-import pandas as pd
 import streamlit as st
 
 from dashboard.context_panel import ContextPanel
+from models.security import Security
 
 
 class AnalyticsTab:
     def __init__(self) -> None:
         self.context_panel = ContextPanel()
 
-    def render(self, hist: pd.DataFrame) -> None:
+    def render(self, security: Security) -> None:
         st.subheader("Analytics")
+        hist = security.history
 
         # --- Price metrics ---
-        px_last = float(hist["close"].iloc[-1])
-        prev_close = float(hist["close"].iloc[-2]) if len(hist) > 1 else px_last
+        px_last = security.last_price() or 0.0
+        close_series = security.close_series()
+        prev_close = float(close_series.iloc[-2]) if len(close_series) > 1 else px_last
         chg_pct = ((px_last - prev_close) / prev_close * 100) if prev_close != 0 else 0.0
 
         # --- Volume metrics ---
-        volume = hist["volume"]
-        vol_mean_30d = float(volume.tail(30).mean()) if len(volume) >= 1 else float(volume.iloc[-1])
-        current_vol = float(volume.iloc[-1])
+        volume = security.volume_series()
+        current_vol = security.last_volume() or 0.0
+        vol_mean_30d = float(volume.tail(30).mean()) if not volume.empty else 0.0
         vol_std_30d = float(volume.tail(30).std(ddof=0)) if len(volume.tail(30)) > 1 else 0.0
         vol_z = (current_vol - vol_mean_30d) / vol_std_30d if vol_std_30d != 0 else 0.0
 
