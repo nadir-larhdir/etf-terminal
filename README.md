@@ -4,9 +4,9 @@
 
 ```bash
 pip install -r requirements.txt
-python3 -m scripts.db.initialize_database
-python3 -m scripts.market.sync_securities_universe
-python3 -m scripts.market.sync_price_history
+APP_ENV=uat python3 -m scripts.db.initialize_database
+APP_ENV=uat python3 -m scripts.market.sync_securities_universe
+APP_ENV=uat python3 -m scripts.market.sync_price_history
 streamlit run main.py
 ```
 
@@ -88,31 +88,36 @@ pip install -r requirements.txt
 ### 2. Initialize database
 
 ```bash
-python3 -m scripts.db.initialize_database
-python3 -m scripts.market.sync_securities_universe
-python3 -m scripts.market.sync_price_history
+APP_ENV=uat python3 -m scripts.db.initialize_database
+APP_ENV=uat python3 -m scripts.market.sync_securities_universe
+APP_ENV=uat python3 -m scripts.market.sync_price_history
 ```
+
+Environment notes:
+- `APP_ENV=prod` uses `market_data_prod.db`
+- `APP_ENV=uat` uses `market_data_uat.db`
+- if `APP_ENV` is omitted, the app defaults to `prod`
 
 ### 2b. Choose the right update mode
 
 ```bash
 # Universe updates
-python3 -m scripts.market.sync_securities_universe --mode upsert
-python3 -m scripts.market.sync_securities_universe --mode missing-only
+APP_ENV=uat python3 -m scripts.market.sync_securities_universe --mode upsert
+APP_ENV=uat python3 -m scripts.market.sync_securities_universe --mode missing-only
 
 # Price updates
-python3 -m scripts.market.sync_price_history --mode incremental
-python3 -m scripts.market.sync_price_history --mode missing-only
-python3 -m scripts.market.sync_price_history --mode gap-fill --period 1y --tickers LQD,HYG
-python3 -m scripts.market.sync_price_history --mode full --period 5y --tickers TLT
+APP_ENV=uat python3 -m scripts.market.sync_price_history --mode incremental
+APP_ENV=uat python3 -m scripts.market.sync_price_history --mode missing-only
+APP_ENV=uat python3 -m scripts.market.sync_price_history --mode gap-fill --period 1y --tickers LQD,HYG
+APP_ENV=uat python3 -m scripts.market.sync_price_history --mode full --period 5y --tickers TLT
 
 # Metadata updates
-python3 -m scripts.market.sync_static_metadata --mode missing-only
-python3 -m scripts.market.enrich_metadata_from_yfinance --mode upsert --tickers LQD,HYG
+APP_ENV=uat python3 -m scripts.market.sync_static_metadata --mode missing-only
+APP_ENV=uat python3 -m scripts.market.enrich_metadata_from_yfinance --mode upsert --tickers LQD,HYG
 
 # Ticker management
-python3 -m scripts.admin.manage_universe_ticker add BSV
-python3 -m scripts.admin.manage_universe_ticker delete BSV
+APP_ENV=uat python3 -m scripts.admin.manage_universe_ticker add BSV
+APP_ENV=uat python3 -m scripts.admin.manage_universe_ticker delete BSV
 ```
 
 - `full` / `full-replace`: delete and reload the selected scope.
@@ -121,6 +126,13 @@ python3 -m scripts.admin.manage_universe_ticker delete BSV
 - `missing-only`: only insert rows for tickers that are not already in the database.
 
 ### 3. Run the dashboard
+
+```bash
+APP_ENV=uat streamlit run main.py
+APP_ENV=prod streamlit run main.py
+```
+
+or simply:
 
 ```bash
 streamlit run main.py

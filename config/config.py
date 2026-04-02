@@ -1,9 +1,24 @@
 import json
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = BASE_DIR / "market_data.db"
 CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
+ENV_DB_FILENAMES = {
+    "prod": "market_data_prod.db",
+    "uat": "market_data_uat.db",
+}
+
+
+def get_app_env() -> str:
+    """Return the active application environment used for database selection."""
+
+    raw_env = os.getenv("APP_ENV", "prod").strip().lower()
+    return raw_env if raw_env in ENV_DB_FILENAMES else "prod"
+
+
+APP_ENV = get_app_env()
+DB_PATH = BASE_DIR / ENV_DB_FILENAMES[APP_ENV]
 
 
 def load_config() -> dict:
