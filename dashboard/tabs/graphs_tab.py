@@ -1,19 +1,21 @@
 import streamlit as st
 
-from dashboard.charts import (
+from dashboard.components.charts import (
     compute_default_date_range,
     render_price_chart,
     render_volume_chart,
 )
-from dashboard.table_styles import BloombergTable
-from dashboard.controls import BloombergControls
+from dashboard.components.controls import DashboardControls
+from dashboard.styles.table_styles import DashboardTable
 from models.security import Security
 
 
 class GraphsTab:
+    """Render price and volume charts plus the raw history table."""
+
     def __init__(self) -> None:
-        self.table = BloombergTable()
-        self.controls = BloombergControls()
+        self.table = DashboardTable()
+        self.controls = DashboardControls()
 
     def render(self, security: Security) -> None:
         st.subheader("Charts")

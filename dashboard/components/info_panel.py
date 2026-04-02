@@ -1,7 +1,9 @@
 import streamlit as st
 
 
-class ContextPanel:
+class InfoPanel:
+    """Render reusable narrative panels with the dashboard's terminal-style theme."""
+
     def render(
         self,
         title: str,

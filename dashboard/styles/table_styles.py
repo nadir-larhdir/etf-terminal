@@ -3,7 +3,9 @@ import pandas as pd
 import streamlit as st
 
 
-class BloombergTable:
+class DashboardTable:
+    """Style and render dataframe outputs in the dashboard table theme."""
+
     def _style_dataframe(self, df: pd.DataFrame):
         styled = df.style
 

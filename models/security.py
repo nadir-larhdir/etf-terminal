@@ -8,6 +8,8 @@ import pandas as pd
 
 @dataclass
 class Security:
+    """Represent one ETF and expose convenience methods around its stored history."""
+
     ticker: str
     name: str | None = None
     asset_class: str | None = None
@@ -35,11 +37,11 @@ class Security:
         self.metadata = metadata.copy() if metadata else {}
 
     def load_history(self, price_repo) -> pd.DataFrame:
-        self.history = price_repo.get_price_history(self.ticker)
+        self.history = price_repo.get_ticker_price_history(self.ticker)
         return self.history
 
     def load_metadata(self, metadata_repo) -> dict[str, Any]:
-        loaded = metadata_repo.get_metadata(self.ticker)
+        loaded = metadata_repo.get_ticker_metadata(self.ticker)
         self.metadata = loaded.copy() if loaded else {}
         return self.metadata
 

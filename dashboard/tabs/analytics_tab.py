@@ -1,12 +1,14 @@
 import streamlit as st
 
-from dashboard.context_panel import ContextPanel
+from dashboard.components.info_panel import InfoPanel
 from models.security import Security
 
 
 class AnalyticsTab:
+    """Display single-security liquidity and price diagnostics."""
+
     def __init__(self) -> None:
-        self.context_panel = ContextPanel()
+        self.info_panel = InfoPanel()
 
     def render(self, security: Security) -> None:
         st.subheader("Analytics")
@@ -54,7 +56,7 @@ class AnalyticsTab:
             st.metric("RANGE POS", f"{range_position:.2%}")
 
         # --- Liquidity panel ---
-        self.context_panel.render(
+        self.info_panel.render(
             title="Liquidity Regime",
             headline=liquidity_regime,
             body="Based on current volume versus the trailing 30-day average and its standardized z-score.",

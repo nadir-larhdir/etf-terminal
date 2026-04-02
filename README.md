@@ -4,9 +4,9 @@
 
 ```bash
 pip install -r requirements.txt
-python scripts/init_db.py
-python scripts/seed_securities.py
-python scripts/backfill_prices.py
+python3 -m scripts.db.initialize_database
+python3 -m scripts.market.sync_securities_universe
+python3 -m scripts.market.sync_price_history
 streamlit run main.py
 ```
 
@@ -46,7 +46,7 @@ Key capabilities:
 
 ## 🧠 Key Features
 
-- 📊 Bloomberg-style dashboard (Streamlit)
+- 📊 Terminal-style dashboard (Streamlit)
 - 📈 Price analytics with mean & ±1σ bands
 - 📉 Volume regime detection
 - 🔄 Flow & premium/discount tracking
@@ -60,11 +60,13 @@ Key capabilities:
 The project follows a modular, scalable structure:
 
 ```text
+config/        → config.json + thin Python loader
+db/            → engine + schema
 models/        → financial instruments (ETF classes)
-repositories/  → database access layer
-services/      → market data + analytics
-dashboard/     → UI & visualization (Streamlit)
-scripts/       → DB setup & data ingestion
+repositories/  → data access layer grouped by domain
+services/      → business logic grouped by domain
+dashboard/     → app shell, components, tabs, and styles
+scripts/       → CLI entrypoints grouped by domain (db / market / admin)
 ```
 
 Design principles:
@@ -86,10 +88,37 @@ pip install -r requirements.txt
 ### 2. Initialize database
 
 ```bash
-python scripts/init_db.py
-python scripts/seed_securities.py
-python scripts/backfill_prices.py
+python3 -m scripts.db.initialize_database
+python3 -m scripts.market.sync_securities_universe
+python3 -m scripts.market.sync_price_history
 ```
+
+### 2b. Choose the right update mode
+
+```bash
+# Universe updates
+python3 -m scripts.market.sync_securities_universe --mode upsert
+python3 -m scripts.market.sync_securities_universe --mode missing-only
+
+# Price updates
+python3 -m scripts.market.sync_price_history --mode incremental
+python3 -m scripts.market.sync_price_history --mode missing-only
+python3 -m scripts.market.sync_price_history --mode gap-fill --period 1y --tickers LQD,HYG
+python3 -m scripts.market.sync_price_history --mode full --period 5y --tickers TLT
+
+# Metadata updates
+python3 -m scripts.market.sync_static_metadata --mode missing-only
+python3 -m scripts.market.enrich_metadata_from_yfinance --mode upsert --tickers LQD,HYG
+
+# Ticker management
+python3 -m scripts.admin.manage_universe_ticker add BSV
+python3 -m scripts.admin.manage_universe_ticker delete BSV
+```
+
+- `full` / `full-replace`: delete and reload the selected scope.
+- `gap-fill`: refetch a period and upsert it without deleting existing rows.
+- `incremental`: fetch only recent data from the latest stored date forward.
+- `missing-only`: only insert rows for tickers that are not already in the database.
 
 ### 3. Run the dashboard
 

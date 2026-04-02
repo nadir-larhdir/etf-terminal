@@ -1,7 +1,7 @@
 import streamlit as st
 
 
-def apply_bloomberg_theme():
+def apply_dashboard_theme():
     st.markdown(
         """
         <style>

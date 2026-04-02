@@ -1,27 +1,15 @@
-from db.connection import get_engine
-from repositories.security_repository import SecurityRepository
-from repositories.price_repository import PriceRepository
-from repositories.input_repository import InputRepository
-from repositories.metadata_repository import MetadataRepository
-from dashboard.dashboard import Dashboard
 import streamlit as st
+from dashboard.dashboard_app import run_app
 
 st.set_page_config(
-    page_title="ETF Monitor",
+    page_title="ETF Terminal",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
 
 def main():
-    engine = get_engine()
-    security_repo = SecurityRepository(engine)
-    price_repo = PriceRepository(engine)
-    input_repo = InputRepository(engine)
-    metadata_repo = MetadataRepository(engine)
-
-    app = Dashboard(security_repo, price_repo, input_repo, metadata_repo)
-    app.run()
+    run_app()
 
 
 if __name__ == "__main__":

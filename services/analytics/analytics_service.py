@@ -2,6 +2,8 @@ import pandas as pd
 
 
 class AnalyticsService:
+    """Compute reusable analytics derived from stored ETF price history."""
+
     @staticmethod
     def classify_liquidity(volume_vs_avg: float) -> str:
         if pd.isna(volume_vs_avg):

@@ -1,25 +1,27 @@
 import pandas as pd
 import streamlit as st
 
-from dashboard.context_panel import ContextPanel
-from dashboard.table_styles import BloombergTable
-from dashboard.controls import BloombergControls
-from dashboard.charts import (
+from dashboard.components.charts import (
     compute_default_date_range,
-    render_zscore_chart,
-    render_return_spread_chart,
     render_beta_adjusted_z_chart,
+    render_return_spread_chart,
+    render_zscore_chart,
 )
+from dashboard.components.controls import DashboardControls
+from dashboard.components.info_panel import InfoPanel
+from dashboard.styles.table_styles import DashboardTable
 from models.security import Security
 from models.security_pair import SecurityPair
 
 
 class RVTab:
+    """Render pair-trading and relative-value analytics for the selected ETF."""
+
     def __init__(self, price_repo):
         self.price_repo = price_repo
-        self.context_panel = ContextPanel()
-        self.table = BloombergTable()
-        self.controls = BloombergControls()
+        self.info_panel = InfoPanel()
+        self.table = DashboardTable()
+        self.controls = DashboardControls()
 
 
 
@@ -274,7 +276,7 @@ class RVTab:
             3,
         )
 
-        self.context_panel.render(
+        self.info_panel.render(
             title="RV Signal",
             headline=trade_bias,
             body=rv_signal_paragraph,
@@ -285,7 +287,7 @@ class RVTab:
             ),
         )
 
-        self.context_panel.render(
+        self.info_panel.render(
             title="Entry / Exit Framework",
             headline="Mean-reversion trading framework",
             body=(

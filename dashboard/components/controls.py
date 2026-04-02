@@ -4,7 +4,9 @@ import pandas as pd
 import streamlit as st
 
 
-class BloombergControls:
+class DashboardControls:
+    """Provide shared Streamlit selectors and date controls for the dashboard."""
+
     def render_security_select(
         self,
         label: str,

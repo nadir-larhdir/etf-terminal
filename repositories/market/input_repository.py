@@ -4,6 +4,8 @@ from datetime import datetime
 
 
 class InputRepository:
+    """Store discretionary desk inputs such as flows, notes, and premium discounts."""
+
     def __init__(self, engine):
         self.engine = engine
 
@@ -32,3 +34,10 @@ class InputRepository:
             df = pd.read_sql(query, conn, params={"ticker": ticker})
 
         return df.iloc[0].to_dict() if not df.empty else None
+
+    def delete_ticker(self, ticker: str):
+        with self.engine.begin() as conn:
+            conn.execute(
+                text("DELETE FROM security_inputs WHERE ticker = :ticker"),
+                {"ticker": ticker},
+            )

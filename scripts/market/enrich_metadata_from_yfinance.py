@@ -1,4 +1,4 @@
-
+import argparse
 
 from datetime import datetime
 
@@ -6,9 +6,11 @@ import yfinance as yf
 
 from config import DEFAULT_TICKERS
 from db.connection import get_engine
-from repositories.metadata_repository import MetadataRepository
+from repositories.market import MetadataRepository
+from scripts.script_helpers import add_ticker_argument, parse_ticker_list
 
 
+"""Internal overrides for known fixed-income ETF metadata fields."""
 INTERNAL_METADATA = {
     "LQD": {
         "benchmark_index": "Markit iBoxx USD Liquid Investment Grade Index",
@@ -83,11 +85,26 @@ def build_metadata_row(ticker: str) -> dict:
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Enrich ETF metadata from yfinance.")
+    parser.add_argument(
+        "--mode",
+        choices=["upsert", "missing-only"],
+        default="upsert",
+        help="Refresh selected metadata rows or only enrich tickers with no metadata yet.",
+    )
+    add_ticker_argument(parser)
+    args = parser.parse_args()
+
     engine = get_engine()
     repo = MetadataRepository(engine)
+    tickers = parse_ticker_list(args.tickers)
+
+    if args.mode == "missing-only":
+        existing = repo.get_existing_tickers()
+        tickers = [ticker for ticker in tickers if ticker not in existing]
 
     rows = []
-    for ticker in DEFAULT_TICKERS.keys():
+    for ticker in tickers:
         try:
             row = build_metadata_row(ticker)
             rows.append(row)

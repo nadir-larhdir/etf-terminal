@@ -1,9 +1,12 @@
+import argparse
 from datetime import datetime
 
 from db.connection import get_engine
-from repositories.metadata_repository import MetadataRepository
+from repositories.market import MetadataRepository
+from scripts.script_helpers import add_ticker_argument, filter_new_ticker_rows, parse_ticker_list
 
 
+"""Static metadata rows used when you want a controlled in-house metadata baseline."""
 DEFAULT_METADATA = [
     {
         "ticker": "LQD",
@@ -79,7 +82,24 @@ DEFAULT_METADATA = [
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Seed static ETF metadata into the local database.")
+    parser.add_argument(
+        "--mode",
+        choices=["upsert", "missing-only"],
+        default="upsert",
+        help="Update metadata for selected tickers or only add rows that do not exist yet.",
+    )
+    add_ticker_argument(parser)
+    args = parser.parse_args()
+
+    selected_tickers = set(parse_ticker_list(args.tickers))
     engine = get_engine()
     repo = MetadataRepository(engine)
-    repo.upsert_metadata(DEFAULT_METADATA)
-    print("Security metadata seeded.")
+    rows = [row for row in DEFAULT_METADATA if row["ticker"] in selected_tickers]
+
+    if args.mode == "missing-only":
+        rows = filter_new_ticker_rows(rows, repo.get_existing_tickers())
+
+    repo.upsert_metadata(rows)
+    processed = ", ".join(row["ticker"] for row in rows) if rows else "none"
+    print(f"Static metadata processed for {len(rows)} ticker(s): {processed}")

@@ -12,6 +12,8 @@ from models.security import Security
 
 @dataclass
 class SecurityPair:
+    """Model a tradable ETF pair and compute relative-value statistics."""
+
     left: Security
     right: Security
 

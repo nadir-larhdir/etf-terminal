@@ -1,12 +1,14 @@
 import pandas as pd
 import streamlit as st
 
-from dashboard.context_panel import ContextPanel
+from dashboard.components.info_panel import InfoPanel
 
 
-class HeaderPanel:
+class SecurityHeader:
+    """Render the descriptive and top-strip header blocks for the selected ETF."""
+
     def __init__(self) -> None:
-        self.context_panel = ContextPanel()
+        self.info_panel = InfoPanel()
 
     def render_description(
         self,
@@ -38,7 +40,7 @@ class HeaderPanel:
             f"<span style='color:#F3F0E8; font-weight:700;'>Issuer:</span> {metadata.get('issuer', 'N/A') if metadata else 'N/A'}"
         )
 
-        self.context_panel.render(
+        self.info_panel.render(
             title="ETF Description",
             headline=headline,
             body=body,

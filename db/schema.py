@@ -1,18 +1,17 @@
 from sqlalchemy import text
 
 
-def create_tables(engine):
-    with engine.begin() as conn:
-        conn.execute(text("""
+"""SQLite table definitions managed by the database bootstrap script."""
+TABLE_DEFINITIONS = {
+    "securities": """
         CREATE TABLE IF NOT EXISTS securities (
             ticker TEXT PRIMARY KEY,
             name TEXT,
             asset_class TEXT,
             active INTEGER DEFAULT 1
         )
-        """))
-
-        conn.execute(text("""
+    """,
+    "price_history": """
         CREATE TABLE IF NOT EXISTS price_history (
             ticker TEXT NOT NULL,
             date TEXT NOT NULL,
@@ -26,9 +25,8 @@ def create_tables(engine):
             updated_at TEXT,
             PRIMARY KEY (ticker, date)
         )
-        """))
-
-        conn.execute(text("""
+    """,
+    "security_inputs": """
         CREATE TABLE IF NOT EXISTS security_inputs (
             ticker TEXT NOT NULL,
             date TEXT NOT NULL,
@@ -38,9 +36,8 @@ def create_tables(engine):
             updated_at TEXT,
             PRIMARY KEY (ticker, date)
         )
-        """))
-
-        conn.execute(text("""
+    """,
+    "security_metadata": """
         CREATE TABLE IF NOT EXISTS security_metadata (
             ticker TEXT PRIMARY KEY,
             conid TEXT,
@@ -58,4 +55,25 @@ def create_tables(engine):
             source TEXT,
             updated_at TEXT
         )
-        """))
+    """,
+}
+
+
+def get_existing_tables(engine) -> set[str]:
+    query = text(
+        """
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table'
+          AND name NOT LIKE 'sqlite_%'
+        """
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(query).fetchall()
+    return {row[0] for row in rows}
+
+
+def create_tables(engine):
+    with engine.begin() as conn:
+        for ddl in TABLE_DEFINITIONS.values():
+            conn.execute(text(ddl))

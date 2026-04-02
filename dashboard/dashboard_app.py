@@ -1,33 +1,33 @@
-import pandas as pd
 import streamlit as st
 
-from dashboard.styles import apply_bloomberg_theme
-from dashboard.header_panel import HeaderPanel
-from dashboard.graphs_tab import GraphsTab
-from dashboard.analytics_tab import AnalyticsTab
-from dashboard.rv_tab import RVTab
-from dashboard.controls import BloombergControls
+from dashboard.components import DashboardControls, SecurityHeader
+from dashboard.styles import apply_dashboard_theme
+from dashboard.tabs import AnalyticsTab, GraphsTab, RVTab
+from repositories.market import InputRepository, MetadataRepository, PriceRepository, SecurityRepository
+from db.connection import get_engine
 from models.security import Security
 
 
-class Dashboard:
+class DashboardApp:
+    """Coordinate the Streamlit ETF dashboard and wire repositories into the UI."""
+
     def __init__(self, security_repo, price_repo, input_repo, metadata_repo):
         self.security_repo = security_repo
         self.price_repo = price_repo
         self.input_repo = input_repo
         self.metadata_repo = metadata_repo
-        self.header_panel = HeaderPanel()
+        self.security_header = SecurityHeader()
         self.graphs_tab = GraphsTab()
         self.analytics_tab = AnalyticsTab()
         self.rv_tab = RVTab(price_repo)
-        self.controls = BloombergControls()
+        self.controls = DashboardControls()
 
     def run(self):
-        apply_bloomberg_theme()
-        st.title("ETF MONITOR")
-        st.caption("Database-backed ETF dashboard")
+        apply_dashboard_theme()
+        st.title("ETF Terminal")
+        st.caption("Fixed income ETF analytics terminal for market structure, liquidity, and relative value monitoring.")
 
-        securities = self.security_repo.get_all().copy()
+        securities = self.security_repo.list_active_securities().copy()
         if securities.empty or "ticker" not in securities.columns:
             st.warning("No active securities found in the database.")
             return
@@ -71,7 +71,7 @@ class Dashboard:
         metadata = security.load_metadata(self.metadata_repo)
 
         with desc_col:
-            self.header_panel.render_description(securities, selected_security, metadata)
+            self.security_header.render_description(securities, selected_security, metadata)
 
         hist = security.load_history(self.price_repo)
 
@@ -79,7 +79,7 @@ class Dashboard:
             st.warning(f"No price history found for {selected_security}.")
             return
 
-        self.header_panel.render_header_strip(hist, selected_security)
+        self.security_header.render_header_strip(hist, selected_security)
 
         all_tickers = securities["ticker"].tolist()
         tab_graphs, tab_analytics, tab_rv = st.tabs(["Graphs", "Analytics", "RV Analysis"])
@@ -92,3 +92,16 @@ class Dashboard:
 
         with tab_rv:
             self.rv_tab.render(security, all_tickers)
+
+
+def run_app():
+    """Create the application dependencies and launch the Streamlit dashboard."""
+
+    engine = get_engine()
+    security_repo = SecurityRepository(engine)
+    price_repo = PriceRepository(engine)
+    input_repo = InputRepository(engine)
+    metadata_repo = MetadataRepository(engine)
+
+    app = DashboardApp(security_repo, price_repo, input_repo, metadata_repo)
+    app.run()
