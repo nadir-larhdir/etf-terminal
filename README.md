@@ -113,7 +113,7 @@ APP_ENV=uat python3 -m scripts.market.sync_price_history --mode full --period 5y
 
 # Metadata updates
 APP_ENV=uat python3 -m scripts.market.sync_static_metadata --mode missing-only
-APP_ENV=uat python3 -m scripts.market.enrich_metadata_from_yfinance --mode upsert --tickers LQD,HYG
+APP_ENV=uat python3 -m scripts.market.enrich_metadata_from_fmp --mode upsert --tickers LQD,HYG
 
 # Ticker management
 APP_ENV=uat python3 -m scripts.admin.manage_universe_ticker add BSV

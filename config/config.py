@@ -2,12 +2,22 @@ import json
 import os
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    def load_dotenv(*args, **kwargs):
+        """No-op fallback when python-dotenv is not installed yet."""
+
+        return False
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
 ENV_DB_FILENAMES = {
     "prod": "market_data_prod.db",
     "uat": "market_data_uat.db",
 }
+
+load_dotenv(BASE_DIR / ".env")
 
 
 def get_app_env() -> str:
@@ -19,6 +29,8 @@ def get_app_env() -> str:
 
 APP_ENV = get_app_env()
 DB_PATH = BASE_DIR / ENV_DB_FILENAMES[APP_ENV]
+FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
+FMP_BASE_URL = "https://financialmodelingprep.com/stable"
 
 
 def load_config() -> dict:

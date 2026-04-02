@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 import pandas as pd
-import yfinance as yf
+
+from config import FMP_API_KEY, FMP_BASE_URL
+from services.market.fmp_client import FMPClient
 
 
 class MarketDataService:
@@ -8,6 +10,7 @@ class MarketDataService:
 
     def __init__(self, price_repository):
         self.price_repository = price_repository
+        self.fmp_client = FMPClient(api_key=FMP_API_KEY, base_url=FMP_BASE_URL)
 
     def _fetch_history(
         self,
@@ -16,62 +19,33 @@ class MarketDataService:
         start: str | None = None,
         end: str | None = None,
     ) -> pd.DataFrame:
-        download_kwargs = {
-            "tickers": tickers,
-            "interval": "1d",
-            "auto_adjust": False,
-            "progress": False,
-            "threads": True,
-            "group_by": "column",
-        }
-        if start is not None:
-            download_kwargs["start"] = start
-        if end is not None:
-            download_kwargs["end"] = end
-        if start is None and period is not None:
-            download_kwargs["period"] = period
+        frames = []
+        for ticker in tickers:
+            frame = self.fmp_client.get_historical_price_eod_full(
+                ticker,
+                period=period,
+                start=start,
+                end=end,
+            )
+            if not frame.empty:
+                frames.append(frame)
 
-        raw = yf.download(
-            **download_kwargs,
-        )
-        return raw
+        if not frames:
+            return pd.DataFrame(
+                columns=["date", "open", "high", "low", "close", "adj_close", "volume", "ticker"]
+            )
+
+        return pd.concat(frames, ignore_index=True)
 
     def _build_price_frame(self, raw: pd.DataFrame, ticker: str) -> pd.DataFrame:
         if raw.empty:
             return pd.DataFrame()
-
-        if isinstance(raw.columns, pd.MultiIndex):
-            required_column = ("Open", ticker)
-            if required_column not in raw.columns:
-                return pd.DataFrame()
-
-            frame = pd.DataFrame({
-                "date": raw[("Open", ticker)].index,
-                "open": raw[("Open", ticker)].values,
-                "high": raw[("High", ticker)].values,
-                "low": raw[("Low", ticker)].values,
-                "close": raw[("Close", ticker)].values,
-                "adj_close": raw[("Adj Close", ticker)].values if ("Adj Close", ticker) in raw.columns else raw[("Close", ticker)].values,
-                "volume": raw[("Volume", ticker)].values,
-            })
-        else:
-            frame = pd.DataFrame({
-                "date": raw["Open"].index,
-                "open": raw["Open"].values,
-                "high": raw["High"].values,
-                "low": raw["Low"].values,
-                "close": raw["Close"].values,
-                "adj_close": raw["Adj Close"].values if "Adj Close" in raw.columns else raw["Close"].values,
-                "volume": raw["Volume"].values,
-            })
-
-        frame = frame.dropna().copy()
+        frame = raw.loc[raw["ticker"].astype(str) == ticker].copy()
         if frame.empty:
             return frame
 
-        frame["ticker"] = ticker
         frame["date"] = pd.to_datetime(frame["date"]).dt.strftime("%Y-%m-%d")
-        frame["source"] = "yfinance"
+        frame["source"] = "fmp"
         frame["updated_at"] = datetime.utcnow().isoformat()
         return frame
 

@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import yfinance as yf
-
-from config import normalize_asset_class
-from scripts.market.enrich_metadata_from_yfinance import build_metadata_row
+from config import FMP_API_KEY, FMP_BASE_URL, normalize_asset_class
+from scripts.market.enrich_metadata_from_fmp import build_metadata_row
+from services.market.fmp_client import FMPClient
 
 
 """Keywords used to decide whether a new symbol looks like a fixed-income ETF."""
@@ -50,15 +49,16 @@ class TickerManagerService:
         self.metadata_repo = metadata_repo
         self.input_repo = input_repo
         self.market_data_service = market_data_service
+        self.fmp_client = FMPClient(api_key=FMP_API_KEY, base_url=FMP_BASE_URL)
 
     def inspect_ticker(self, ticker: str, asset_class_override: str | None = None) -> TickerProfile:
         normalized = ticker.strip().upper()
-        info = yf.Ticker(normalized).info or {}
+        info = self.fmp_client.get_security_profile(normalized)
 
-        quote_type = str(info.get("quoteType") or "").upper()
-        long_name = info.get("longName") or info.get("shortName") or normalized
+        quote_type = str(info.get("type") or info.get("quoteType") or "").upper()
+        long_name = info.get("companyName") or info.get("name") or normalized
         category = info.get("category") or ""
-        summary = info.get("longBusinessSummary") or ""
+        summary = info.get("description") or ""
         fund_family = info.get("fundFamily") or ""
 
         search_blob = " ".join(
@@ -72,11 +72,11 @@ class TickerManagerService:
         is_fixed_income = quote_type == "ETF" and bool(matched_keywords)
 
         if not info:
-            raise ValueError("Ticker not found or no metadata returned from yfinance.")
+            raise ValueError("Ticker not found or no metadata returned from Financial Modeling Prep.")
 
         if not is_fixed_income:
             raise ValueError(
-                "Ticker exists but does not look like a fixed income ETF based on yfinance metadata."
+                "Ticker exists but does not look like a fixed income ETF based on Financial Modeling Prep metadata."
             )
 
         metadata_row = build_metadata_row(normalized)

@@ -2,12 +2,11 @@ import argparse
 
 from datetime import datetime
 
-import yfinance as yf
-
-from config import DEFAULT_TICKERS
+from config import DEFAULT_TICKERS, FMP_API_KEY, FMP_BASE_URL
 from db.connection import get_engine
 from repositories.market import MetadataRepository
 from scripts.script_helpers import add_ticker_argument, parse_ticker_list
+from services.market.fmp_client import FMPClient
 
 
 """Internal overrides for known fixed-income ETF metadata fields."""
@@ -39,23 +38,24 @@ INTERNAL_METADATA = {
     },
 }
 
+FMP_CLIENT = FMPClient(api_key=FMP_API_KEY, base_url=FMP_BASE_URL)
+
 
 def get_etf_description(ticker: str) -> dict:
-    etf = yf.Ticker(ticker)
-    info = etf.info or {}
+    info = FMP_CLIENT.get_security_profile(ticker)
 
     return {
         "ticker": ticker.upper(),
-        "long_name": info.get("longName"),
-        "description": info.get("longBusinessSummary"),
+        "long_name": info.get("companyName") or info.get("name"),
+        "description": info.get("description"),
         "category": info.get("category"),
-        "benchmark_index": info.get("benchmarkName"),
-        "issuer": info.get("fundFamily"),
-        "expense_ratio": info.get("annualReportExpenseRatio"),
-        "total_assets": info.get("totalAssets"),
+        "benchmark_index": info.get("benchmark") or info.get("benchmarkIndex"),
+        "issuer": info.get("fundFamily") or info.get("companyName"),
+        "expense_ratio": info.get("expenseRatio"),
+        "total_assets": info.get("mktCap") or info.get("totalAssets"),
         "currency": info.get("currency"),
-        "exchange": info.get("exchange"),
-        "quote_type": info.get("quoteType"),
+        "exchange": info.get("exchangeShortName") or info.get("exchange"),
+        "quote_type": info.get("type") or info.get("quoteType"),
     }
 
 
@@ -63,29 +63,29 @@ def get_etf_description(ticker: str) -> dict:
 def build_metadata_row(ticker: str) -> dict:
     base = DEFAULT_TICKERS.get(ticker, {})
     internal = INTERNAL_METADATA.get(ticker, {})
-    yf_meta = get_etf_description(ticker)
+    fmp_meta = get_etf_description(ticker)
 
     return {
         "ticker": ticker,
         "conid": None,
-        "long_name": yf_meta.get("long_name") or base.get("name"),
-        "description": yf_meta.get("description") or f"Fixed income ETF in the {base.get('asset_class', 'Unknown')} bucket.",
-        "issuer": yf_meta.get("issuer") or "N/A",
-        "benchmark_index": internal.get("benchmark_index") or yf_meta.get("benchmark_index") or "N/A",
-        "category": internal.get("category") or yf_meta.get("category") or base.get("asset_class"),
+        "long_name": fmp_meta.get("long_name") or base.get("name"),
+        "description": fmp_meta.get("description") or f"Fixed income ETF in the {base.get('asset_class', 'Unknown')} bucket.",
+        "issuer": fmp_meta.get("issuer") or "N/A",
+        "benchmark_index": internal.get("benchmark_index") or fmp_meta.get("benchmark_index") or "N/A",
+        "category": internal.get("category") or fmp_meta.get("category") or base.get("asset_class"),
         "duration_bucket": internal.get("duration_bucket") or "N/A",
-        "currency": yf_meta.get("currency") or "USD",
-        "exchange": yf_meta.get("exchange") or "N/A",
-        "expense_ratio": yf_meta.get("expense_ratio"),
-        "total_assets": yf_meta.get("total_assets"),
-        "quote_type": yf_meta.get("quote_type"),
-        "source": "yfinance_enriched",
+        "currency": fmp_meta.get("currency") or "USD",
+        "exchange": fmp_meta.get("exchange") or "N/A",
+        "expense_ratio": fmp_meta.get("expense_ratio"),
+        "total_assets": fmp_meta.get("total_assets"),
+        "quote_type": fmp_meta.get("quote_type"),
+        "source": "fmp_enriched",
         "updated_at": datetime.utcnow().isoformat(),
     }
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Enrich ETF metadata from yfinance.")
+    parser = argparse.ArgumentParser(description="Enrich ETF metadata from Financial Modeling Prep.")
     parser.add_argument(
         "--mode",
         choices=["upsert", "missing-only"],
