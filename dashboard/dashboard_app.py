@@ -129,7 +129,7 @@ class DashboardApp:
             st.warning(f"No price history found for {selected_security}.")
             return
 
-        self.security_header.render_header_strip(hist, selected_security)
+        self.security_header.render_header_strip(hist, selected_security, metadata)
 
         all_tickers = securities["ticker"].tolist()
         tab_graphs, tab_analytics, tab_rv = st.tabs(["Graphs", "Analytics", "RV Analysis"])

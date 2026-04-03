@@ -10,6 +10,27 @@ class SecurityHeader:
     def __init__(self) -> None:
         self.info_panel = InfoPanel()
 
+    def _format_aum(self, value) -> str:
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return "N/A"
+
+        if numeric >= 1_000_000_000:
+            return f"{numeric / 1_000_000_000:.1f}B"
+        if numeric >= 1_000_000:
+            return f"{numeric / 1_000_000:.1f}M"
+        if numeric >= 1_000:
+            return f"{numeric / 1_000:.1f}K"
+        return f"{numeric:,.0f}"
+
+    def _format_expense_ratio(self, value) -> str:
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return "N/A"
+        return f"{numeric:.2f}%"
+
     def render_description(
         self,
         securities: pd.DataFrame,
@@ -49,7 +70,7 @@ class SecurityHeader:
             margin_bottom="0.00rem",
         )
 
-    def render_header_strip(self, hist: pd.DataFrame, selected_security: str) -> None:
+    def render_header_strip(self, hist: pd.DataFrame, selected_security: str, metadata: dict | None = None) -> None:
         px_last = float(hist["close"].iloc[-1])
         prev_close = float(hist["close"].iloc[-2]) if len(hist) > 1 else px_last
         chg = px_last - prev_close
@@ -60,6 +81,11 @@ class SecurityHeader:
         vol_ratio = (volume / vol_30d) if vol_30d else 0.0
 
         chg_color = "#00C176" if chg >= 0 else "#FF5A36"
+        exchange = metadata.get("exchange", "N/A") if metadata else "N/A"
+        aum_label = self._format_aum(metadata.get("total_assets")) if metadata else "N/A"
+        expense_ratio_label = self._format_expense_ratio(
+            metadata.get("expense_ratio") if metadata else None
+        )
 
         st.markdown(
             f"""
@@ -72,7 +98,7 @@ class SecurityHeader:
             ">
                 <div style="
                     display:grid;
-                    grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr;
+                    grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
                     gap: 0.4rem;
                     align-items:stretch;
                 ">
@@ -95,6 +121,18 @@ class SecurityHeader:
                     <div style="border:1px solid #2A2A2A; background:#0A0A0A; padding:0.35rem 0.45rem;">
                         <div style="color:#B8B1A3; font-size:0.68rem; text-transform:uppercase;">VOLUME / 30D</div>
                         <div style="color:#F3F0E8; font-size:0.95rem; font-weight:700;">{volume:,.0f} / {vol_ratio:.2f}x</div>
+                    </div>
+                    <div style="border:1px solid #2A2A2A; background:#0A0A0A; padding:0.35rem 0.45rem;">
+                        <div style="color:#B8B1A3; font-size:0.68rem; text-transform:uppercase;">EXCHANGE</div>
+                        <div style="color:#F3F0E8; font-size:0.95rem; font-weight:700;">{exchange}</div>
+                    </div>
+                    <div style="border:1px solid #2A2A2A; background:#0A0A0A; padding:0.35rem 0.45rem;">
+                        <div style="color:#B8B1A3; font-size:0.68rem; text-transform:uppercase;">AUM</div>
+                        <div style="color:#F3F0E8; font-size:0.95rem; font-weight:700;">{aum_label}</div>
+                    </div>
+                    <div style="border:1px solid #2A2A2A; background:#0A0A0A; padding:0.35rem 0.45rem;">
+                        <div style="color:#B8B1A3; font-size:0.68rem; text-transform:uppercase;">EXP RATIO</div>
+                        <div style="color:#F3F0E8; font-size:0.95rem; font-weight:700;">{expense_ratio_label}</div>
                     </div>
                 </div>
             </div>

@@ -102,6 +102,27 @@ class FMPClient:
             return payload
         return {}
 
+    def get_etf_info(self, symbol: str) -> dict:
+        response = requests.get(
+            f"{self.base_url}/etf/info",
+            params={
+                "symbol": symbol,
+                "apikey": self.api_key,
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        payload = response.json()
+
+        if isinstance(payload, list):
+            return payload[0] if payload else {}
+        if isinstance(payload, dict):
+            data = payload.get("data")
+            if isinstance(data, list):
+                return data[0] if data else {}
+            return payload
+        return {}
+
     def _period_cutoff(self, period: str) -> str | None:
         today = datetime.utcnow().date()
         period_key = str(period).strip().lower()
