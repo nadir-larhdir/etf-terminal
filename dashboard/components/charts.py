@@ -148,7 +148,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
 
     _apply_terminal_chart_layout(
         fig,
-        title=f"{ticker} Price",
+        title=f"{ticker} Price Action",
         height=520,
         margin=dict(l=20, r=20, t=50, b=30),
     )
@@ -211,7 +211,7 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
 
     _apply_terminal_chart_layout(
         fig,
-        title=f"{ticker} Volume",
+        title=f"{ticker} Trading Activity",
         height=520,
         margin=dict(l=20, r=20, t=50, b=30),
     )
