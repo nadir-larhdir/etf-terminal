@@ -37,7 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def parse_series_ids(series_arg: str | None) -> list[str]:
     if not series_arg:
-        return list(DEFAULT_MACRO_SERIES.values())
+        return list(DEFAULT_MACRO_SERIES.keys())
 
     series_ids = []
     for raw_value in series_arg.split(","):

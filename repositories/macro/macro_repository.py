@@ -18,19 +18,37 @@ class MacroRepository:
             series_id,
             date,
             value,
+            series_name,
+            category,
+            sub_category,
+            frequency,
+            units,
             source,
-            updated_at
+            is_active,
+            last_updated_at
         ) VALUES (
             :series_id,
             :date,
             :value,
+            :series_name,
+            :category,
+            :sub_category,
+            :frequency,
+            :units,
             :source,
-            :updated_at
+            :is_active,
+            :last_updated_at
         )
         ON CONFLICT(series_id, date) DO UPDATE SET
             value = excluded.value,
+            series_name = excluded.series_name,
+            category = excluded.category,
+            sub_category = excluded.sub_category,
+            frequency = excluded.frequency,
+            units = excluded.units,
             source = excluded.source,
-            updated_at = excluded.updated_at
+            is_active = excluded.is_active,
+            last_updated_at = excluded.last_updated_at
         """
         with self.engine.begin() as conn:
             conn.execute(text(statement), records)
@@ -77,7 +95,7 @@ class MacroRepository:
         end_date: str | None = None,
     ) -> pd.DataFrame:
         query = """
-        SELECT date, value
+        SELECT date, value, series_name, category, sub_category, frequency, units, source, is_active, last_updated_at
         FROM macro_data
         WHERE series_id = :series_id
         """

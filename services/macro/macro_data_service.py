@@ -2,15 +2,10 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
+from config import MACRO_SERIES_REGISTRY
 
 """Default FRED series used by the terminal's macro layer."""
-DEFAULT_MACRO_SERIES = {
-    "2Y": "DGS2",
-    "5Y": "DGS5",
-    "10Y": "DGS10",
-    "30Y": "DGS30",
-    "CPI": "CPIAUCSL",
-}
+DEFAULT_MACRO_SERIES = MACRO_SERIES_REGISTRY
 
 
 class MacroDataService:
@@ -23,7 +18,6 @@ class MacroDataService:
     def get_treasury_curve(self):
         return {
             "2Y": self.fred.get_series("DGS2"),
-            "5Y": self.fred.get_series("DGS5"),
             "10Y": self.fred.get_series("DGS10"),
             "30Y": self.fred.get_series("DGS30"),
         }
@@ -31,18 +25,78 @@ class MacroDataService:
     def get_inflation(self):
         return self.fred.get_series("CPIAUCSL")
 
+    def _resolve_series_details(self, series_id: str) -> dict[str, str]:
+        registry = MACRO_SERIES_REGISTRY.get(series_id, {})
+        metadata = self.fred.get_series_metadata(series_id)
+        return {
+            "series_name": registry.get("name") or metadata.get("title", ""),
+            "category": registry.get("category", ""),
+            "sub_category": registry.get("sub_category", ""),
+            "frequency": registry.get("frequency") or metadata.get("frequency", ""),
+            "units": registry.get("units") or metadata.get("units", ""),
+        }
+
     def _build_series_frame(self, raw: pd.DataFrame, series_id: str) -> pd.DataFrame:
         if raw.empty:
-            return pd.DataFrame(columns=["series_id", "date", "value", "source", "updated_at"])
+            return pd.DataFrame(
+                columns=[
+                    "series_id",
+                    "date",
+                    "value",
+                    "series_name",
+                    "category",
+                    "sub_category",
+                    "frequency",
+                    "units",
+                    "source",
+                    "is_active",
+                    "last_updated_at",
+                ]
+            )
 
         frame = raw.loc[raw["series_id"].astype(str) == series_id].copy()
         if frame.empty:
-            return pd.DataFrame(columns=["series_id", "date", "value", "source", "updated_at"])
+            return pd.DataFrame(
+                columns=[
+                    "series_id",
+                    "date",
+                    "value",
+                    "series_name",
+                    "category",
+                    "sub_category",
+                    "frequency",
+                    "units",
+                    "source",
+                    "is_active",
+                    "last_updated_at",
+                ]
+            )
 
+        details = self._resolve_series_details(series_id)
         frame["date"] = pd.to_datetime(frame["date"]).dt.strftime("%Y-%m-%d")
+        frame["series_name"] = details["series_name"]
+        frame["category"] = details["category"]
+        frame["sub_category"] = details["sub_category"]
+        frame["frequency"] = details["frequency"]
+        frame["units"] = details["units"]
         frame["source"] = "fred"
-        frame["updated_at"] = datetime.utcnow().isoformat()
-        return frame[["series_id", "date", "value", "source", "updated_at"]]
+        frame["is_active"] = 1
+        frame["last_updated_at"] = datetime.utcnow().isoformat()
+        return frame[
+            [
+                "series_id",
+                "date",
+                "value",
+                "series_name",
+                "category",
+                "sub_category",
+                "frequency",
+                "units",
+                "source",
+                "is_active",
+                "last_updated_at",
+            ]
+        ]
 
     def sync_series_history(
         self,
