@@ -9,10 +9,10 @@ from config.config import (
     FRED_BASE_URL,
     FMP_API_KEY,
     FMP_BASE_URL,
+    MACRO_SERIES_REGISTRY,
     PERIOD_OPTIONS,
     load_config,
 )
-from config.macro_series import MACRO_SERIES_REGISTRY
 
 __all__ = [
     "ASSET_CLASS_ALIASES",
