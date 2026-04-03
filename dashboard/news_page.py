@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import pandas as pd
 import streamlit as st
 
 from dashboard.components import InfoPanel
@@ -20,8 +21,24 @@ def load_news_feeds() -> tuple[dict[str, dict], str | None]:
 class NewsPage:
     """Render a market-news and macro-brief page for the fixed income ETF workflow."""
 
-    def __init__(self) -> None:
+    SNAPSHOT_FEATURES = {
+        "UST_10Y_LEVEL": ("10Y", "{:.2f}%"),
+        "UST_2S10S": ("2s10s", "{:.0f}bp"),
+        "BEI_5Y": ("5Y BEI", "{:.2f}%"),
+        "FEDFUNDS_LEVEL": ("Fed Funds", "{:.2f}%"),
+        "UNRATE_LEVEL": ("Unrate", "{:.2f}%"),
+    }
+
+    EVENT_WATCH = [
+        ("CPI", "Inflation tone"),
+        ("Payrolls", "Labor pulse"),
+        ("FOMC", "Policy path"),
+        ("Auctions", "Treasury supply"),
+    ]
+
+    def __init__(self, macro_feature_store) -> None:
         self.info_panel = InfoPanel()
+        self.macro_feature_store = macro_feature_store
 
     def _dedupe_feeds(self, feed_data: dict[str, dict]) -> dict[str, list[dict]]:
         seen_keys: set[str] = set()
@@ -58,7 +75,89 @@ class NewsPage:
                 return feed_key, items[0]
         return None, None
 
-    def _render_featured_headline(self, title: str, items: list[dict], *, accent_color: str) -> None:
+    def _headline_tag(self, title: str, bucket: str) -> str:
+        title_lower = title.lower()
+        keyword_map = {
+            "rates": [
+                ("Treasuries", ["treasury", "yield", "curve", "auction"]),
+                ("Fed", ["fed", "powell", "fomc"]),
+            ],
+            "credit": [
+                ("IG", ["investment grade", "ig ", "lqd", "vcit"]),
+                ("HY", ["high yield", "hy ", "hyg", "jnk"]),
+                ("ETFs", ["etf", "fund flows", "bond fund"]),
+            ],
+            "macro": [
+                ("Inflation", ["inflation", "cpi", "pce"]),
+                ("Labor", ["jobs", "payroll", "unemployment", "labor"]),
+                ("Policy", ["fed", "rates", "central bank"]),
+            ],
+        }
+        for label, keywords in keyword_map.get(bucket, []):
+            if any(keyword in title_lower for keyword in keywords):
+                return label
+        fallback = {"rates": "Rates", "credit": "Credit", "macro": "Macro"}
+        return fallback.get(bucket, "News")
+
+    def _load_snapshot_values(self) -> dict[str, dict]:
+        latest = self.macro_feature_store.get_latest_feature_values(list(self.SNAPSHOT_FEATURES.keys()))
+        if latest.empty:
+            return {}
+
+        snapshot: dict[str, dict] = {}
+        for _, row in latest.iterrows():
+            feature_name = str(row["feature_name"])
+            if feature_name not in self.SNAPSHOT_FEATURES:
+                continue
+            label, formatter = self.SNAPSHOT_FEATURES[feature_name]
+            value = float(row["value"])
+            if feature_name == "UST_2S10S":
+                value = value * 100.0
+            snapshot[feature_name] = {
+                "label": label,
+                "value": formatter.format(value),
+                "date": pd.to_datetime(row["date"]).strftime("%Y-%m-%d"),
+            }
+        return snapshot
+
+    def _render_snapshot_bar(self) -> None:
+        snapshot = self._load_snapshot_values()
+        if not snapshot:
+            return
+
+        columns = st.columns(len(self.SNAPSHOT_FEATURES))
+        for column, feature_name in zip(columns, self.SNAPSHOT_FEATURES, strict=False):
+            item = snapshot.get(feature_name)
+            label = self.SNAPSHOT_FEATURES[feature_name][0]
+            with column:
+                st.markdown(
+                    (
+                        "<div style='border:1px solid #20252E;background:#050505;padding:0.40rem 0.55rem;"
+                        "border-radius:2px;margin-bottom:0.45rem;'>"
+                        f"<div style='color:#8D877B;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.45px;'>{label}</div>"
+                        f"<div style='color:#F3F0E8;font-size:0.96rem;font-weight:700;margin-top:0.12rem;'>{item['value'] if item else 'n/a'}</div>"
+                        f"<div style='color:#6F6A61;font-size:0.72rem;margin-top:0.08rem;'>{item['date'] if item else ''}</div>"
+                        "</div>"
+                    ),
+                    unsafe_allow_html=True,
+                )
+
+    def _render_event_watch(self) -> None:
+        columns = st.columns(len(self.EVENT_WATCH))
+        for column, (label, body) in zip(columns, self.EVENT_WATCH, strict=False):
+            with column:
+                st.markdown(
+                    (
+                        "<div style='border:1px solid #20252E;background:#050505;padding:0.38rem 0.55rem;"
+                        "border-radius:2px;margin-bottom:0.55rem;'>"
+                        f"<div style='color:#8D877B;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.45px;'>{label}</div>"
+                        f"<div style='color:#B8B1A3;font-size:0.82rem;margin-top:0.10rem;'>{body}</div>"
+                        "</div>"
+                    ),
+                    unsafe_allow_html=True,
+                )
+
+    def _render_featured_headline(self, title: str, items: list[dict], *, accent_color: str, bucket: str) -> None:
         if not items:
             self.info_panel.render_note(
                 title=title,
@@ -68,7 +167,10 @@ class NewsPage:
             return
 
         featured = items[0]
+        tag = self._headline_tag(featured["title"], bucket)
         body = (
+            f"<span style='display:inline-block;padding:0.12rem 0.34rem;border:1px solid {accent_color};"
+            f"color:{accent_color};font-size:0.68rem;text-transform:uppercase;margin-bottom:0.45rem;'>{tag}</span><br>"
             f"<a href='{featured['link']}' target='_blank' "
             f"style='color:#B8B1A3;text-decoration:none;font-weight:700;font-size:0.95rem;'>"
             f"{featured['title']}</a><br><br>"
@@ -85,14 +187,17 @@ class NewsPage:
             margin_bottom="0.20rem",
         )
 
-    def _render_headline_list(self, items: list[dict], *, max_items: int = 5) -> None:
+    def _render_headline_list(self, items: list[dict], *, bucket: str, accent_color: str, max_items: int = 4) -> None:
         if len(items) <= 1:
             return
 
         rows = []
         for item in items[1:max_items + 1]:
+            tag = self._headline_tag(item["title"], bucket)
             rows.append(
                 f"<div style='padding:0.38rem 0;border-bottom:1px solid #1A1A1A;'>"
+                f"<span style='display:inline-block;padding:0.10rem 0.28rem;border:1px solid {accent_color};"
+                f"color:{accent_color};font-size:0.64rem;text-transform:uppercase;margin-bottom:0.25rem;'>{tag}</span><br>"
                 f"<a href='{item['link']}' target='_blank' style='color:#B8B1A3;text-decoration:none;'>"
                 f"{item['title']}</a><br>"
                 f"<span style='color:#8D877B;font-size:0.75rem;'>{item['source']} | {self._format_timestamp(item.get('published_at'))}</span>"
@@ -128,6 +233,8 @@ class NewsPage:
             "A dedicated rates, credit, ETF, and macro context page designed to feel like a trader's morning note."
         )
         st.caption("Headlines refresh automatically every hour.")
+        self._render_snapshot_bar()
+        self._render_event_watch()
 
         if feed_error:
             st.caption(f"Live feed fetch failed: {feed_error}")
@@ -159,14 +266,14 @@ class NewsPage:
 
         col1, col2, col3 = st.columns(3, vertical_alignment="top")
         with col1:
-            self._render_featured_headline("Rates", rates_items, accent_color="#5DA9E9")
-            self._render_headline_list(rates_items)
+            self._render_featured_headline("Rates", rates_items, accent_color="#5DA9E9", bucket="rates")
+            self._render_headline_list(rates_items, bucket="rates", accent_color="#5DA9E9")
         with col2:
-            self._render_featured_headline("Credit And ETFs", credit_items, accent_color="#FF9F1A")
-            self._render_headline_list(credit_items)
+            self._render_featured_headline("Credit And ETFs", credit_items, accent_color="#FF9F1A", bucket="credit")
+            self._render_headline_list(credit_items, bucket="credit", accent_color="#FF9F1A")
         with col3:
-            self._render_featured_headline("Macro", macro_items, accent_color="#FF5A36")
-            self._render_headline_list(macro_items)
+            self._render_featured_headline("Macro", macro_items, accent_color="#FF5A36", bucket="macro")
+            self._render_headline_list(macro_items, bucket="macro", accent_color="#FF5A36")
 
         st.markdown("### Coverage Map")
         coverage_col1, coverage_col2, coverage_col3 = st.columns(3)

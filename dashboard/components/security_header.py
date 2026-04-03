@@ -31,11 +31,21 @@ class SecurityHeader:
             return "N/A"
         return f"{numeric:.2f}%"
 
-    def _header_cell_html(self, label: str, value: str, *, color: str = "#F3F0E8") -> str:
+    def _header_cell_html(
+        self,
+        label: str,
+        value: str,
+        *,
+        color: str = "#F3F0E8",
+        emphasis: str = "standard",
+    ) -> str:
+        value_size = "1.18rem" if emphasis == "primary" else "0.90rem"
+        value_weight = "800" if emphasis == "primary" else "700"
+        glow = "box-shadow: inset 0 0 0 1px rgba(255,159,26,0.20);" if emphasis == "primary" else ""
         return (
-            '<div style="border:1px solid #2A2A2A; background:#0A0A0A; padding:0.35rem 0.45rem;">'
+            f'<div style="border:1px solid #2A2A2A; background:#0A0A0A; padding:0.38rem 0.48rem;{glow}">'
             f'<div style="color:#B8B1A3; font-size:0.68rem; text-transform:uppercase;">{label}</div>'
-            f'<div style="color:{color}; font-size:0.95rem; font-weight:700;">{value}</div>'
+            f'<div style="color:{color}; font-size:{value_size}; font-weight:{value_weight}; line-height:1.18;">{value}</div>'
             "</div>"
         )
 
@@ -91,10 +101,10 @@ class SecurityHeader:
 
         chg_color = "#00C176" if chg >= 0 else "#FF5A36"
         header_cells = [
-            self._header_cell_html("Security", selected_security),
-            self._header_cell_html("PX_LAST", f"{px_last:,.2f}"),
-            self._header_cell_html("CHG", f"{chg:+,.2f}", color=chg_color),
-            self._header_cell_html("CHG %", f"{chg_pct:+.2f}%", color=chg_color),
+            self._header_cell_html("Security", selected_security, emphasis="primary"),
+            self._header_cell_html("PX_LAST", f"{px_last:,.2f}", emphasis="primary"),
+            self._header_cell_html("CHG", f"{chg:+,.2f}", color=chg_color, emphasis="primary"),
+            self._header_cell_html("CHG %", f"{chg_pct:+.2f}%", color=chg_color, emphasis="primary"),
             self._header_cell_html("VOLUME / 30D", f"{volume:,.0f} / {vol_ratio:.2f}x"),
             self._header_cell_html("EXCHANGE", str(metadata.get("exchange", "N/A"))),
             self._header_cell_html("AUM", self._format_aum(metadata.get("total_assets"))),
@@ -112,7 +122,7 @@ class SecurityHeader:
             ">
                 <div style="
                     display:grid;
-                    grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+                    grid-template-columns: 1.15fr 1fr 1fr 1fr 1.15fr 0.95fr 0.95fr 0.95fr;
                     gap: 0.4rem;
                     align-items:stretch;
                 ">
