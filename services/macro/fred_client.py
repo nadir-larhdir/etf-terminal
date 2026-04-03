@@ -48,3 +48,26 @@ class FredClient:
         frame["value"] = frame["value"].astype(float)
         frame = frame.sort_values("date").reset_index(drop=True)
         return frame
+
+    def get_series_metadata(self, series_id: str) -> dict[str, str]:
+        response = requests.get(
+            f"{self.base_url}/series",
+            params={
+                "series_id": series_id,
+                "api_key": self.api_key,
+                "file_type": "json",
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        series_rows = payload.get("seriess", []) if isinstance(payload, dict) else []
+        if not series_rows:
+            return {}
+
+        row = series_rows[0]
+        return {
+            "title": str(row.get("title", "")).strip(),
+            "frequency": str(row.get("frequency", "")).strip(),
+            "units": str(row.get("units", "")).strip(),
+        }

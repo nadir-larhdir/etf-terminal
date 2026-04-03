@@ -12,6 +12,7 @@ from config.config import (
     PERIOD_OPTIONS,
     load_config,
 )
+from config.macro_series import MACRO_SERIES_REGISTRY
 
 __all__ = [
     "ASSET_CLASS_ALIASES",
@@ -24,6 +25,7 @@ __all__ = [
     "FRED_BASE_URL",
     "FMP_API_KEY",
     "FMP_BASE_URL",
+    "MACRO_SERIES_REGISTRY",
     "PERIOD_OPTIONS",
     "load_config",
     "normalize_asset_class",
