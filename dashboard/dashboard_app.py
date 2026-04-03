@@ -29,7 +29,7 @@ class DashboardApp:
         self.macro_tab = MacroTab(macro_feature_store)
         self.security_header = SecurityHeader()
         self.graphs_tab = GraphsTab()
-        self.analytics_tab = AnalyticsTab()
+        self.analytics_tab = AnalyticsTab(price_store)
         self.rv_tab = RVTab(price_store)
         self.controls = DashboardControls()
 
@@ -113,7 +113,12 @@ class DashboardApp:
                 key="main_security_selector",
             )
 
-        security = Security(selected_security)
+        selected_row = filtered_securities.loc[filtered_securities["ticker"] == selected_security].iloc[0]
+        security = Security(
+            selected_security,
+            name=selected_row.get("name"),
+            asset_class=selected_row.get("asset_class"),
+        )
         metadata = security.load_metadata(self.metadata_store)
 
         with desc_col:
