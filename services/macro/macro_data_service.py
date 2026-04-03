@@ -16,10 +16,22 @@ class MacroDataService:
         self.macro_repository = macro_repository
 
     def get_treasury_curve(self):
+        treasury_labels = {
+            "DGS3MO": "3M",
+            "DGS6MO": "6M",
+            "DGS1": "1Y",
+            "DGS2": "2Y",
+            "DGS3": "3Y",
+            "DGS5": "5Y",
+            "DGS7": "7Y",
+            "DGS10": "10Y",
+            "DGS20": "20Y",
+            "DGS30": "30Y",
+        }
         return {
-            "2Y": self.fred.get_series("DGS2"),
-            "10Y": self.fred.get_series("DGS10"),
-            "30Y": self.fred.get_series("DGS30"),
+            label: self.fred.get_series(series_id)
+            for series_id, label in treasury_labels.items()
+            if series_id in MACRO_SERIES_REGISTRY
         }
 
     def get_inflation(self):
