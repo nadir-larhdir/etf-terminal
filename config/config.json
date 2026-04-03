@@ -48,6 +48,27 @@
   },
 
   "MACRO_SERIES_REGISTRY": {
+    "DGS3MO": {
+      "name": "US Treasury 3-Month Yield",
+      "category": "Rates",
+      "sub_category": "Treasury Yields",
+      "frequency": "Daily",
+      "units": "Percent"
+    },
+    "DGS6MO": {
+      "name": "US Treasury 6-Month Yield",
+      "category": "Rates",
+      "sub_category": "Treasury Yields",
+      "frequency": "Daily",
+      "units": "Percent"
+    },
+    "DGS1": {
+      "name": "US Treasury 1-Year Yield",
+      "category": "Rates",
+      "sub_category": "Treasury Yields",
+      "frequency": "Daily",
+      "units": "Percent"
+    },
     "DGS2": {
       "name": "US Treasury 2-Year Yield",
       "category": "Rates",
@@ -55,8 +76,36 @@
       "frequency": "Daily",
       "units": "Percent"
     },
+    "DGS3": {
+      "name": "US Treasury 3-Year Yield",
+      "category": "Rates",
+      "sub_category": "Treasury Yields",
+      "frequency": "Daily",
+      "units": "Percent"
+    },
+    "DGS5": {
+      "name": "US Treasury 5-Year Yield",
+      "category": "Rates",
+      "sub_category": "Treasury Yields",
+      "frequency": "Daily",
+      "units": "Percent"
+    },
+    "DGS7": {
+      "name": "US Treasury 7-Year Yield",
+      "category": "Rates",
+      "sub_category": "Treasury Yields",
+      "frequency": "Daily",
+      "units": "Percent"
+    },
     "DGS10": {
       "name": "US Treasury 10-Year Yield",
+      "category": "Rates",
+      "sub_category": "Treasury Yields",
+      "frequency": "Daily",
+      "units": "Percent"
+    },
+    "DGS20": {
+      "name": "US Treasury 20-Year Yield",
       "category": "Rates",
       "sub_category": "Treasury Yields",
       "frequency": "Daily",
