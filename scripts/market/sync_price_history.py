@@ -1,7 +1,7 @@
 import argparse
 
 from db.connection import get_engine
-from repositories.market import PriceRepository, SecurityRepository
+from stores.market import PriceStore, SecurityStore
 from scripts.script_helpers import add_ticker_argument, resolve_target_tickers
 from services.market import MarketDataService
 
@@ -33,13 +33,13 @@ if __name__ == "__main__":
     args = build_parser().parse_args()
 
     engine = get_engine()
-    security_repo = SecurityRepository(engine)
-    active_securities = security_repo.list_active_securities()
+    security_store = SecurityStore(engine)
+    active_securities = security_store.list_active_securities()
     db_tickers = active_securities["ticker"].astype(str).tolist() if not active_securities.empty else []
     tickers = resolve_target_tickers(args.tickers, available_tickers=db_tickers)
 
-    repo = PriceRepository(engine)
-    service = MarketDataService(repo)
+    price_store = PriceStore(engine)
+    service = MarketDataService(price_store)
 
     if args.mode == "full":
         service.sync_price_history(tickers, period=args.period, replace_existing=True)

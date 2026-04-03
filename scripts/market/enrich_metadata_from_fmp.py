@@ -4,7 +4,7 @@ from datetime import datetime
 
 from config import DEFAULT_TICKERS, FMP_API_KEY, FMP_BASE_URL, normalize_asset_class
 from db.connection import get_engine
-from repositories.market import MetadataRepository
+from stores.market import MetadataStore
 from scripts.script_helpers import add_ticker_argument, parse_ticker_list
 from services.market.fmp_client import FMPClient
 
@@ -230,22 +230,22 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     engine = get_engine()
-    repo = MetadataRepository(engine)
+    metadata_store = MetadataStore(engine)
     tickers = parse_ticker_list(args.tickers)
 
     if args.mode == "missing-only":
-        existing = repo.get_existing_tickers()
+        existing = metadata_store.get_existing_tickers()
         tickers = [ticker for ticker in tickers if ticker not in existing]
 
     rows = []
     for ticker in tickers:
         try:
-            existing_row = repo.get_ticker_metadata(ticker)
+            existing_row = metadata_store.get_ticker_metadata(ticker)
             row = build_metadata_row(ticker, existing_row=existing_row)
             rows.append(row)
             print(f"Enriched metadata for {ticker}")
         except Exception as exc:
             print(f"Failed metadata enrichment for {ticker}: {exc}")
 
-    repo.upsert_metadata(rows)
+    metadata_store.upsert_metadata(rows)
     print("Security metadata enrichment complete.")

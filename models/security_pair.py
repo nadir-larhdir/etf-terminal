@@ -1,5 +1,3 @@
-
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,6 +6,10 @@ import math
 import pandas as pd
 
 from models.security import Security
+
+
+def _empty_series() -> pd.Series:
+    return pd.Series(dtype=float)
 
 
 @dataclass
@@ -44,13 +46,13 @@ class SecurityPair:
     def ratio(self, start_date=None, end_date=None) -> pd.Series:
         aligned = self.filtered_prices(start_date=start_date, end_date=end_date)
         if aligned.empty:
-            return pd.Series(dtype=float)
+            return _empty_series()
         return aligned["close_left"] / aligned["close_right"]
 
     def ratio_zscore(self, window: int | None = None, start_date=None, end_date=None) -> pd.Series:
         ratio = self.ratio(start_date=start_date, end_date=end_date)
         if ratio.empty:
-            return pd.Series(dtype=float)
+            return _empty_series()
 
         if window is None:
             mean_val = ratio.mean()
@@ -74,13 +76,13 @@ class SecurityPair:
     def rolling_correlation(self, window: int = 20) -> pd.Series:
         merged = self.returns()
         if merged.empty:
-            return pd.Series(dtype=float)
+            return _empty_series()
         return merged["ret_left"].rolling(window).corr(merged["ret_right"])
 
     def rolling_beta(self, window: int = 20) -> pd.Series:
         merged = self.returns()
         if merged.empty:
-            return pd.Series(dtype=float)
+            return _empty_series()
         cov = merged["ret_left"].rolling(window).cov(merged["ret_right"])
         var = merged["ret_right"].rolling(window).var()
         beta = cov / var
@@ -95,7 +97,7 @@ class SecurityPair:
     def beta_adjusted_spread(self, beta: float | None = None, start_date=None, end_date=None) -> pd.Series:
         aligned = self.filtered_prices(start_date=start_date, end_date=end_date)
         if aligned.empty:
-            return pd.Series(dtype=float)
+            return _empty_series()
 
         beta_value = beta if beta is not None else self.latest_beta()
         return aligned["close_left"] - beta_value * aligned["close_right"]
@@ -103,7 +105,7 @@ class SecurityPair:
     def beta_adjusted_zscore(self, beta: float | None = None, start_date=None, end_date=None) -> pd.Series:
         spread = self.beta_adjusted_spread(beta=beta, start_date=start_date, end_date=end_date)
         if spread.empty:
-            return pd.Series(dtype=float)
+            return _empty_series()
         mean_val = spread.mean()
         std_val = spread.std(ddof=0)
         if pd.isna(std_val) or float(std_val) == 0:

@@ -1,8 +1,10 @@
 import pandas as pd
 from sqlalchemy import text
 
+from stores.query_utils import index_history_frame, latest_dates_map
 
-class PriceRepository:
+
+class PriceStore:
     """Read and write ETF daily price history rows."""
 
     def __init__(self, engine):
@@ -86,14 +88,7 @@ class PriceRepository:
         with self.engine.connect() as conn:
             df = pd.read_sql(text(query), conn, params=params)
 
-        if df.empty:
-            return {}
-
-        return {
-            str(row["ticker"]): str(row["latest_date"])
-            for _, row in df.iterrows()
-            if row["latest_date"] is not None
-        }
+        return latest_dates_map(df, key_column="ticker")
 
     def get_ticker_price_history(self, ticker: str, start_date=None, end_date=None) -> pd.DataFrame:
         query = """
@@ -113,15 +108,10 @@ class PriceRepository:
 
         query += " ORDER BY date"
 
-        # ✅ THIS IS THE CRITICAL FIX
         with self.engine.connect() as conn:
             df = pd.read_sql(text(query), conn, params=params)
 
-        if not df.empty:
-            df["date"] = pd.to_datetime(df["date"])
-            df = df.set_index("date")
-
-        return df
+        return index_history_frame(df)
 
     def delete_ticker(self, ticker: str):
         with self.engine.begin() as conn:

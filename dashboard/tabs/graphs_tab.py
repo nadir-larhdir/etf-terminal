@@ -26,9 +26,9 @@ class GraphsTab:
         default_period = "6M"
         default_start, default_end = compute_default_date_range(hist, default_period)
 
-        selected_period, start_date, end_date = self.controls.render_window_and_dates(
+        _, start_date, end_date = self.controls.render_window_and_dates(
             window_label="Preset Window",
-            window_options=["5D", "30D", "3M", "6M", "1Y"],
+            window_options=["5D", "30D", "3M", "6M", "1Y", "ALL"],
             window_index=3,
             window_key=f"graphs_period_{selected_security}",
             start_label="Start Date",

@@ -1,4 +1,5 @@
 from typing import Literal
+from datetime import timedelta
 
 import pandas as pd
 import streamlit as st
@@ -6,6 +7,14 @@ import streamlit as st
 
 class DashboardControls:
     """Provide shared Streamlit selectors and date controls for the dashboard."""
+
+    WINDOW_DAY_MAP = {
+        "5D": 5,
+        "30D": 30,
+        "3M": 63,
+        "6M": 126,
+        "1Y": 252,
+    }
 
     def render_security_select(
         self,
@@ -151,10 +160,27 @@ class DashboardControls:
                 width=width,
             )
 
+        applied_window_key = f"{window_key}__applied"
+        if st.session_state.get(applied_window_key) != selected_window:
+            lookback_days = self.WINDOW_DAY_MAP.get(selected_window)
+            if lookback_days is not None:
+                computed_start = max_date - timedelta(days=lookback_days)
+                st.session_state[start_key] = max(computed_start, min_date)
+                st.session_state[end_key] = max_date
+            elif str(selected_window).upper() == "ALL":
+                st.session_state[start_key] = min_date
+                st.session_state[end_key] = max_date
+            else:
+                st.session_state[start_key] = default_start
+                st.session_state[end_key] = default_end
+            st.session_state[applied_window_key] = selected_window
+        else:
+            st.session_state.setdefault(start_key, default_start)
+            st.session_state.setdefault(end_key, default_end)
+
         with c2:
             start_date = st.date_input(
                 start_label,
-                value=default_start,
                 min_value=min_date,
                 max_value=max_date,
                 key=start_key,
@@ -163,7 +189,6 @@ class DashboardControls:
         with c3:
             end_date = st.date_input(
                 end_label,
-                value=default_end,
                 min_value=min_date,
                 max_value=max_date,
                 key=end_key,

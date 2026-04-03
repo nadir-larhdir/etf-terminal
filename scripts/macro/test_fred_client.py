@@ -2,7 +2,7 @@ from config import FRED_API_KEY, FRED_BASE_URL
 from services.macro import FredClient
 
 
-if __name__ == "__main__":
+def main() -> None:
     client = FredClient(api_key=FRED_API_KEY, base_url=FRED_BASE_URL)
 
     print("DGS10")
@@ -10,3 +10,7 @@ if __name__ == "__main__":
     print()
     print("CPIAUCSL")
     print(client.get_series("CPIAUCSL").head())
+
+
+if __name__ == "__main__":
+    main()

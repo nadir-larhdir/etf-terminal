@@ -63,7 +63,7 @@ The project follows a modular, scalable structure:
 config/        → config.json + thin Python loader
 db/            → engine + schema
 models/        → financial instruments (ETF classes)
-repositories/  → data access layer grouped by domain
+stores/  → data access layer grouped by domain
 services/      → business logic grouped by domain
 dashboard/     → app shell, components, tabs, and styles
 scripts/       → CLI entrypoints grouped by domain (db / market / admin)

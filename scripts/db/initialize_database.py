@@ -2,7 +2,7 @@ from db.connection import get_engine
 from db.schema import TABLE_DEFINITIONS, create_tables, get_existing_tables
 
 
-if __name__ == "__main__":
+def main() -> None:
     engine = get_engine()
     existing_before = get_existing_tables(engine)
     create_tables(engine)
@@ -16,3 +16,7 @@ if __name__ == "__main__":
     print("Managed tables: {0}".format(", ".join(managed_tables)))
     print("Created tables: {0}".format(", ".join(created_tables) if created_tables else "none"))
     print("Already present: {0}".format(", ".join(already_present) if already_present else "none"))
+
+
+if __name__ == "__main__":
+    main()

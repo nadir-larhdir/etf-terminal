@@ -13,6 +13,32 @@ class FMPClient:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
 
+    def _request_json(self, endpoint: str, params: dict) -> dict | list:
+        response = requests.get(
+            f"{self.base_url}/{endpoint.lstrip('/')}",
+            params={**params, "apikey": self.api_key},
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def _extract_rows(self, payload: dict | list) -> list[dict]:
+        if isinstance(payload, dict):
+            return payload.get("historical", []) or payload.get("data", []) or []
+        if isinstance(payload, list):
+            return payload
+        return []
+
+    def _extract_record(self, payload: dict | list) -> dict:
+        if isinstance(payload, list):
+            return payload[0] if payload else {}
+        if isinstance(payload, dict):
+            data = payload.get("data")
+            if isinstance(data, list):
+                return data[0] if data else {}
+            return payload
+        return {}
+
     def get_historical_price_eod_full(
         self,
         symbol: str,
@@ -21,23 +47,9 @@ class FMPClient:
         start: str | None = None,
         end: str | None = None,
     ) -> pd.DataFrame:
-        response = requests.get(
-            f"{self.base_url}/historical-price-eod/full",
-            params={
-                "symbol": symbol,
-                "apikey": self.api_key,
-            },
-            timeout=30,
+        rows = self._extract_rows(
+            self._request_json("historical-price-eod/full", {"symbol": symbol})
         )
-        response.raise_for_status()
-        payload = response.json()
-
-        if isinstance(payload, dict):
-            rows = payload.get("historical", []) or payload.get("data", []) or []
-        elif isinstance(payload, list):
-            rows = payload
-        else:
-            rows = []
 
         if not rows:
             return pd.DataFrame(
@@ -82,46 +94,10 @@ class FMPClient:
         return frame.reset_index(drop=True)
 
     def get_security_profile(self, symbol: str) -> dict:
-        response = requests.get(
-            f"{self.base_url}/profile",
-            params={
-                "symbol": symbol,
-                "apikey": self.api_key,
-            },
-            timeout=30,
-        )
-        response.raise_for_status()
-        payload = response.json()
-
-        if isinstance(payload, list):
-            return payload[0] if payload else {}
-        if isinstance(payload, dict):
-            data = payload.get("data")
-            if isinstance(data, list):
-                return data[0] if data else {}
-            return payload
-        return {}
+        return self._extract_record(self._request_json("profile", {"symbol": symbol}))
 
     def get_etf_info(self, symbol: str) -> dict:
-        response = requests.get(
-            f"{self.base_url}/etf/info",
-            params={
-                "symbol": symbol,
-                "apikey": self.api_key,
-            },
-            timeout=30,
-        )
-        response.raise_for_status()
-        payload = response.json()
-
-        if isinstance(payload, list):
-            return payload[0] if payload else {}
-        if isinstance(payload, dict):
-            data = payload.get("data")
-            if isinstance(data, list):
-                return data[0] if data else {}
-            return payload
-        return {}
+        return self._extract_record(self._request_json("etf/info", {"symbol": symbol}))
 
     def _period_cutoff(self, period: str) -> str | None:
         today = datetime.utcnow().date()

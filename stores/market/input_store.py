@@ -3,7 +3,7 @@ from sqlalchemy import text
 from datetime import datetime
 
 
-class InputRepository:
+class InputStore:
     """Store discretionary desk inputs such as flows, notes, and premium discounts."""
 
     def __init__(self, engine):

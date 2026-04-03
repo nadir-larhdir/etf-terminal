@@ -8,8 +8,8 @@ from services.market.fmp_client import FMPClient
 class MarketDataService:
     """Fetch ETF price history and synchronize it into the local database."""
 
-    def __init__(self, price_repository):
-        self.price_repository = price_repository
+    def __init__(self, price_store):
+        self.price_store = price_store
         self.fmp_client = FMPClient(api_key=FMP_API_KEY, base_url=FMP_BASE_URL)
 
     def _fetch_history(
@@ -54,7 +54,7 @@ class MarketDataService:
         tickers: list[str],
         period: str = "1y",
         replace_existing: bool = True,
-    ):
+    ) -> None:
         raw = self._fetch_history(tickers=tickers, period=period)
 
         for ticker in tickers:
@@ -63,15 +63,15 @@ class MarketDataService:
                 continue
 
             if replace_existing:
-                self.price_repository.replace_ticker_prices(ticker, frame)
+                self.price_store.replace_ticker_prices(ticker, frame)
             else:
-                self.price_repository.upsert_prices(frame)
+                self.price_store.upsert_prices(frame)
 
-    def sync_price_gaps(self, tickers: list[str], period: str = "1y"):
+    def sync_price_gaps(self, tickers: list[str], period: str = "1y") -> None:
         self.sync_price_history(tickers=tickers, period=period, replace_existing=False)
 
     def sync_missing_ticker_history(self, tickers: list[str], period: str = "1y") -> list[str]:
-        existing = self.price_repository.get_existing_tickers(tickers)
+        existing = self.price_store.get_existing_tickers(tickers)
         missing = [ticker for ticker in tickers if ticker not in existing]
 
         if missing:
@@ -85,7 +85,7 @@ class MarketDataService:
         period_for_new: str = "1y",
         overlap_days: int = 5,
     ) -> dict[str, str]:
-        latest_dates = self.price_repository.get_latest_stored_dates(tickers)
+        latest_dates = self.price_store.get_latest_stored_dates(tickers)
         today = datetime.utcnow().date()
         statuses: dict[str, str] = {}
 
@@ -108,7 +108,7 @@ class MarketDataService:
                 statuses[ticker] = "no_new_rows"
                 continue
 
-            self.price_repository.upsert_prices(frame)
+            self.price_store.upsert_prices(frame)
             statuses[ticker] = f"updated_from_{start_date}"
 
         return statuses

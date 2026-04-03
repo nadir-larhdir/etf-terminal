@@ -1,8 +1,10 @@
 import pandas as pd
 from sqlalchemy import text
 
+from stores.query_utils import index_history_frame, latest_dates_map, pivot_time_series
 
-class MacroRepository:
+
+class MacroStore:
     """Read and write macroeconomic time-series observations."""
 
     def __init__(self, engine):
@@ -79,14 +81,7 @@ class MacroRepository:
         with self.engine.connect() as conn:
             df = pd.read_sql(text(query), conn, params=params)
 
-        if df.empty:
-            return {}
-
-        return {
-            str(row["series_id"]): str(row["latest_date"])
-            for _, row in df.iterrows()
-            if row["latest_date"] is not None
-        }
+        return latest_dates_map(df, key_column="series_id")
 
     def get_series_history(
         self,
@@ -114,11 +109,7 @@ class MacroRepository:
         with self.engine.connect() as conn:
             df = pd.read_sql(text(query), conn, params=params)
 
-        if not df.empty:
-            df["date"] = pd.to_datetime(df["date"])
-            df = df.set_index("date")
-
-        return df
+        return index_history_frame(df)
 
     def get_series_matrix(self, series_ids: list[str] | None = None) -> pd.DataFrame:
         query = """
@@ -136,10 +127,4 @@ class MacroRepository:
         with self.engine.connect() as conn:
             df = pd.read_sql(text(query), conn, params=params)
 
-        if df.empty:
-            return pd.DataFrame()
-
-        df["date"] = pd.to_datetime(df["date"])
-        matrix = df.pivot(index="date", columns="series_id", values="value").sort_index()
-        matrix.columns.name = None
-        return matrix
+        return pivot_time_series(df, column_column="series_id")

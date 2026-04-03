@@ -2,7 +2,8 @@ import argparse
 
 from config import FRED_API_KEY, FRED_BASE_URL
 from db.connection import get_engine
-from repositories.macro import MacroRepository
+from stores.macro import MacroStore
+from scripts.script_helpers import parse_csv_values
 from services.macro import DEFAULT_MACRO_SERIES, FredClient, MacroDataService
 
 
@@ -38,13 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
 def parse_series_ids(series_arg: str | None) -> list[str]:
     if not series_arg:
         return list(DEFAULT_MACRO_SERIES.keys())
-
-    series_ids = []
-    for raw_value in series_arg.split(","):
-        series_id = raw_value.strip().upper()
-        if series_id and series_id not in series_ids:
-            series_ids.append(series_id)
-    return series_ids
+    return parse_csv_values(series_arg)
 
 
 if __name__ == "__main__":
@@ -52,9 +47,9 @@ if __name__ == "__main__":
     series_ids = parse_series_ids(args.series)
 
     engine = get_engine()
-    repository = MacroRepository(engine)
+    macro_store = MacroStore(engine)
     client = FredClient(api_key=FRED_API_KEY, base_url=FRED_BASE_URL)
-    service = MacroDataService(client, repository)
+    service = MacroDataService(client, macro_store)
 
     if args.mode == "full":
         start = args.start or "2000-01-01"

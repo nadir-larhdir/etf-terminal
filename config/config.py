@@ -36,7 +36,7 @@ FRED_BASE_URL = "https://api.stlouisfed.org/fred"
 
 
 def load_config() -> dict:
-    with open(CONFIG_PATH, "r") as f:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
 
 

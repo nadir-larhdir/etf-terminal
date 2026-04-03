@@ -1,7 +1,7 @@
 import argparse
 
 from db.connection import get_engine
-from repositories.market import InputRepository, MetadataRepository, PriceRepository, SecurityRepository
+from stores.market import InputStore, MetadataStore, PriceStore, SecurityStore
 from services.admin import TickerManagerService
 from services.market import MarketDataService
 
@@ -26,16 +26,16 @@ if __name__ == "__main__":
     args = build_parser().parse_args()
 
     engine = get_engine()
-    security_repo = SecurityRepository(engine)
-    price_repo = PriceRepository(engine)
-    metadata_repo = MetadataRepository(engine)
-    input_repo = InputRepository(engine)
-    market_data_service = MarketDataService(price_repo)
+    security_store = SecurityStore(engine)
+    price_store = PriceStore(engine)
+    metadata_store = MetadataStore(engine)
+    input_store = InputStore(engine)
+    market_data_service = MarketDataService(price_store)
     manager = TickerManagerService(
-        security_repo=security_repo,
-        price_repo=price_repo,
-        metadata_repo=metadata_repo,
-        input_repo=input_repo,
+        security_store=security_store,
+        price_store=price_store,
+        metadata_store=metadata_store,
+        input_store=input_store,
         market_data_service=market_data_service,
     )
 
