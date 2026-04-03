@@ -10,6 +10,7 @@ from config.config import (
     FMP_API_KEY,
     FMP_BASE_URL,
     MACRO_SERIES_REGISTRY,
+    NEWS_FEEDS,
     PERIOD_OPTIONS,
     load_config,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "FMP_API_KEY",
     "FMP_BASE_URL",
     "MACRO_SERIES_REGISTRY",
+    "NEWS_FEEDS",
     "PERIOD_OPTIONS",
     "load_config",
     "normalize_asset_class",
