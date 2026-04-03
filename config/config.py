@@ -46,3 +46,5 @@ _config = load_config()
 DEFAULT_TICKERS = _config["DEFAULT_TICKERS"]
 """Predefined lookback windows used by the dashboard controls."""
 PERIOD_OPTIONS = _config["PERIOD_OPTIONS"]
+"""Canonical registry for supported FRED macro series."""
+MACRO_SERIES_REGISTRY = _config["MACRO_SERIES_REGISTRY"]
