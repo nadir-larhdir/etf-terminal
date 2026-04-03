@@ -72,6 +72,18 @@ TABLE_DEFINITIONS = {
             PRIMARY KEY (series_id, date)
         )
     """,
+    "macro_features": """
+        CREATE TABLE IF NOT EXISTS macro_features (
+            feature_name TEXT NOT NULL,
+            date DATE NOT NULL,
+            value REAL,
+            category TEXT,
+            sub_category TEXT,
+            source TEXT DEFAULT 'derived',
+            last_updated_at TIMESTAMP,
+            PRIMARY KEY (feature_name, date)
+        )
+    """,
 }
 
 EXPECTED_MACRO_DATA_COLUMNS = [

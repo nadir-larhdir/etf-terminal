@@ -119,3 +119,27 @@ class MacroRepository:
             df = df.set_index("date")
 
         return df
+
+    def get_series_matrix(self, series_ids: list[str] | None = None) -> pd.DataFrame:
+        query = """
+        SELECT series_id, date, value
+        FROM macro_data
+        WHERE is_active = 1
+        """
+        params = {}
+
+        if series_ids:
+            placeholders = ", ".join(f":series_id_{idx}" for idx in range(len(series_ids)))
+            query += f" AND series_id IN ({placeholders})"
+            params = {f"series_id_{idx}": series_id for idx, series_id in enumerate(series_ids)}
+
+        with self.engine.connect() as conn:
+            df = pd.read_sql(text(query), conn, params=params)
+
+        if df.empty:
+            return pd.DataFrame()
+
+        df["date"] = pd.to_datetime(df["date"])
+        matrix = df.pivot(index="date", columns="series_id", values="value").sort_index()
+        matrix.columns.name = None
+        return matrix
