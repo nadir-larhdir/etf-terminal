@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from config import FMP_API_KEY, FMP_BASE_URL, normalize_asset_class
-from scripts.market.enrich_metadata_from_fmp import build_metadata_row
 from services.market.fmp_client import FMPClient
 
 
@@ -52,6 +51,8 @@ class TickerManagerService:
         self.fmp_client = FMPClient(api_key=FMP_API_KEY, base_url=FMP_BASE_URL)
 
     def inspect_ticker(self, ticker: str, asset_class_override: str | None = None) -> TickerProfile:
+        from scripts.market.enrich_metadata_from_fmp import build_metadata_row
+
         normalized = ticker.strip().upper()
         info = self.fmp_client.get_security_profile(normalized)
 
