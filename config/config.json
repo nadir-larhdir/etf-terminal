@@ -238,5 +238,20 @@
       "frequency": "Monthly",
       "units": "Percent"
     }
+  },
+
+  "NEWS_FEEDS": {
+    "rates": {
+      "label": "Rates",
+      "url": "https://news.google.com/rss/search?q=treasury+yields+OR+bond+market+when:7d&hl=en-US&gl=US&ceid=US:en"
+    },
+    "credit": {
+      "label": "Credit And ETFs",
+      "url": "https://news.google.com/rss/search?q=corporate+bond+spreads+OR+high+yield+ETF+OR+investment+grade+ETF+when:7d&hl=en-US&gl=US&ceid=US:en"
+    },
+    "macro": {
+      "label": "Macro",
+      "url": "https://news.google.com/rss/search?q=federal+reserve+OR+inflation+OR+payrolls+OR+unemployment+when:7d&hl=en-US&gl=US&ceid=US:en"
+    }
   }
 }
