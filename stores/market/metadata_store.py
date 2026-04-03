@@ -3,7 +3,7 @@ from sqlalchemy import text
 from datetime import datetime
 
 
-class MetadataRepository:
+class MetadataStore:
     """Read and write descriptive ETF metadata rows."""
 
     def __init__(self, engine):
@@ -17,12 +17,12 @@ class MetadataRepository:
         if "updated_at" not in df.columns:
             df["updated_at"] = datetime.utcnow().isoformat()
 
+        tickers = df["ticker"].dropna().astype(str).tolist()
         with self.engine.begin() as conn:
-            for _, row in df.iterrows():
-                conn.exec_driver_sql(
-                    "DELETE FROM security_metadata WHERE ticker = ?",
-                    (row["ticker"],),
-                )
+            conn.execute(
+                text("DELETE FROM security_metadata WHERE ticker = :ticker"),
+                [{"ticker": ticker} for ticker in tickers],
+            )
             df.to_sql("security_metadata", conn, if_exists="append", index=False)
 
     def get_existing_tickers(self) -> set[str]:

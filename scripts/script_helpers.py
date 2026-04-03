@@ -3,16 +3,27 @@ import argparse
 from config import DEFAULT_TICKERS
 
 
+def dedupe_upper(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for value in values:
+        normalized = str(value).strip().upper()
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            deduped.append(normalized)
+    return deduped
+
+
+def parse_csv_values(values_arg: str | None) -> list[str]:
+    if not values_arg:
+        return []
+    return dedupe_upper(values_arg.split(","))
+
+
 def parse_ticker_list(tickers_arg: str | None) -> list[str]:
     if not tickers_arg:
         return list(DEFAULT_TICKERS.keys())
-
-    requested = []
-    for raw_value in tickers_arg.split(","):
-        ticker = raw_value.strip().upper()
-        if ticker and ticker not in requested:
-            requested.append(ticker)
-    return requested
+    return parse_csv_values(tickers_arg)
 
 
 def resolve_target_tickers(
@@ -23,11 +34,7 @@ def resolve_target_tickers(
         return parse_ticker_list(tickers_arg)
 
     if available_tickers:
-        resolved = []
-        for ticker in available_tickers:
-            normalized = str(ticker).strip().upper()
-            if normalized and normalized not in resolved:
-                resolved.append(normalized)
+        resolved = dedupe_upper(available_tickers)
         if resolved:
             return resolved
 

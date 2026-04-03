@@ -32,13 +32,7 @@ class AnalyticsTab:
         low = float(hist["low"].iloc[-1])
         range_position = ((px_last - low) / (high - low)) if high != low else 0.5
 
-        # --- Liquidity regime ---
-        if vol_z > 2:
-            liquidity_regime = "HIGH ACTIVITY"
-        elif vol_z < -1:
-            liquidity_regime = "QUIET"
-        else:
-            liquidity_regime = "NORMAL"
+        liquidity_regime = self._liquidity_regime(vol_z)
 
         # --- Top metrics ---
         a1, a2, a3, a4 = st.columns(4)
@@ -64,3 +58,10 @@ class AnalyticsTab:
             margin_top="0.35rem",
             margin_bottom="0.00rem",
         )
+
+    def _liquidity_regime(self, vol_z: float) -> str:
+        if vol_z > 2:
+            return "HIGH ACTIVITY"
+        if vol_z < -1:
+            return "QUIET"
+        return "NORMAL"

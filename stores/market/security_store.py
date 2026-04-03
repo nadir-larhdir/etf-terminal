@@ -4,7 +4,7 @@ from sqlalchemy import text
 from db.schema import create_tables
 
 
-class SecurityRepository:
+class SecurityStore:
     """Persist and manage the active ETF universe stored in the securities table."""
 
     def __init__(self, engine):

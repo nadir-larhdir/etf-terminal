@@ -62,9 +62,19 @@ REQUIRED_SERIES = [
 class MacroFeatureService:
     """Build derived macro features from raw FRED observations."""
 
-    def __init__(self, macro_repository, macro_feature_repository):
-        self.macro_repository = macro_repository
-        self.macro_feature_repository = macro_feature_repository
+    OUTPUT_COLUMNS = [
+        "feature_name",
+        "date",
+        "value",
+        "category",
+        "sub_category",
+        "source",
+        "last_updated_at",
+    ]
+
+    def __init__(self, macro_store, macro_feature_store):
+        self.macro_store = macro_store
+        self.macro_feature_store = macro_feature_store
 
     def _zscore(self, series: pd.Series, window: int) -> pd.Series:
         rolling_mean = series.rolling(window).mean()
@@ -87,7 +97,7 @@ class MacroFeatureService:
         return transform(clean)
 
     def build_feature_matrix(self) -> pd.DataFrame:
-        raw = self.macro_repository.get_series_matrix(REQUIRED_SERIES)
+        raw = self.macro_store.get_series_matrix(REQUIRED_SERIES)
         if raw.empty:
             return pd.DataFrame()
 
@@ -145,17 +155,7 @@ class MacroFeatureService:
     def build_feature_rows(self) -> pd.DataFrame:
         matrix = self.build_feature_matrix()
         if matrix.empty:
-            return pd.DataFrame(
-                columns=[
-                    "feature_name",
-                    "date",
-                    "value",
-                    "category",
-                    "sub_category",
-                    "source",
-                    "last_updated_at",
-                ]
-            )
+            return pd.DataFrame(columns=self.OUTPUT_COLUMNS)
 
         stacked = matrix.stack(dropna=True).reset_index()
         stacked.columns = ["date", "feature_name", "value"]
@@ -164,20 +164,10 @@ class MacroFeatureService:
         stacked["sub_category"] = stacked["feature_name"].map(lambda name: FEATURE_METADATA[name][1])
         stacked["source"] = "derived"
         stacked["last_updated_at"] = datetime.utcnow().isoformat()
-        return stacked[
-            [
-                "feature_name",
-                "date",
-                "value",
-                "category",
-                "sub_category",
-                "source",
-                "last_updated_at",
-            ]
-        ]
+        return stacked[self.OUTPUT_COLUMNS]
 
     def persist_features(self) -> pd.DataFrame:
         feature_rows = self.build_feature_rows()
         if not feature_rows.empty:
-            self.macro_feature_repository.upsert_features(feature_rows)
+            self.macro_feature_store.upsert_features(feature_rows)
         return feature_rows

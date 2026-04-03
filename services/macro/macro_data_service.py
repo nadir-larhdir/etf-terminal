@@ -11,9 +11,23 @@ DEFAULT_MACRO_SERIES = MACRO_SERIES_REGISTRY
 class MacroDataService:
     """Provide grouped macro datasets used by the terminal's market-context layer."""
 
-    def __init__(self, fred_client, macro_repository=None):
+    BASE_COLUMNS = [
+        "series_id",
+        "date",
+        "value",
+        "series_name",
+        "category",
+        "sub_category",
+        "frequency",
+        "units",
+        "source",
+        "is_active",
+        "last_updated_at",
+    ]
+
+    def __init__(self, fred_client, macro_store=None):
         self.fred = fred_client
-        self.macro_repository = macro_repository
+        self.macro_store = macro_store
 
     def get_treasury_curve(self):
         treasury_labels = {
@@ -50,39 +64,11 @@ class MacroDataService:
 
     def _build_series_frame(self, raw: pd.DataFrame, series_id: str) -> pd.DataFrame:
         if raw.empty:
-            return pd.DataFrame(
-                columns=[
-                    "series_id",
-                    "date",
-                    "value",
-                    "series_name",
-                    "category",
-                    "sub_category",
-                    "frequency",
-                    "units",
-                    "source",
-                    "is_active",
-                    "last_updated_at",
-                ]
-            )
+            return pd.DataFrame(columns=self.BASE_COLUMNS)
 
         frame = raw.loc[raw["series_id"].astype(str) == series_id].copy()
         if frame.empty:
-            return pd.DataFrame(
-                columns=[
-                    "series_id",
-                    "date",
-                    "value",
-                    "series_name",
-                    "category",
-                    "sub_category",
-                    "frequency",
-                    "units",
-                    "source",
-                    "is_active",
-                    "last_updated_at",
-                ]
-            )
+            return pd.DataFrame(columns=self.BASE_COLUMNS)
 
         details = self._resolve_series_details(series_id)
         frame["date"] = pd.to_datetime(frame["date"]).dt.strftime("%Y-%m-%d")
@@ -94,21 +80,7 @@ class MacroDataService:
         frame["source"] = "fred"
         frame["is_active"] = 1
         frame["last_updated_at"] = datetime.utcnow().isoformat()
-        return frame[
-            [
-                "series_id",
-                "date",
-                "value",
-                "series_name",
-                "category",
-                "sub_category",
-                "frequency",
-                "units",
-                "source",
-                "is_active",
-                "last_updated_at",
-            ]
-        ]
+        return frame[self.BASE_COLUMNS]
 
     def sync_series_history(
         self,
@@ -117,8 +89,8 @@ class MacroDataService:
         end: str | None = None,
         replace_existing: bool = True,
     ):
-        if self.macro_repository is None:
-            raise ValueError("Macro repository is required for sync operations.")
+        if self.macro_store is None:
+            raise ValueError("Macro store is required for sync operations.")
 
         for series_id in series_ids:
             raw = self.fred.get_series(series_id, start=start, end=end)
@@ -127,9 +99,9 @@ class MacroDataService:
                 continue
 
             if replace_existing:
-                self.macro_repository.replace_series(series_id, frame)
+                self.macro_store.replace_series(series_id, frame)
             else:
-                self.macro_repository.upsert_series(frame)
+                self.macro_store.upsert_series(frame)
 
     def sync_incremental_updates(
         self,
@@ -138,10 +110,10 @@ class MacroDataService:
         default_start: str | None = "2000-01-01",
         end: str | None = None,
     ) -> dict[str, str]:
-        if self.macro_repository is None:
-            raise ValueError("Macro repository is required for sync operations.")
+        if self.macro_store is None:
+            raise ValueError("Macro store is required for sync operations.")
 
-        latest_dates = self.macro_repository.get_latest_stored_dates(series_ids)
+        latest_dates = self.macro_store.get_latest_stored_dates(series_ids)
         statuses: dict[str, str] = {}
         effective_end = end or datetime.utcnow().date().isoformat()
 
@@ -153,7 +125,7 @@ class MacroDataService:
                 if frame.empty:
                     statuses[series_id] = "no_rows_returned"
                     continue
-                self.macro_repository.upsert_series(frame)
+                self.macro_store.upsert_series(frame)
                 statuses[series_id] = f"initialized_from_{default_start}"
                 continue
 
@@ -167,7 +139,7 @@ class MacroDataService:
                 statuses[series_id] = "no_new_rows"
                 continue
 
-            self.macro_repository.upsert_series(frame)
+            self.macro_store.upsert_series(frame)
             statuses[series_id] = f"updated_from_{start_date}"
 
         return statuses

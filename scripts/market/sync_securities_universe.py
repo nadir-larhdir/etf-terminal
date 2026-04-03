@@ -2,7 +2,7 @@ import argparse
 
 from config import DEFAULT_TICKERS
 from db.connection import get_engine
-from repositories.market import SecurityRepository
+from stores.market import SecurityStore
 from scripts.script_helpers import add_ticker_argument, filter_new_ticker_rows, parse_ticker_list
 
 
@@ -23,7 +23,7 @@ if __name__ == "__main__":
     tickers = parse_ticker_list(args.tickers)
 
     engine = get_engine()
-    repo = SecurityRepository(engine)
+    security_store = SecurityStore(engine)
     rows = [
         {"ticker": ticker, "name": meta["name"], "asset_class": meta["asset_class"], "active": 1}
         for ticker, meta in DEFAULT_TICKERS.items()
@@ -31,13 +31,13 @@ if __name__ == "__main__":
     ]
 
     if args.mode == "full-replace":
-        repo.replace_securities_universe(rows)
+        security_store.replace_securities_universe(rows)
         print(f"Replaced securities universe with {len(rows)} ticker(s): {', '.join(tickers)}")
     elif args.mode == "missing-only":
-        existing = repo.get_existing_tickers()
+        existing = security_store.get_existing_tickers()
         new_rows = filter_new_ticker_rows(rows, existing)
-        repo.upsert_securities(new_rows, update_existing=False)
+        security_store.upsert_securities(new_rows, update_existing=False)
         print(f"Inserted {len(new_rows)} new security row(s): {', '.join(row['ticker'] for row in new_rows) if new_rows else 'none'}")
     else:
-        repo.upsert_securities(rows, update_existing=True)
+        security_store.upsert_securities(rows, update_existing=True)
         print(f"Upserted {len(rows)} security row(s): {', '.join(tickers)}")

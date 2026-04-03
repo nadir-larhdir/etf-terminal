@@ -58,8 +58,8 @@ FEATURE_LABELS = {
 class MacroTab:
     """Render derived macro features, charts, and rule-based macro regimes."""
 
-    def __init__(self, macro_feature_repo) -> None:
-        self.macro_feature_repo = macro_feature_repo
+    def __init__(self, macro_feature_store) -> None:
+        self.macro_feature_store = macro_feature_store
         self.controls = DashboardControls()
         self.info_panel = InfoPanel()
 
@@ -367,36 +367,29 @@ class MacroTab:
         feature_names.extend(["UST_2S10S_Z20", "UST_5S30S_Z20", "BEI_5Y_CHANGE_20D", "UNRATE_3M_CHANGE"])
         feature_names = list(dict.fromkeys(feature_names))
 
-        matrix = self.macro_feature_repo.get_feature_matrix(feature_names)
+        matrix = self.macro_feature_store.get_feature_matrix(feature_names)
         if matrix.empty:
             st.warning("No macro features found. Run scripts.macro.build_macro_features first.")
             return
 
-        default_period = "1Y"
-        lookback_map = {"30D": 30, "3M": 63, "6M": 126, "1Y": 252}
-        filtered_default = matrix.tail(min(lookback_map[default_period], len(matrix)))
-        default_start = filtered_default.index.min().date()
-        default_end = filtered_default.index.max().date()
+        lookback_map = {"30D": 30, "3M": 63, "6M": 126, "1Y": 252, "5Y": 1260, "ALL": None}
+        window_col, _ = st.columns([0.28, 0.72])
+        with window_col:
+            selected_window = self.controls.render_select(
+                "Macro Window",
+                ["30D", "3M", "6M", "1Y", "5Y", "ALL"],
+                index=3,
+                key="macro_window",
+            )
+        lookback = lookback_map.get(selected_window)
+        filtered_matrix = matrix.copy() if lookback is None else matrix.tail(min(lookback, len(matrix))).copy()
 
-        _, start_date, end_date = self.controls.render_window_and_dates(
-            window_label="Macro Window",
-            window_options=["30D", "3M", "6M", "1Y"],
-            window_index=3,
-            window_key="macro_window",
-            start_label="Start Date",
-            end_label="End Date",
-            default_start=default_start,
-            default_end=default_end,
-            min_date=matrix.index.min().date(),
-            max_date=matrix.index.max().date(),
-            start_key="macro_start_date",
-            end_key="macro_end_date",
-        )
-
-        filtered_matrix = matrix.loc[(matrix.index >= start_date) & (matrix.index <= end_date)].copy()
         if filtered_matrix.empty:
-            st.warning("No macro features available for the selected dates.")
+            st.warning("No macro features available for the selected window.")
             return
+
+        start_date = filtered_matrix.index.min()
+        end_date = filtered_matrix.index.max()
 
         self._render_yield_curve(filtered_matrix)
         self._render_cards(filtered_matrix)

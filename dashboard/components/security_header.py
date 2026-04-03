@@ -31,6 +31,14 @@ class SecurityHeader:
             return "N/A"
         return f"{numeric:.2f}%"
 
+    def _header_cell_html(self, label: str, value: str, *, color: str = "#F3F0E8") -> str:
+        return (
+            '<div style="border:1px solid #2A2A2A; background:#0A0A0A; padding:0.35rem 0.45rem;">'
+            f'<div style="color:#B8B1A3; font-size:0.68rem; text-transform:uppercase;">{label}</div>'
+            f'<div style="color:{color}; font-size:0.95rem; font-weight:700;">{value}</div>'
+            "</div>"
+        )
+
     def render_description(
         self,
         securities: pd.DataFrame,
@@ -71,6 +79,7 @@ class SecurityHeader:
         )
 
     def render_header_strip(self, hist: pd.DataFrame, selected_security: str, metadata: dict | None = None) -> None:
+        metadata = metadata or {}
         px_last = float(hist["close"].iloc[-1])
         prev_close = float(hist["close"].iloc[-2]) if len(hist) > 1 else px_last
         chg = px_last - prev_close
@@ -81,11 +90,16 @@ class SecurityHeader:
         vol_ratio = (volume / vol_30d) if vol_30d else 0.0
 
         chg_color = "#00C176" if chg >= 0 else "#FF5A36"
-        exchange = metadata.get("exchange", "N/A") if metadata else "N/A"
-        aum_label = self._format_aum(metadata.get("total_assets")) if metadata else "N/A"
-        expense_ratio_label = self._format_expense_ratio(
-            metadata.get("expense_ratio") if metadata else None
-        )
+        header_cells = [
+            self._header_cell_html("Security", selected_security),
+            self._header_cell_html("PX_LAST", f"{px_last:,.2f}"),
+            self._header_cell_html("CHG", f"{chg:+,.2f}", color=chg_color),
+            self._header_cell_html("CHG %", f"{chg_pct:+.2f}%", color=chg_color),
+            self._header_cell_html("VOLUME / 30D", f"{volume:,.0f} / {vol_ratio:.2f}x"),
+            self._header_cell_html("EXCHANGE", str(metadata.get("exchange", "N/A"))),
+            self._header_cell_html("AUM", self._format_aum(metadata.get("total_assets"))),
+            self._header_cell_html("EXP RATIO", self._format_expense_ratio(metadata.get("expense_ratio"))),
+        ]
 
         st.markdown(
             f"""
@@ -102,38 +116,7 @@ class SecurityHeader:
                     gap: 0.4rem;
                     align-items:stretch;
                 ">
-                    <div style="border:1px solid #2A2A2A; background:#0A0A0A; padding:0.35rem 0.45rem;">
-                        <div style="color:#B8B1A3; font-size:0.68rem; text-transform:uppercase;">Security</div>
-                        <div style="color:#F3F0E8; font-size:0.95rem; font-weight:700;">{selected_security}</div>
-                    </div>
-                    <div style="border:1px solid #2A2A2A; background:#0A0A0A; padding:0.35rem 0.45rem;">
-                        <div style="color:#B8B1A3; font-size:0.68rem; text-transform:uppercase;">PX_LAST</div>
-                        <div style="color:#F3F0E8; font-size:0.95rem; font-weight:700;">{px_last:,.2f}</div>
-                    </div>
-                    <div style="border:1px solid #2A2A2A; background:#0A0A0A; padding:0.35rem 0.45rem;">
-                        <div style="color:#B8B1A3; font-size:0.68rem; text-transform:uppercase;">CHG</div>
-                        <div style="color:{chg_color}; font-size:0.95rem; font-weight:700;">{chg:+,.2f}</div>
-                    </div>
-                    <div style="border:1px solid #2A2A2A; background:#0A0A0A; padding:0.35rem 0.45rem;">
-                        <div style="color:#B8B1A3; font-size:0.68rem; text-transform:uppercase;">CHG %</div>
-                        <div style="color:{chg_color}; font-size:0.95rem; font-weight:700;">{chg_pct:+.2f}%</div>
-                    </div>
-                    <div style="border:1px solid #2A2A2A; background:#0A0A0A; padding:0.35rem 0.45rem;">
-                        <div style="color:#B8B1A3; font-size:0.68rem; text-transform:uppercase;">VOLUME / 30D</div>
-                        <div style="color:#F3F0E8; font-size:0.95rem; font-weight:700;">{volume:,.0f} / {vol_ratio:.2f}x</div>
-                    </div>
-                    <div style="border:1px solid #2A2A2A; background:#0A0A0A; padding:0.35rem 0.45rem;">
-                        <div style="color:#B8B1A3; font-size:0.68rem; text-transform:uppercase;">EXCHANGE</div>
-                        <div style="color:#F3F0E8; font-size:0.95rem; font-weight:700;">{exchange}</div>
-                    </div>
-                    <div style="border:1px solid #2A2A2A; background:#0A0A0A; padding:0.35rem 0.45rem;">
-                        <div style="color:#B8B1A3; font-size:0.68rem; text-transform:uppercase;">AUM</div>
-                        <div style="color:#F3F0E8; font-size:0.95rem; font-weight:700;">{aum_label}</div>
-                    </div>
-                    <div style="border:1px solid #2A2A2A; background:#0A0A0A; padding:0.35rem 0.45rem;">
-                        <div style="color:#B8B1A3; font-size:0.68rem; text-transform:uppercase;">EXP RATIO</div>
-                        <div style="color:#F3F0E8; font-size:0.95rem; font-weight:700;">{expense_ratio_label}</div>
-                    </div>
+                    {''.join(header_cells)}
                 </div>
             </div>
             """,

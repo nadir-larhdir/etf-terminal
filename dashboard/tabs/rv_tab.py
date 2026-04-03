@@ -17,21 +17,17 @@ from models.security_pair import SecurityPair
 class RVTab:
     """Render pair-trading and relative-value analytics for the selected ETF."""
 
-    def __init__(self, price_repo):
-        self.price_repo = price_repo
+    def __init__(self, price_store):
+        self.price_store = price_store
         self.info_panel = InfoPanel()
         self.table = DashboardTable()
         self.controls = DashboardControls()
-
-
 
     def _render_metric_grid(self, metrics, columns: int) -> None:
         cols = st.columns(columns)
         for idx, (label, value) in enumerate(metrics):
             with cols[idx % columns]:
                 st.metric(label, value)
-
-
 
     def _render_pair_screener(
         self,
@@ -44,7 +40,7 @@ class RVTab:
         screener_rows = []
         for candidate in rv_candidates:
             candidate_obj = Security(candidate)
-            candidate_hist = candidate_obj.load_history(self.price_repo)
+            candidate_hist = candidate_obj.load_history(self.price_store)
             if candidate_hist.empty:
                 continue
 
@@ -66,6 +62,17 @@ class RVTab:
             else:
                 st.info("No RV screening candidates available for the selected window.")
 
+    def _signal_regime(self, z_value: float) -> tuple[str, str]:
+        if z_value >= 2:
+            return "RICH / EXTREME", "+2σ"
+        if z_value >= 1:
+            return "RICH", "+1σ"
+        if z_value <= -2:
+            return "CHEAP / EXTREME", "-2σ"
+        if z_value <= -1:
+            return "CHEAP", "-1σ"
+        return "NEUTRAL", ""
+
     def render(self, security: Security, tickers) -> None:
         st.subheader("RV Analysis")
         hist = security.history
@@ -81,7 +88,7 @@ class RVTab:
             )
 
         compare_obj = Security(compare_security)
-        compare_hist = compare_obj.load_history(self.price_repo)
+        compare_hist = compare_obj.load_history(self.price_store)
         if compare_hist.empty:
             st.warning(f"No price history found for {compare_security}.")
             return
@@ -321,24 +328,9 @@ class RVTab:
         )
 
         signal_history = rv_merged[["zscore"]].copy().reset_index()
-        signal_history["regime"] = signal_history["zscore"].apply(
-            lambda z: "RICH / EXTREME" if z >= 2 else (
-                "RICH" if z >= 1 else (
-                    "CHEAP / EXTREME" if z <= -2 else (
-                        "CHEAP" if z <= -1 else "NEUTRAL"
-                    )
-                )
-            )
-        )
-        signal_history["cross"] = signal_history["zscore"].apply(
-            lambda z: "+2σ" if z >= 2 else (
-                "+1σ" if z >= 1 else (
-                    "-2σ" if z <= -2 else (
-                        "-1σ" if z <= -1 else ""
-                    )
-                )
-            )
-        )
+        signal_labels = signal_history["zscore"].apply(self._signal_regime)
+        signal_history["regime"] = signal_labels.map(lambda value: value[0])
+        signal_history["cross"] = signal_labels.map(lambda value: value[1])
         signal_history["date"] = signal_history["date"].dt.strftime("%Y-%m-%d")
         signal_history["zscore"] = signal_history["zscore"].map(lambda x: f"{x:,.2f}")
         signal_history = signal_history.rename(

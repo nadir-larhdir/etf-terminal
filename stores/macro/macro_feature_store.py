@@ -1,8 +1,10 @@
 import pandas as pd
 from sqlalchemy import text
 
+from stores.query_utils import index_history_frame, pivot_time_series
 
-class MacroFeatureRepository:
+
+class MacroFeatureStore:
     """Read and write derived macro feature time series."""
 
     def __init__(self, engine):
@@ -67,11 +69,7 @@ class MacroFeatureRepository:
         with self.engine.connect() as conn:
             df = pd.read_sql(text(query), conn, params=params)
 
-        if not df.empty:
-            df["date"] = pd.to_datetime(df["date"])
-            df = df.set_index("date")
-
-        return df
+        return index_history_frame(df)
 
     def get_feature_matrix(self, feature_names: list[str] | None = None) -> pd.DataFrame:
         query = """
@@ -87,13 +85,7 @@ class MacroFeatureRepository:
         with self.engine.connect() as conn:
             df = pd.read_sql(text(query), conn, params=params)
 
-        if df.empty:
-            return pd.DataFrame()
-
-        df["date"] = pd.to_datetime(df["date"])
-        matrix = df.pivot(index="date", columns="feature_name", values="value").sort_index()
-        matrix.columns.name = None
-        return matrix
+        return pivot_time_series(df, column_column="feature_name")
 
     def get_latest_feature_values(self, feature_names: list[str]) -> pd.DataFrame:
         if not feature_names:

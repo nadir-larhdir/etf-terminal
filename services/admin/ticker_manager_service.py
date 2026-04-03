@@ -42,11 +42,11 @@ class TickerProfile:
 class TickerManagerService:
     """Validate, add, and remove ETFs across the securities, metadata, and price tables."""
 
-    def __init__(self, security_repo, price_repo, metadata_repo, input_repo, market_data_service):
-        self.security_repo = security_repo
-        self.price_repo = price_repo
-        self.metadata_repo = metadata_repo
-        self.input_repo = input_repo
+    def __init__(self, security_store, price_store, metadata_store, input_store, market_data_service):
+        self.security_store = security_store
+        self.price_store = price_store
+        self.metadata_store = metadata_store
+        self.input_store = input_store
         self.market_data_service = market_data_service
         self.fmp_client = FMPClient(api_key=FMP_API_KEY, base_url=FMP_BASE_URL)
 
@@ -105,7 +105,7 @@ class TickerManagerService:
     ) -> TickerProfile:
         profile = self.inspect_ticker(ticker, asset_class_override=asset_class_override)
 
-        self.security_repo.upsert_securities(
+        self.security_store.upsert_securities(
             [
                 {
                     "ticker": profile.ticker,
@@ -116,7 +116,7 @@ class TickerManagerService:
             ],
             update_existing=True,
         )
-        self.metadata_repo.upsert_metadata([profile.metadata_row])
+        self.metadata_store.upsert_metadata([profile.metadata_row])
         self.market_data_service.sync_price_history(
             [profile.ticker],
             period=period,
@@ -126,10 +126,10 @@ class TickerManagerService:
 
     def delete_ticker(self, ticker: str):
         normalized = ticker.strip().upper()
-        self.input_repo.delete_ticker(normalized)
-        self.price_repo.delete_ticker(normalized)
-        self.metadata_repo.delete_ticker(normalized)
-        self.security_repo.delete_ticker(normalized)
+        self.input_store.delete_ticker(normalized)
+        self.price_store.delete_ticker(normalized)
+        self.metadata_store.delete_ticker(normalized)
+        self.security_store.delete_ticker(normalized)
 
     def _derive_asset_class(self, metadata_row: dict) -> str:
         category = str(metadata_row.get("category") or "")

@@ -2,7 +2,7 @@ import argparse
 from datetime import datetime
 
 from db.connection import get_engine
-from repositories.market import MetadataRepository
+from stores.market import MetadataStore
 from scripts.script_helpers import add_ticker_argument, filter_new_ticker_rows, parse_ticker_list
 
 
@@ -94,12 +94,12 @@ if __name__ == "__main__":
 
     selected_tickers = set(parse_ticker_list(args.tickers))
     engine = get_engine()
-    repo = MetadataRepository(engine)
+    metadata_store = MetadataStore(engine)
     rows = [row for row in DEFAULT_METADATA if row["ticker"] in selected_tickers]
 
     if args.mode == "missing-only":
-        rows = filter_new_ticker_rows(rows, repo.get_existing_tickers())
+        rows = filter_new_ticker_rows(rows, metadata_store.get_existing_tickers())
 
-    repo.upsert_metadata(rows)
+    metadata_store.upsert_metadata(rows)
     processed = ", ".join(row["ticker"] for row in rows) if rows else "none"
     print(f"Static metadata processed for {len(rows)} ticker(s): {processed}")

@@ -4,6 +4,9 @@ import plotly.graph_objects as go
 import streamlit as st
 
 
+TERMINAL_FONT = '"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+
+
 def _filter_by_period(hist: pd.DataFrame, period_label: str) -> pd.DataFrame:
     lookback_map = {
         "5D": 5,
@@ -34,6 +37,28 @@ def format_volume_label(value: float) -> str:
     if value >= 1_000:
         return f"{value / 1_000:.0f}M"
     return f"{value:.0f}"
+
+
+def _apply_terminal_chart_layout(fig: go.Figure, *, title: str, height: int, margin=None, legend=None) -> None:
+    fig.update_layout(
+        title=dict(text=title, x=0.02, xanchor="left"),
+        template="plotly_dark",
+        paper_bgcolor="#000000",
+        plot_bgcolor="#000000",
+        font=dict(color="#F3F0E8", family=TERMINAL_FONT, size=12),
+        margin=margin or dict(l=20, r=20, t=50, b=30),
+        height=height,
+        legend=legend
+        or dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=10),
+            bgcolor="rgba(0,0,0,0)",
+        ),
+    )
 
 
 def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
@@ -121,27 +146,13 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
         )
     )
 
-    fig.update_layout(
-        title=dict(text=f"{ticker} Price", x=0.02, xanchor="left"),
-        template="plotly_dark",
-        paper_bgcolor="#000000",
-        plot_bgcolor="#000000",
-        font=dict(
-            color="#F3F0E8",
-            family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-            size=12,
-        ),
-        margin=dict(l=20, r=20, t=50, b=30),
+    _apply_terminal_chart_layout(
+        fig,
+        title=f"{ticker} Price",
         height=520,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="center",
-            x=0.5,
-            font=dict(size=10),
-            bgcolor="rgba(0,0,0,0)",
-        ),
+        margin=dict(l=20, r=20, t=50, b=30),
+    )
+    fig.update_layout(
         xaxis=dict(
             title="Date",
             showgrid=True,
@@ -198,28 +209,14 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
         )
     )
 
-    fig.update_layout(
-        title=dict(text=f"{ticker} Volume", x=0.02, xanchor="left"),
-        template="plotly_dark",
-        paper_bgcolor="#000000",
-        plot_bgcolor="#000000",
-        font=dict(
-            color="#F3F0E8",
-            family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-            size=12,
-        ),
-        margin=dict(l=20, r=20, t=50, b=30),
+    _apply_terminal_chart_layout(
+        fig,
+        title=f"{ticker} Volume",
         height=520,
+        margin=dict(l=20, r=20, t=50, b=30),
+    )
+    fig.update_layout(
         bargap=0.15,
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="center",
-            x=0.5,
-            font=dict(size=10),
-            bgcolor="rgba(0,0,0,0)",
-        ),
         xaxis=dict(
             title="Date",
             showgrid=True,
@@ -290,19 +287,13 @@ def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
         )
     )
 
-    fig.update_layout(
-        title=dict(text=f"RV Z-Score: {ticker_a}/{ticker_b}", x=0.02, xanchor="left"),
-        template="plotly_dark",
-        paper_bgcolor="#000000",
-        plot_bgcolor="#000000",
-        font=dict(
-            color="#F3F0E8",
-            family='"SFMono-Regular", Menlo, Monaco, Consolas, monospace',
-            size=12,
-        ),
+    _apply_terminal_chart_layout(
+        fig,
+        title=f"RV Z-Score: {ticker_a}/{ticker_b}",
         height=420,
-        margin=dict(l=20, r=20, t=50, b=30),
         legend=dict(orientation="h", y=1.02, x=0.5, xanchor="center"),
+    )
+    fig.update_layout(
         xaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
         yaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
     )
@@ -323,18 +314,8 @@ def render_return_spread_chart(ratio_series: pd.Series, ticker_a: str, ticker_b:
         )
     )
 
+    _apply_terminal_chart_layout(fig, title=f"Return Spread: {ticker_a}/{ticker_b}", height=420)
     fig.update_layout(
-        title=dict(text=f"Return Spread: {ticker_a}/{ticker_b}", x=0.02, xanchor="left"),
-        template="plotly_dark",
-        paper_bgcolor="#000000",
-        plot_bgcolor="#000000",
-        font=dict(
-            color="#F3F0E8",
-            family='"SFMono-Regular", Menlo, Monaco, Consolas, monospace',
-            size=12,
-        ),
-        height=420,
-        margin=dict(l=20, r=20, t=50, b=30),
         xaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
         yaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
     )
@@ -367,18 +348,8 @@ def render_beta_adjusted_z_chart(z_series: pd.Series, beta_series: pd.Series, ti
         )
     )
 
+    _apply_terminal_chart_layout(fig, title=f"Beta-Adjusted Z: {ticker_a}/{ticker_b}", height=420)
     fig.update_layout(
-        title=dict(text=f"Beta-Adjusted Z: {ticker_a}/{ticker_b}", x=0.02, xanchor="left"),
-        template="plotly_dark",
-        paper_bgcolor="#000000",
-        plot_bgcolor="#000000",
-        font=dict(
-            color="#F3F0E8",
-            family='"SFMono-Regular", Menlo, Monaco, Consolas, monospace',
-            size=12,
-        ),
-        height=420,
-        margin=dict(l=20, r=20, t=50, b=30),
         xaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
         yaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
     )

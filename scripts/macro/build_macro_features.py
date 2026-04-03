@@ -1,13 +1,13 @@
 from db.connection import get_engine
-from repositories.macro import MacroFeatureRepository, MacroRepository
+from stores.macro import MacroFeatureStore, MacroStore
 from services.macro import MacroFeatureService
 
 
-if __name__ == "__main__":
+def main() -> None:
     engine = get_engine()
-    macro_repo = MacroRepository(engine)
-    feature_repo = MacroFeatureRepository(engine)
-    service = MacroFeatureService(macro_repo, feature_repo)
+    macro_store = MacroStore(engine)
+    feature_store = MacroFeatureStore(engine)
+    service = MacroFeatureService(macro_store, feature_store)
 
     rows = service.persist_features()
     if rows.empty:
@@ -17,3 +17,7 @@ if __name__ == "__main__":
         print("Macro feature build complete:")
         for feature_name, row_count in counts.items():
             print(f" - {feature_name}: {row_count}")
+
+
+if __name__ == "__main__":
+    main()

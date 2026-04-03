@@ -8,8 +8,8 @@ from dashboard.components import DashboardTable, InfoPanel
 class HomePage:
     """Render the homepage that introduces the project and frames the market context."""
 
-    def __init__(self, price_repo):
-        self.price_repo = price_repo
+    def __init__(self, price_store):
+        self.price_store = price_store
         self.info_panel = InfoPanel()
         self.table = DashboardTable()
 
@@ -107,7 +107,7 @@ class HomePage:
 
     def _latest_market_date(self, securities: pd.DataFrame) -> str | None:
         tickers = securities["ticker"].astype(str).tolist() if not securities.empty else []
-        latest_dates = self.price_repo.get_latest_stored_dates(tickers)
+        latest_dates = self.price_store.get_latest_stored_dates(tickers)
         if not latest_dates:
             return None
         return max(latest_dates.values())
