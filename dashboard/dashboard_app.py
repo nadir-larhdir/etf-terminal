@@ -25,7 +25,7 @@ class DashboardApp:
         self.metadata_store = metadata_store
         self.macro_feature_store = macro_feature_store
         self.home_page = HomePage(price_store)
-        self.news_page = NewsPage()
+        self.news_page = NewsPage(macro_feature_store)
         self.macro_tab = MacroTab(macro_feature_store)
         self.security_header = SecurityHeader()
         self.graphs_tab = GraphsTab()

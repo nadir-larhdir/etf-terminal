@@ -49,7 +49,23 @@ class AnalyticsTab:
         with a4:
             st.metric("RANGE POS", f"{range_position:.2%}")
 
-        # --- Liquidity panel ---
+        tone = "orderly"
+        if liquidity_regime == "HIGH ACTIVITY":
+            tone = "elevated"
+        elif liquidity_regime == "QUIET":
+            tone = "subdued"
+
+        self.info_panel.render_note(
+            title="Current Read",
+            body=(
+                f"{security.ticker} is trading with {tone} participation. "
+                f"Volume is {((current_vol / vol_mean_30d) if vol_mean_30d else 0.0):.2f}x its 30-day average and the latest close sits at {range_position:.0%} of today’s range."
+            ),
+            accent_color="#FF9F1A",
+            margin_top="0.30rem",
+            margin_bottom="0.30rem",
+        )
+
         self.info_panel.render(
             title="Liquidity Regime",
             headline=liquidity_regime,

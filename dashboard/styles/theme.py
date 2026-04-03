@@ -19,7 +19,7 @@ def apply_dashboard_theme():
             padding-top: 0.6rem;
             padding-left: 1.2rem;
             padding-right: 1.2rem;
-            padding-bottom: 1rem;
+            padding-bottom: 1.2rem;
         }
 
         h1, h2, h3 {
@@ -68,6 +68,29 @@ def apply_dashboard_theme():
             background-color: #121212 !important;
             color: #FFD166 !important;
             border-color: #FFD166 !important;
+        }
+
+        [data-baseweb="tab-list"] {
+            gap: 0.35rem;
+            margin-top: 0.30rem;
+            margin-bottom: 0.55rem;
+        }
+
+        [data-baseweb="tab"] {
+            background-color: #080808 !important;
+            border: 1px solid #2A2A2A !important;
+            border-radius: 1px !important;
+            color: #9E988C !important;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.45px;
+            padding: 0.45rem 0.80rem !important;
+        }
+
+        [aria-selected="true"][data-baseweb="tab"] {
+            color: #FF9F1A !important;
+            border-color: #FF9F1A !important;
+            background-color: #101010 !important;
         }
 
         [data-testid="stDataFrame"] {
