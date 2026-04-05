@@ -1,6 +1,7 @@
 import pandas as pd
 from sqlalchemy import text
 
+from db.sql import pandas_to_sql_kwargs, qualified_table
 from stores.query_utils import index_history_frame, latest_dates_map, pivot_time_series
 
 
@@ -16,7 +17,7 @@ class MacroStore:
 
         records = df.to_dict(orient="records")
         statement = """
-        INSERT INTO macro_data (
+        INSERT INTO {macro_table} (
             series_id,
             date,
             value,
@@ -51,23 +52,23 @@ class MacroStore:
             source = excluded.source,
             is_active = excluded.is_active,
             last_updated_at = excluded.last_updated_at
-        """
+        """.format(macro_table=qualified_table(self.engine, "macro_data"))
         with self.engine.begin() as conn:
             conn.execute(text(statement), records)
 
     def replace_series(self, series_id: str, df: pd.DataFrame):
         with self.engine.begin() as conn:
             conn.execute(
-                text("DELETE FROM macro_data WHERE series_id = :series_id"),
+                text(f"DELETE FROM {qualified_table(self.engine, 'macro_data')} WHERE series_id = :series_id"),
                 {"series_id": series_id},
             )
             if not df.empty:
-                df.to_sql("macro_data", conn, if_exists="append", index=False)
+                df.to_sql("macro_data", conn, if_exists="append", index=False, **pandas_to_sql_kwargs(self.engine))
 
     def get_latest_stored_dates(self, series_ids: list[str] | None = None) -> dict[str, str]:
-        query = """
+        query = f"""
         SELECT series_id, MAX(date) AS latest_date
-        FROM macro_data
+        FROM {qualified_table(self.engine, 'macro_data')}
         """
         params = {}
 
@@ -89,9 +90,9 @@ class MacroStore:
         start_date: str | None = None,
         end_date: str | None = None,
     ) -> pd.DataFrame:
-        query = """
+        query = f"""
         SELECT date, value, series_name, category, sub_category, frequency, units, source, is_active, last_updated_at
-        FROM macro_data
+        FROM {qualified_table(self.engine, 'macro_data')}
         WHERE series_id = :series_id
         """
         params = {"series_id": series_id}
@@ -112,9 +113,9 @@ class MacroStore:
         return index_history_frame(df)
 
     def get_series_matrix(self, series_ids: list[str] | None = None) -> pd.DataFrame:
-        query = """
+        query = f"""
         SELECT series_id, date, value
-        FROM macro_data
+        FROM {qualified_table(self.engine, 'macro_data')}
         WHERE is_active = 1
         """
         params = {}

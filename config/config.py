@@ -16,6 +16,7 @@ ENV_DB_FILENAMES = {
     "prod": "market_data_prod.db",
     "uat": "market_data_uat.db",
 }
+VALID_DATA_BACKENDS = {"local", "supabase"}
 
 load_dotenv(BASE_DIR / ".env")
 
@@ -28,7 +29,13 @@ def get_app_env() -> str:
 
 
 APP_ENV = get_app_env()
+DATA_BACKEND = os.getenv("DATA_BACKEND", "supabase").strip().lower()
+if DATA_BACKEND not in VALID_DATA_BACKENDS:
+    DATA_BACKEND = "supabase"
+
+DB_SCHEMA = os.getenv("SUPABASE_SCHEMA", "public").strip() or "public"
 DB_PATH = BASE_DIR / ENV_DB_FILENAMES[APP_ENV]
+SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL", "").strip()
 FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
 FMP_BASE_URL = "https://financialmodelingprep.com/stable"
 FRED_API_KEY = os.getenv("FRED_API_KEY", "").strip()

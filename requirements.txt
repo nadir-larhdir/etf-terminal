@@ -3,6 +3,7 @@ pandas
 numpy
 scipy
 sqlalchemy
+psycopg[binary]
 plotly
 requests
 python-dotenv

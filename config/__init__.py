@@ -3,6 +3,8 @@ from config.config import (
     APP_ENV,
     BASE_DIR,
     CONFIG_PATH,
+    DATA_BACKEND,
+    DB_SCHEMA,
     DB_PATH,
     DEFAULT_TICKERS,
     FRED_API_KEY,
@@ -12,6 +14,7 @@ from config.config import (
     MACRO_SERIES_REGISTRY,
     NEWS_FEEDS,
     PERIOD_OPTIONS,
+    SUPABASE_DB_URL,
     load_config,
 )
 
@@ -20,6 +23,8 @@ __all__ = [
     "APP_ENV",
     "BASE_DIR",
     "CONFIG_PATH",
+    "DATA_BACKEND",
+    "DB_SCHEMA",
     "DB_PATH",
     "DEFAULT_TICKERS",
     "FRED_API_KEY",
@@ -29,6 +34,7 @@ __all__ = [
     "MACRO_SERIES_REGISTRY",
     "NEWS_FEEDS",
     "PERIOD_OPTIONS",
+    "SUPABASE_DB_URL",
     "load_config",
     "normalize_asset_class",
 ]

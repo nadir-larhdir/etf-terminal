@@ -1,9 +1,10 @@
 import streamlit as st
 
-from config import APP_ENV, normalize_asset_class
+from config import APP_ENV, DATA_BACKEND, normalize_asset_class
 from dashboard.components import DashboardControls, SecurityHeader
 from dashboard.home_page import HomePage
 from dashboard.news_page import NewsPage
+from dashboard.perf import timed_block
 from dashboard.styles import apply_dashboard_theme
 from dashboard.tabs import AnalyticsTab, GraphsTab, MacroTab, RVTab
 from stores.macro import MacroFeatureStore
@@ -13,6 +14,19 @@ from models.security import Security
 
 
 NAVIGATION_VIEWS = ("Home", "Dashboard", "News", "Macro")
+
+
+@st.cache_resource(show_spinner=False)
+def get_cached_app_dependencies(data_backend: str, app_env: str):
+    engine = get_engine(data_backend=data_backend, app_env=app_env)
+    return {
+        "engine": engine,
+        "security_store": SecurityStore(engine),
+        "price_store": PriceStore(engine),
+        "input_store": InputStore(engine),
+        "metadata_store": MetadataStore(engine),
+        "macro_feature_store": MacroFeatureStore(engine),
+    }
 
 
 class DashboardApp:
@@ -38,7 +52,8 @@ class DashboardApp:
         st.title("ETF Terminal")
         st.caption("Fixed income ETF analytics terminal for market structure, liquidity, and relative value monitoring.")
 
-        securities = self.security_store.list_active_securities().copy()
+        with timed_block("dashboard.load_active_securities"):
+            securities = self.security_store.list_active_securities().copy()
         if securities.empty or "ticker" not in securities.columns:
             st.warning("No active securities found in the database.")
             return
@@ -72,7 +87,7 @@ class DashboardApp:
 
         with nav_columns[4]:
             st.caption(
-                f"Current View: {st.session_state['active_view']} | Environment: {APP_ENV.upper()}"
+                f"Current View: {st.session_state['active_view']} | Environment: {APP_ENV.upper()} | Backend: {DATA_BACKEND.upper()}"
             )
 
     def _render_dashboard(self, securities):
@@ -119,12 +134,14 @@ class DashboardApp:
             name=selected_row.get("name"),
             asset_class=selected_row.get("asset_class"),
         )
-        metadata = security.load_metadata(self.metadata_store)
+        with timed_block("dashboard.load_metadata"):
+            metadata = security.load_metadata(self.metadata_store)
 
         with desc_col:
             self.security_header.render_description(securities, selected_security, metadata)
 
-        hist = security.load_history(self.price_store)
+        with timed_block("dashboard.load_price_history"):
+            hist = security.load_history(self.price_store)
 
         if hist.empty:
             st.warning(f"No price history found for {selected_security}.")
@@ -148,12 +165,13 @@ class DashboardApp:
 def run_app():
     """Create the application dependencies and launch the Streamlit dashboard."""
 
-    engine = get_engine()
-    security_store = SecurityStore(engine)
-    price_store = PriceStore(engine)
-    input_store = InputStore(engine)
-    metadata_store = MetadataStore(engine)
-    macro_feature_store = MacroFeatureStore(engine)
+    dependencies = get_cached_app_dependencies(DATA_BACKEND, APP_ENV)
 
-    app = DashboardApp(security_store, price_store, input_store, metadata_store, macro_feature_store)
+    app = DashboardApp(
+        dependencies["security_store"],
+        dependencies["price_store"],
+        dependencies["input_store"],
+        dependencies["metadata_store"],
+        dependencies["macro_feature_store"],
+    )
     app.run()

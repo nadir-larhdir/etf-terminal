@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from dashboard.components import InfoPanel
+from dashboard.perf import timed_block
 from services.news import NewsFeedService
 
 
@@ -217,8 +218,10 @@ class NewsPage:
         )
 
     def render(self) -> None:
-        feed_data, feed_error = load_news_feeds()
-        deduped_feed_data = self._dedupe_feeds(feed_data)
+        with timed_block("news.load_feeds"):
+            feed_data, feed_error = load_news_feeds()
+        with timed_block("news.dedupe_feeds"):
+            deduped_feed_data = self._dedupe_feeds(feed_data)
         rates_items = deduped_feed_data.get("rates", [])
         credit_items = deduped_feed_data.get("credit", [])
         macro_items = deduped_feed_data.get("macro", [])
@@ -233,7 +236,8 @@ class NewsPage:
             "A dedicated rates, credit, ETF, and macro context page designed to feel like a trader's morning note."
         )
         st.caption("Headlines refresh automatically every hour.")
-        self._render_snapshot_bar()
+        with timed_block("news.snapshot_bar"):
+            self._render_snapshot_bar()
         self._render_event_watch()
 
         if feed_error:
