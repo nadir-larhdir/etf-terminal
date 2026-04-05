@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 
-from db.sql import pandas_to_sql_kwargs, qualified_table
+from db.sql import cache_scope, pandas_to_sql_kwargs, qualified_table
 from stores.query_utils import index_history_frame, latest_dates_map
 
 
@@ -161,18 +161,18 @@ class PriceStore:
 
     def get_existing_tickers(self, tickers: list[str] | None = None) -> set[str]:
         normalized = tuple(sorted(tickers)) if tickers else None
-        return _cached_existing_tickers(str(self.engine.url), self.engine, normalized)
+        return _cached_existing_tickers(cache_scope(self.engine), self.engine, normalized)
 
     def get_latest_stored_dates(self, tickers: list[str] | None = None) -> dict[str, str]:
         normalized = tuple(sorted(tickers)) if tickers else None
-        return _cached_latest_stored_dates(str(self.engine.url), self.engine, normalized)
+        return _cached_latest_stored_dates(cache_scope(self.engine), self.engine, normalized)
 
     def get_ticker_price_history(self, ticker: str, start_date=None, end_date=None) -> pd.DataFrame:
-        return _cached_ticker_price_history(str(self.engine.url), self.engine, ticker, start_date, end_date).copy()
+        return _cached_ticker_price_history(cache_scope(self.engine), self.engine, ticker, start_date, end_date).copy()
 
     def get_multi_ticker_price_history(self, tickers: list[str], start_date=None, end_date=None) -> dict[str, pd.DataFrame]:
         normalized = tuple(sorted(dict.fromkeys(tickers)))
-        frame = _cached_multi_ticker_history(str(self.engine.url), self.engine, normalized, start_date, end_date).copy()
+        frame = _cached_multi_ticker_history(cache_scope(self.engine), self.engine, normalized, start_date, end_date).copy()
         if frame.empty:
             return {}
 

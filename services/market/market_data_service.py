@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 import pandas as pd
 
@@ -19,16 +20,27 @@ class MarketDataService:
         start: str | None = None,
         end: str | None = None,
     ) -> pd.DataFrame:
-        frames = []
-        for ticker in tickers:
-            frame = self.fmp_client.get_historical_price_eod_full(
-                ticker,
-                period=period,
-                start=start,
-                end=end,
-            )
-            if not frame.empty:
-                frames.append(frame)
+        if not tickers:
+            return pd.DataFrame(columns=["date", "open", "high", "low", "close", "adj_close", "volume", "ticker"])
+
+        # Bulk sync speed comes mostly from overlapping the network waits across tickers.
+        frames: list[pd.DataFrame] = []
+        max_workers = min(8, max(len(tickers), 1))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    self.fmp_client.get_historical_price_eod_full,
+                    ticker,
+                    period=period,
+                    start=start,
+                    end=end,
+                ): ticker
+                for ticker in tickers
+            }
+            for future in as_completed(futures):
+                frame = future.result()
+                if not frame.empty:
+                    frames.append(frame)
 
         if not frames:
             return pd.DataFrame(

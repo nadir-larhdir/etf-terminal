@@ -4,4 +4,7 @@ __pycache__/
 .venv/
 venv/
 market_data.db
+market_data_backup.db
+market_data_prod.db
+market_data_uat.db
 .DS_Store

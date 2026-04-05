@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 from sqlalchemy import text
 
-from db.sql import qualified_table
+from db.sql import cache_scope, qualified_table
 from stores.query_utils import index_history_frame, pivot_time_series
 
 
@@ -141,12 +141,12 @@ class MacroFeatureStore:
         start_date: str | None = None,
         end_date: str | None = None,
     ) -> pd.DataFrame:
-        normalized = tuple(dict.fromkeys(feature_names)) if feature_names else None
-        return _cached_feature_matrix(str(self.engine.url), self.engine, normalized, start_date, end_date).copy()
+        normalized = tuple(sorted(dict.fromkeys(feature_names))) if feature_names else None
+        return _cached_feature_matrix(cache_scope(self.engine), self.engine, normalized, start_date, end_date).copy()
 
     def get_latest_feature_values(self, feature_names: list[str]) -> pd.DataFrame:
-        normalized = tuple(dict.fromkeys(feature_names))
-        return _cached_latest_feature_values(str(self.engine.url), self.engine, normalized).copy()
+        normalized = tuple(sorted(dict.fromkeys(feature_names)))
+        return _cached_latest_feature_values(cache_scope(self.engine), self.engine, normalized).copy()
 
     def get_feature_counts(self) -> pd.DataFrame:
         query = f"""

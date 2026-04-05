@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from config import APP_ENV, DATA_BACKEND, DB_SCHEMA
+
 
 def schema_name(engine) -> str | None:
     if engine.dialect.name != "postgresql":
@@ -15,3 +17,9 @@ def qualified_table(engine, table_name: str) -> str:
 def pandas_to_sql_kwargs(engine) -> dict:
     schema = schema_name(engine)
     return {"schema": schema} if schema else {}
+
+
+def cache_scope(engine) -> str:
+    """Build a stable cache namespace so env/backend mixes cannot bleed across runs."""
+
+    return f"{DATA_BACKEND}:{APP_ENV}:{DB_SCHEMA}:{engine.url}"

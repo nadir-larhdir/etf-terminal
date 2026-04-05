@@ -64,15 +64,15 @@ class DashboardApp:
         self._render_navigation()
 
         if st.session_state["active_view"] == "Home":
-            self.home_page.render(securities)
+            self._render_tab_safe("Home", self.home_page.render, securities)
             return
 
         if st.session_state["active_view"] == "News":
-            self.news_page.render()
+            self._render_tab_safe("News", self.news_page.render)
             return
 
         if st.session_state["active_view"] == "Macro":
-            self.macro_tab.render()
+            self._render_tab_safe("Macro", self.macro_tab.render)
             return
 
         self._render_dashboard(securities)
@@ -153,13 +153,19 @@ class DashboardApp:
         tab_graphs, tab_analytics, tab_rv = st.tabs(["Graphs", "Analytics", "RV Analysis"])
 
         with tab_graphs:
-            self.graphs_tab.render(security)
+            self._render_tab_safe("Graphs", self.graphs_tab.render, security)
 
         with tab_analytics:
-            self.analytics_tab.render(security)
+            self._render_tab_safe("Analytics", self.analytics_tab.render, security)
 
         with tab_rv:
-            self.rv_tab.render(security, all_tickers)
+            self._render_tab_safe("RV Analysis", self.rv_tab.render, security, all_tickers)
+
+    def _render_tab_safe(self, tab_name: str, render_fn, *args) -> None:
+        try:
+            render_fn(*args)
+        except Exception as exc:
+            st.error(f"{tab_name} failed to render: {exc}")
 
 
 def run_app():
