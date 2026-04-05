@@ -1,3 +1,4 @@
+from config import APP_ENV, DATA_BACKEND, DB_SCHEMA
 from db.connection import get_engine
 from db.schema import TABLE_DEFINITIONS, create_tables, get_existing_tables
 
@@ -13,6 +14,10 @@ def main() -> None:
     already_present = [table for table in managed_tables if table in existing_before]
 
     print("Database initialized.")
+    print(f"Environment: {APP_ENV}")
+    print(f"Backend: {DATA_BACKEND}")
+    if DATA_BACKEND == "supabase":
+        print(f"Schema: {DB_SCHEMA}")
     print("Managed tables: {0}".format(", ".join(managed_tables)))
     print("Created tables: {0}".format(", ".join(created_tables) if created_tables else "none"))
     print("Already present: {0}".format(", ".join(already_present) if already_present else "none"))

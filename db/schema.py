@@ -1,4 +1,6 @@
-from sqlalchemy import text
+from sqlalchemy import inspect, text
+
+from db.sql import qualified_table, schema_name as active_schema_name
 
 
 """SQLite table definitions managed by the database bootstrap script."""
@@ -100,39 +102,53 @@ EXPECTED_MACRO_DATA_COLUMNS = [
     "last_updated_at",
 ]
 
+INDEX_DEFINITIONS = {
+    "idx_price_history_date": "CREATE INDEX IF NOT EXISTS idx_price_history_date ON price_history (date)",
+    "idx_price_history_ticker_date": "CREATE INDEX IF NOT EXISTS idx_price_history_ticker_date ON price_history (ticker, date)",
+    "idx_macro_data_date": "CREATE INDEX IF NOT EXISTS idx_macro_data_date ON macro_data (date)",
+    "idx_macro_data_series_date": "CREATE INDEX IF NOT EXISTS idx_macro_data_series_date ON macro_data (series_id, date)",
+    "idx_macro_features_date": "CREATE INDEX IF NOT EXISTS idx_macro_features_date ON macro_features (date)",
+    "idx_macro_features_feature_date": "CREATE INDEX IF NOT EXISTS idx_macro_features_feature_date ON macro_features (feature_name, date)",
+    "idx_securities_active_ticker": "CREATE INDEX IF NOT EXISTS idx_securities_active_ticker ON securities (active, ticker)",
+}
+
 
 def get_existing_tables(engine) -> set[str]:
-    query = text(
-        """
-        SELECT name
-        FROM sqlite_master
-        WHERE type = 'table'
-          AND name NOT LIKE 'sqlite_%'
-        """
-    )
-    with engine.connect() as conn:
-        rows = conn.execute(query).fetchall()
-    return {row[0] for row in rows}
+    inspector = inspect(engine)
+    return set(inspector.get_table_names(schema=active_schema_name(engine)))
 
 
 def create_tables(engine):
     with engine.begin() as conn:
-        for ddl in TABLE_DEFINITIONS.values():
-            conn.execute(text(ddl))
+        _ensure_schema(conn)
+        for table_name, ddl in TABLE_DEFINITIONS.items():
+            conn.execute(text(_qualify_ddl(engine, table_name, ddl)))
+        for ddl in INDEX_DEFINITIONS.values():
+            conn.execute(text(_qualify_index_ddl(engine, ddl)))
         ensure_macro_data_schema(conn)
 
 
 def ensure_macro_data_schema(conn):
-    rows = conn.exec_driver_sql("PRAGMA table_info(macro_data)").fetchall()
+    engine = conn.engine
+    inspector = inspect(conn)
+    schema_name = active_schema_name(engine)
+    table_names = set(inspector.get_table_names(schema=schema_name))
+    if "macro_data" not in table_names:
+        return
+
+    rows = inspector.get_columns("macro_data", schema=schema_name)
     if not rows:
         return
 
-    existing_columns = [row[1] for row in rows]
+    existing_columns = [row["name"] for row in rows]
     if existing_columns == EXPECTED_MACRO_DATA_COLUMNS:
         return
 
+    if engine.dialect.name != "sqlite":
+        return
+
     conn.exec_driver_sql("ALTER TABLE macro_data RENAME TO macro_data_legacy")
-    conn.execute(text(TABLE_DEFINITIONS["macro_data"]))
+    conn.execute(text(_qualify_ddl(engine, "macro_data", TABLE_DEFINITIONS["macro_data"])))
     legacy_columns = set(existing_columns)
 
     if {"series_id", "date", "value"}.issubset(legacy_columns):
@@ -172,3 +188,29 @@ def ensure_macro_data_schema(conn):
         conn.exec_driver_sql(insert_statement)
 
     conn.exec_driver_sql("DROP TABLE macro_data_legacy")
+
+
+def _ensure_schema(conn) -> None:
+    if conn.engine.dialect.name != "postgresql":
+        return
+
+    schema_name = active_schema_name(conn.engine) or "public"
+    conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
+
+
+def _qualify_ddl(engine, table_name: str, ddl: str) -> str:
+    if engine.dialect.name != "postgresql":
+        return ddl
+    return ddl.replace(
+        f"CREATE TABLE IF NOT EXISTS {table_name}",
+        f"CREATE TABLE IF NOT EXISTS {qualified_table(engine, table_name)}",
+    )
+
+
+def _qualify_index_ddl(engine, ddl: str) -> str:
+    if engine.dialect.name != "postgresql":
+        return ddl
+    qualified = ddl
+    for table_name in TABLE_DEFINITIONS:
+        qualified = qualified.replace(f" ON {table_name} ", f" ON {qualified_table(engine, table_name)} ")
+    return qualified

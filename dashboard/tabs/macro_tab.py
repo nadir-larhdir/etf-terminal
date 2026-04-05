@@ -5,6 +5,7 @@ from scipy.optimize import minimize
 import streamlit as st
 
 from dashboard.components import DashboardControls, InfoPanel
+from dashboard.perf import timed_block
 
 
 CARD_CONFIG = [
@@ -367,11 +368,6 @@ class MacroTab:
         feature_names.extend(["UST_2S10S_Z20", "UST_5S30S_Z20", "BEI_5Y_CHANGE_20D", "UNRATE_3M_CHANGE"])
         feature_names = list(dict.fromkeys(feature_names))
 
-        matrix = self.macro_feature_store.get_feature_matrix(feature_names)
-        if matrix.empty:
-            st.warning("No macro features found. Run scripts.macro.build_macro_features first.")
-            return
-
         lookback_map = {"30D": 30, "3M": 63, "6M": 126, "1Y": 252, "5Y": 1260, "ALL": None}
         window_col, _ = st.columns([0.28, 0.72])
         with window_col:
@@ -382,6 +378,17 @@ class MacroTab:
                 key="macro_window",
             )
         lookback = lookback_map.get(selected_window)
+        start_date_filter = None
+        if lookback is not None:
+            start_date_filter = (
+                pd.Timestamp.utcnow().normalize() - pd.tseries.offsets.BDay(lookback + 10)
+            ).date().isoformat()
+
+        with timed_block("macro.load_feature_matrix"):
+            matrix = self.macro_feature_store.get_feature_matrix(feature_names, start_date=start_date_filter)
+        if matrix.empty:
+            st.warning("No macro features found. Run scripts.macro.build_macro_features first.")
+            return
         filtered_matrix = matrix.copy() if lookback is None else matrix.tail(min(lookback, len(matrix))).copy()
 
         if filtered_matrix.empty:
@@ -391,8 +398,10 @@ class MacroTab:
         start_date = filtered_matrix.index.min()
         end_date = filtered_matrix.index.max()
 
-        self._render_yield_curve(filtered_matrix)
-        self._render_cards(filtered_matrix)
+        with timed_block("macro.render_yield_curve"):
+            self._render_yield_curve(filtered_matrix)
+        with timed_block("macro.render_cards"):
+            self._render_cards(filtered_matrix)
 
         chart_pairs = [(CHART_CONFIG[i], CHART_CONFIG[i + 1]) for i in range(0, len(CHART_CONFIG), 2)]
         for (left_title, left_features), (right_title, right_features) in chart_pairs:

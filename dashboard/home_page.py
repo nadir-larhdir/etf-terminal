@@ -3,6 +3,7 @@ import streamlit as st
 
 from config import normalize_asset_class
 from dashboard.components import DashboardTable, InfoPanel
+from dashboard.perf import timed_block
 
 
 class HomePage:
@@ -14,9 +15,11 @@ class HomePage:
         self.table = DashboardTable()
 
     def render(self, securities: pd.DataFrame) -> None:
-        latest_date = self._latest_market_date(securities)
+        with timed_block("home.latest_market_date"):
+            latest_date = self._latest_market_date(securities)
         latest_date_label = latest_date if latest_date else "Awaiting history sync"
-        bucket_summary = self._build_bucket_summary(securities)
+        with timed_block("home.bucket_summary"):
+            bucket_summary = self._build_bucket_summary(securities)
         asset_class_count = len(bucket_summary.index)
 
         left_col, right_col = st.columns([1.55, 1.0], vertical_alignment="top")

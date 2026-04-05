@@ -1,6 +1,7 @@
 import streamlit as st
 
 from dashboard.components.info_panel import InfoPanel
+from dashboard.perf import timed_block
 from models.security import Security
 
 
@@ -56,30 +57,31 @@ class AnalyticsTab:
 
     def render(self, security: Security) -> None:
         st.subheader("Analytics")
-        hist = security.history
-        metadata = security.metadata or {}
-        asset_bucket = security.asset_class or metadata.get("category") or "N/A"
+        with timed_block("analytics.prepare_inputs"):
+            hist = security.history
+            metadata = security.metadata or {}
+            asset_bucket = security.asset_class or metadata.get("category") or "N/A"
 
-        px_last = security.last_price() or 0.0
-        close_series = security.close_series()
-        prev_close = float(close_series.iloc[-2]) if len(close_series) > 1 else px_last
+            px_last = security.last_price() or 0.0
+            close_series = security.close_series()
+            prev_close = float(close_series.iloc[-2]) if len(close_series) > 1 else px_last
 
-        volume = security.volume_series()
-        current_vol = security.last_volume() or 0.0
-        vol_mean_30d = float(volume.tail(30).mean()) if not volume.empty else 0.0
-        vol_std_30d = float(volume.tail(30).std(ddof=0)) if len(volume.tail(30)) > 1 else 0.0
-        vol_z = (current_vol - vol_mean_30d) / vol_std_30d if vol_std_30d != 0 else 0.0
+            volume = security.volume_series()
+            current_vol = security.last_volume() or 0.0
+            vol_mean_30d = float(volume.tail(30).mean()) if not volume.empty else 0.0
+            vol_std_30d = float(volume.tail(30).std(ddof=0)) if len(volume.tail(30)) > 1 else 0.0
+            vol_z = (current_vol - vol_mean_30d) / vol_std_30d if vol_std_30d != 0 else 0.0
 
-        high = float(hist["high"].iloc[-1])
-        low = float(hist["low"].iloc[-1])
-        range_position = ((px_last - low) / (high - low)) if high != low else 0.5
+            high = float(hist["high"].iloc[-1])
+            low = float(hist["low"].iloc[-1])
+            range_position = ((px_last - low) / (high - low)) if high != low else 0.5
 
-        estimated_duration = self._estimated_duration(metadata)
-        dv01_per_share = self._dv01_per_share(estimated_duration, px_last)
-        credit_beta_proxy = self._credit_beta_proxy(asset_bucket)
-        model_fit, model_label = self._model_fit(security, asset_bucket)
-        liquidity_regime = self._liquidity_regime(vol_z)
-        asset_regime = self._asset_regime_note(asset_bucket, metadata)
+            estimated_duration = self._estimated_duration(metadata)
+            dv01_per_share = self._dv01_per_share(estimated_duration, px_last)
+            credit_beta_proxy = self._credit_beta_proxy(asset_bucket)
+            model_fit, model_label = self._model_fit(security, asset_bucket)
+            liquidity_regime = self._liquidity_regime(vol_z)
+            asset_regime = self._asset_regime_note(asset_bucket, metadata)
 
         a1, a2, a3, a4, a5 = st.columns(5)
         with a1:

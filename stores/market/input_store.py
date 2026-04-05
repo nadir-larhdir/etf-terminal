@@ -2,6 +2,8 @@ import pandas as pd
 from sqlalchemy import text
 from datetime import datetime
 
+from db.sql import pandas_to_sql_kwargs, qualified_table
+
 
 class InputStore:
     """Store discretionary desk inputs such as flows, notes, and premium discounts."""
@@ -20,16 +22,16 @@ class InputStore:
                 "updated_at": datetime.utcnow().isoformat(),
             }
         ])
-        df.to_sql("security_inputs", self.engine, if_exists="append", index=False)
+        df.to_sql("security_inputs", self.engine, if_exists="append", index=False, **pandas_to_sql_kwargs(self.engine))
 
     def get_latest_inputs(self, ticker: str):
         query = text("""
             SELECT *
-            FROM security_inputs
+            FROM {inputs_table}
             WHERE ticker = :ticker
             ORDER BY date DESC
             LIMIT 1
-        """)
+        """.format(inputs_table=qualified_table(self.engine, "security_inputs")))
         with self.engine.connect() as conn:
             df = pd.read_sql(query, conn, params={"ticker": ticker})
 
@@ -38,6 +40,6 @@ class InputStore:
     def delete_ticker(self, ticker: str):
         with self.engine.begin() as conn:
             conn.execute(
-                text("DELETE FROM security_inputs WHERE ticker = :ticker"),
+                text(f"DELETE FROM {qualified_table(self.engine, 'security_inputs')} WHERE ticker = :ticker"),
                 {"ticker": ticker},
             )
