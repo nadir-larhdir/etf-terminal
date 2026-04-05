@@ -97,42 +97,54 @@ class MacroTab:
             return "negative"
         return "neutral"
 
+    def _number(self, value: float | None, default: float = 0.0) -> float:
+        """Return a safe float for rule logic and chart labels."""
+        if value is None or pd.isna(value):
+            return default
+        return float(value)
+
     def _rule_based_regimes(self, matrix: pd.DataFrame) -> dict[str, tuple[str, str]]:
         latest = {column: self._latest_value(matrix, column) for column in matrix.columns}
+        ust_10y_change_20d = self._number(latest.get("UST_10Y_CHANGE_20D"))
+        ust_2s10s = self._number(latest.get("UST_2S10S"))
+        cpi_yoy = self._number(latest.get("CPI_YOY"))
+        cpi_3m_ann = self._number(latest.get("CPI_3M_ANN"))
+        bei_5y_change_20d = self._number(latest.get("BEI_5Y_CHANGE_20D"))
+        unrate_3m_change = self._number(latest.get("UNRATE_3M_CHANGE"))
 
         duration = "Duration Bearish"
         duration_body = "10Y yields are rising over the last 20 trading days."
-        if latest.get("UST_10Y_CHANGE_20D", 0) < -10:
+        if ust_10y_change_20d < -10:
             duration = "Duration Bullish"
             duration_body = "10Y yields have fallen materially over the last 20 trading days."
-        elif abs(latest.get("UST_10Y_CHANGE_20D", 0)) <= 10:
+        elif abs(ust_10y_change_20d) <= 10:
             duration = "Duration Neutral"
             duration_body = "10Y yields are broadly range-bound versus the last 20 trading days."
 
         curve = "Curve Inverted"
         curve_body = "2s10s remains below zero."
-        if latest.get("UST_2S10S", 0) > 25:
+        if ust_2s10s > 25:
             curve = "Curve Steepening"
             curve_body = "2s10s is decisively positive, signaling a steeper curve."
-        elif latest.get("UST_2S10S", 0) >= 0:
+        elif ust_2s10s >= 0:
             curve = "Curve Flat"
             curve_body = "2s10s is positive but still compressed."
 
         inflation = "Inflation Cooling"
         inflation_body = "CPI YoY is below 2.5% and 3M annualized inflation is contained."
-        if latest.get("CPI_YOY", 0) > 3.0 or latest.get("CPI_3M_ANN", 0) > 3.0:
+        if cpi_yoy > 3.0 or cpi_3m_ann > 3.0:
             inflation = "Inflation Hot"
             inflation_body = "Headline inflation or its short-term annualized pace remains elevated."
-        elif latest.get("BEI_5Y_CHANGE_20D", 0) > 0.25:
+        elif bei_5y_change_20d > 0.25:
             inflation = "Inflation Repricing"
             inflation_body = "Breakevens have moved higher over the last 20 trading days."
 
         growth = "Growth Deteriorating"
         growth_body = "Unemployment has been rising over recent months."
-        if latest.get("UNRATE_3M_CHANGE", 0) < -0.1:
+        if unrate_3m_change < -0.1:
             growth = "Growth Improving"
             growth_body = "Unemployment has been falling over the last three months."
-        elif abs(latest.get("UNRATE_3M_CHANGE", 0)) <= 0.1:
+        elif abs(unrate_3m_change) <= 0.1:
             growth = "Growth Stable"
             growth_body = "Unemployment is broadly stable on a three-month view."
 
@@ -158,6 +170,17 @@ class MacroTab:
         if series.empty:
             return None
         return series.index[-1]
+
+    def _feature_names(self) -> list[str]:
+        """Build one stable feature list for cards, charts, and the yield curve."""
+        feature_names = [item[1] for item in CARD_CONFIG]
+        feature_names += [item[2] for item in CARD_CONFIG if item[2] is not None]
+        feature_names += [item[3] for item in CARD_CONFIG if item[3] is not None]
+        for _, names in CHART_CONFIG:
+            feature_names.extend(names)
+        feature_names.extend(feature_name for _, _, feature_name in YIELD_CURVE_CONFIG)
+        feature_names.extend(["UST_2S10S_Z20", "UST_5S30S_Z20", "BEI_5Y_CHANGE_20D", "UNRATE_3M_CHANGE"])
+        return sorted(dict.fromkeys(feature_names))
 
     def _render_cards(self, matrix: pd.DataFrame) -> None:
         cols = st.columns(len(CARD_CONFIG))
@@ -305,7 +328,7 @@ class MacroTab:
         if curve_date is not None:
             caption = f"Latest available yield-curve snapshot as of {pd.Timestamp(curve_date).strftime('%Y-%m-%d')}."
             if fitted_params is not None:
-                caption += " Curve overlay uses a transparent Nelson-Siegel fit rather than linear interpolation."
+                caption += " Curve overlay uses a smooth Nelson-Siegel fit rather than linear interpolation."
             st.caption(caption)
 
     def _render_chart(self, matrix: pd.DataFrame, title: str, feature_names: list[str], start_date, end_date) -> None:
@@ -359,14 +382,7 @@ class MacroTab:
 
     def render(self) -> None:
         st.subheader("Macro")
-        feature_names = [item[1] for item in CARD_CONFIG]
-        feature_names += [item[2] for item in CARD_CONFIG if item[2] is not None]
-        feature_names += [item[3] for item in CARD_CONFIG if item[3] is not None]
-        for _, names in CHART_CONFIG:
-            feature_names.extend(names)
-        feature_names.extend([feature_name for _, _, feature_name in YIELD_CURVE_CONFIG])
-        feature_names.extend(["UST_2S10S_Z20", "UST_5S30S_Z20", "BEI_5Y_CHANGE_20D", "UNRATE_3M_CHANGE"])
-        feature_names = list(dict.fromkeys(feature_names))
+        feature_names = self._feature_names()
 
         lookback_map = {"30D": 30, "3M": 63, "6M": 126, "1Y": 252, "5Y": 1260, "ALL": None}
         window_col, _ = st.columns([0.28, 0.72])
