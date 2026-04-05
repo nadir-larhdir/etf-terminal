@@ -11,8 +11,41 @@ from dashboard.components.controls import DashboardControls
 from dashboard.components.info_panel import InfoPanel
 from dashboard.perf import timed_block
 from dashboard.styles.table_styles import DashboardTable
+from db.sql import cache_scope
 from models.security import Security
 from models.security_pair import SecurityPair
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_screener_rows(
+    cache_key: str,
+    selected_security: str,
+    candidate_tickers: tuple[str, ...],
+    rv_start_date: str,
+    rv_end_date: str,
+    _security_history: pd.DataFrame,
+    _candidate_histories: dict[str, pd.DataFrame],
+):
+    """Cache the expensive pair-stat recomputation across reruns for the same window."""
+
+    screener_rows = []
+    base_security = Security(selected_security)
+    base_security.set_history(_security_history)
+
+    for candidate in candidate_tickers:
+        candidate_hist = _candidate_histories.get(candidate, pd.DataFrame())
+        if candidate_hist.empty:
+            continue
+
+        candidate_security = Security(candidate)
+        candidate_security.set_history(candidate_hist)
+        pair = SecurityPair(base_security, candidate_security)
+        candidate_merged = pair.filtered_prices(start_date=pd.Timestamp(rv_start_date), end_date=pd.Timestamp(rv_end_date))
+        if len(candidate_merged) < 10:
+            continue
+        screener_rows.append(pair.screener_row(start_date=pd.Timestamp(rv_start_date), end_date=pd.Timestamp(rv_end_date)))
+
+    return pd.DataFrame(screener_rows)
 
 
 class RVTab:
@@ -30,33 +63,10 @@ class RVTab:
             with cols[idx % columns]:
                 st.metric(label, value)
 
-    def _render_pair_screener(
-        self,
-        rv_candidates,
-        candidate_histories,
-        security: Security,
-        rv_start_date,
-        rv_end_date,
-        selected_security: str,
-    ) -> None:
-        screener_rows = []
-        for candidate in rv_candidates:
-            candidate_obj = Security(candidate)
-            candidate_hist = candidate_histories.get(candidate, pd.DataFrame())
-            if candidate_hist.empty:
-                continue
-            candidate_obj.set_history(candidate_hist)
-
-            pair = SecurityPair(security, candidate_obj)
-            candidate_merged = pair.filtered_prices(start_date=rv_start_date, end_date=rv_end_date)
-            if len(candidate_merged) < 10:
-                continue
-
-            screener_rows.append(pair.screener_row(start_date=rv_start_date, end_date=rv_end_date))
-
+    def _render_pair_screener(self, screener_df: pd.DataFrame) -> None:
         with st.expander("Show RV pair screener"):
-            if screener_rows:
-                screener_df = pd.DataFrame(screener_rows).sort_values(
+            if not screener_df.empty:
+                screener_df = screener_df.sort_values(
                     by=["Z", "STABILITY"],
                     ascending=[False, False],
                 ).head(12)
@@ -353,14 +363,23 @@ class RVTab:
                 end_date=rv_end_date,
             )
 
-        self._render_pair_screener(
-            rv_candidates,
-            candidate_histories,
-            security,
-            rv_start_date,
-            rv_end_date,
-            selected_security,
+        screener_cache_key = (
+            f"{cache_scope(self.price_store.engine)}:"
+            f"{selected_security}:{rv_start_date.date()}:{rv_end_date.date()}:"
+            f"{max(hist.index).date() if not hist.empty else 'na'}:{len(rv_candidates)}"
         )
+        with timed_block("rv.build_pair_screener"):
+            screener_df = _cached_screener_rows(
+                screener_cache_key,
+                selected_security,
+                tuple(sorted(rv_candidates)),
+                rv_start_date.date().isoformat(),
+                rv_end_date.date().isoformat(),
+                hist,
+                candidate_histories,
+            )
+
+        self._render_pair_screener(screener_df)
 
         with st.expander("Show RV signal history"):
             signal_history = self.table.format_signal_history(signal_history)

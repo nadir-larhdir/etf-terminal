@@ -149,7 +149,11 @@ class AnalyticsTab:
         if not benchmark_ticker:
             return None, "No proxy"
 
-        benchmark_hist = self.price_store.get_ticker_price_history(benchmark_ticker)
+        security_history = security.history
+        start_date = None
+        if not security_history.empty:
+            start_date = security_history.index.max() - pd.Timedelta(days=120)
+        benchmark_hist = self.price_store.get_ticker_price_history(benchmark_ticker, start_date=start_date)
         if benchmark_hist.empty or "close" not in benchmark_hist.columns:
             return None, benchmark_ticker
 

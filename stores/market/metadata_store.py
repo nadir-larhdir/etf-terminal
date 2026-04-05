@@ -3,7 +3,7 @@ import streamlit as st
 from sqlalchemy import text
 from datetime import datetime
 
-from db.sql import pandas_to_sql_kwargs, qualified_table
+from db.sql import cache_scope, qualified_table
 
 
 @st.cache_data(ttl=900, show_spinner=False)
@@ -42,21 +42,68 @@ class MetadataStore:
         if "updated_at" not in df.columns:
             df["updated_at"] = datetime.utcnow().isoformat()
 
-        tickers = df["ticker"].dropna().astype(str).tolist()
+        records = df.to_dict(orient="records")
+        statement = """
+        INSERT INTO {metadata_table} (
+            ticker,
+            conid,
+            long_name,
+            description,
+            issuer,
+            benchmark_index,
+            category,
+            duration_bucket,
+            currency,
+            exchange,
+            expense_ratio,
+            total_assets,
+            quote_type,
+            source,
+            updated_at
+        ) VALUES (
+            :ticker,
+            :conid,
+            :long_name,
+            :description,
+            :issuer,
+            :benchmark_index,
+            :category,
+            :duration_bucket,
+            :currency,
+            :exchange,
+            :expense_ratio,
+            :total_assets,
+            :quote_type,
+            :source,
+            :updated_at
+        )
+        ON CONFLICT(ticker) DO UPDATE SET
+            conid = excluded.conid,
+            long_name = excluded.long_name,
+            description = excluded.description,
+            issuer = excluded.issuer,
+            benchmark_index = excluded.benchmark_index,
+            category = excluded.category,
+            duration_bucket = excluded.duration_bucket,
+            currency = excluded.currency,
+            exchange = excluded.exchange,
+            expense_ratio = excluded.expense_ratio,
+            total_assets = excluded.total_assets,
+            quote_type = excluded.quote_type,
+            source = excluded.source,
+            updated_at = excluded.updated_at
+        """.format(metadata_table=qualified_table(self.engine, "security_metadata"))
+
         with self.engine.begin() as conn:
-            conn.execute(
-                text(f"DELETE FROM {qualified_table(self.engine, 'security_metadata')} WHERE ticker = :ticker"),
-                [{"ticker": ticker} for ticker in tickers],
-            )
-            df.to_sql("security_metadata", conn, if_exists="append", index=False, **pandas_to_sql_kwargs(self.engine))
+            conn.execute(text(statement), records)
         _cached_existing_metadata_tickers.clear()
         _cached_ticker_metadata.clear()
 
     def get_existing_tickers(self) -> set[str]:
-        return _cached_existing_metadata_tickers(str(self.engine.url), self.engine)
+        return _cached_existing_metadata_tickers(cache_scope(self.engine), self.engine)
 
     def get_ticker_metadata(self, ticker: str):
-        return _cached_ticker_metadata(str(self.engine.url), self.engine, ticker)
+        return _cached_ticker_metadata(cache_scope(self.engine), self.engine, ticker)
 
     def delete_ticker(self, ticker: str):
         with self.engine.begin() as conn:

@@ -4,7 +4,7 @@ from sqlalchemy import inspect
 from sqlalchemy import text
 
 from db.schema import create_tables
-from db.sql import pandas_to_sql_kwargs, qualified_table, schema_name
+from db.sql import cache_scope, pandas_to_sql_kwargs, qualified_table, schema_name
 
 
 @st.cache_data(ttl=900, show_spinner=False)
@@ -130,7 +130,7 @@ class SecurityStore:
 
     def list_active_securities(self):
         self._ensure_schema()
-        return _cached_active_securities(str(self.engine.url), self.engine).copy()
+        return _cached_active_securities(cache_scope(self.engine), self.engine).copy()
 
     def delete_ticker(self, ticker: str):
         self._ensure_schema()

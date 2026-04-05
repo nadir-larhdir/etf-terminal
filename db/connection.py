@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, QueuePool
 
 from config import APP_ENV, DATA_BACKEND, DB_PATH, DB_SCHEMA, SUPABASE_DB_URL
 
@@ -29,6 +29,10 @@ def _is_supabase_pooler_url(database_url: str) -> bool:
     return "pooler.supabase.com" in database_url
 
 
+def _uses_session_pooler(database_url: str) -> bool:
+    return _is_supabase_pooler_url(database_url) and ":5432/" in database_url
+
+
 def get_engine(*, data_backend: str | None = None, app_env: str | None = None):
     backend = (data_backend or DATA_BACKEND).strip().lower()
     env = (app_env or APP_ENV).strip().lower()
@@ -45,8 +49,11 @@ def get_engine(*, data_backend: str | None = None, app_env: str | None = None):
     engine_kwargs = {
         "future": True,
         "connect_args": _supabase_connect_args(DB_SCHEMA),
+        "pool_pre_ping": True,
     }
-    if _is_supabase_pooler_url(normalized_url):
+    if _uses_session_pooler(normalized_url):
+        engine_kwargs.update({"poolclass": QueuePool, "pool_size": 2, "max_overflow": 2, "pool_recycle": 1800})
+    elif _is_supabase_pooler_url(normalized_url):
         engine_kwargs["poolclass"] = NullPool
 
     engine = create_engine(normalized_url, **engine_kwargs)
