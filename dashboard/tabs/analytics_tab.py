@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 
 from dashboard.components.info_panel import InfoPanel
 from dashboard.perf import timed_block
