@@ -1,9 +1,14 @@
 import argparse
+import logging
 
 from db.connection import get_engine
-from stores.market import PriceStore, SecurityStore
+from scripts.logging_utils import configure_logging
 from scripts.script_helpers import add_ticker_argument, resolve_target_tickers
 from services.market import MarketDataService
+from stores.market import PriceStore, SecurityStore
+
+
+logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -30,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 if __name__ == "__main__":
+    configure_logging()
     args = build_parser().parse_args()
 
     engine = get_engine()
@@ -43,22 +49,26 @@ if __name__ == "__main__":
 
     if args.mode == "full":
         service.sync_price_history(tickers, period=args.period, replace_existing=True)
-        print(f"Replaced price history for {len(tickers)} ticker(s): {', '.join(tickers)}")
+        logger.info("Replaced price history for %s ticker(s): %s", len(tickers), ", ".join(tickers))
     elif args.mode == "gap-fill":
         service.sync_price_gaps(tickers, period=args.period)
-        print(f"Gap-filled price history for {len(tickers)} ticker(s): {', '.join(tickers)}")
+        logger.info("Gap-filled price history for %s ticker(s): %s", len(tickers), ", ".join(tickers))
     elif args.mode == "missing-only":
         loaded = service.sync_missing_ticker_history(tickers, period=args.period)
         skipped = [ticker for ticker in tickers if ticker not in loaded]
-        print(f"Initialized new ticker history for {len(loaded)} ticker(s): {', '.join(loaded) if loaded else 'none'}")
+        logger.info(
+            "Initialized new ticker history for %s ticker(s): %s",
+            len(loaded),
+            ", ".join(loaded) if loaded else "none",
+        )
         if skipped:
-            print(f"Skipped existing ticker history for {len(skipped)} ticker(s): {', '.join(skipped)}")
+            logger.info("Skipped existing ticker history for %s ticker(s): %s", len(skipped), ", ".join(skipped))
     else:
         statuses = service.sync_incremental_updates(
             tickers,
             period_for_new=args.period,
             overlap_days=args.overlap_days,
         )
-        print("Incremental price update complete:")
+        logger.info("Incremental price update complete:")
         for ticker in tickers:
-            print(f" - {ticker}: {statuses.get(ticker, 'not_processed')}")
+            logger.info(" - %s: %s", ticker, statuses.get(ticker, "not_processed"))

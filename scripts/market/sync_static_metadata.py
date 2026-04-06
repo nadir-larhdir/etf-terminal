@@ -1,12 +1,14 @@
 import argparse
+import logging
 from datetime import datetime
 
 from db.connection import get_engine
-from stores.market import MetadataStore
+from scripts.logging_utils import configure_logging
 from scripts.script_helpers import add_ticker_argument, filter_new_ticker_rows, parse_ticker_list
+from stores.market import MetadataStore
 
 
-"""Static metadata rows used when you want a controlled in-house metadata baseline."""
+# Static metadata rows used when you want a controlled in-house metadata baseline.
 DEFAULT_METADATA = [
     {
         "ticker": "LQD",
@@ -80,8 +82,11 @@ DEFAULT_METADATA = [
     },
 ]
 
+logger = logging.getLogger(__name__)
+
 
 if __name__ == "__main__":
+    configure_logging()
     parser = argparse.ArgumentParser(description="Seed static ETF metadata into the local database.")
     parser.add_argument(
         "--mode",
@@ -102,4 +107,4 @@ if __name__ == "__main__":
 
     metadata_store.upsert_metadata(rows)
     processed = ", ".join(row["ticker"] for row in rows) if rows else "none"
-    print(f"Static metadata processed for {len(rows)} ticker(s): {processed}")
+    logger.info("Static metadata processed for %s ticker(s): %s", len(rows), processed)

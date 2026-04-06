@@ -1,10 +1,15 @@
 import argparse
+import logging
 
 from config import FRED_API_KEY, FRED_BASE_URL
 from db.connection import get_engine
-from stores.macro import MacroStore
+from scripts.logging_utils import configure_logging
 from scripts.script_helpers import parse_csv_values
 from services.macro import DEFAULT_MACRO_SERIES, FredClient, MacroDataService
+from stores.macro import MacroStore
+
+
+logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -43,6 +48,7 @@ def parse_series_ids(series_arg: str | None) -> list[str]:
 
 
 if __name__ == "__main__":
+    configure_logging()
     args = build_parser().parse_args()
     series_ids = parse_series_ids(args.series)
 
@@ -59,7 +65,7 @@ if __name__ == "__main__":
             end=args.end,
             replace_existing=True,
         )
-        print(f"Replaced macro history for {len(series_ids)} series: {', '.join(series_ids)}")
+        logger.info("Replaced macro history for %s series: %s", len(series_ids), ", ".join(series_ids))
     else:
         statuses = service.sync_incremental_updates(
             series_ids,
@@ -67,6 +73,6 @@ if __name__ == "__main__":
             default_start=args.start or "2000-01-01",
             end=args.end,
         )
-        print("Incremental macro update complete:")
+        logger.info("Incremental macro update complete:")
         for series_id in series_ids:
-            print(f" - {series_id}: {statuses.get(series_id, 'not_processed')}")
+            logger.info(" - %s: %s", series_id, statuses.get(series_id, "not_processed"))

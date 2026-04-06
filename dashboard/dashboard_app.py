@@ -7,7 +7,7 @@ from dashboard.news_page import NewsPage
 from dashboard.perf import timed_block
 from dashboard.styles import apply_dashboard_theme
 from dashboard.tabs import AnalyticsTab, MacroTab, OverviewTab, RVTab
-from services.analytics import DurationModelSelector
+from services.analytics import DurationModelSelector, FixedIncomeAnalyticsService
 from stores.macro import MacroFeatureStore, MacroStore
 from stores.market import InputStore, MetadataStore, PriceStore, SecurityStore
 from db.connection import get_engine
@@ -20,35 +20,47 @@ NAVIGATION_VIEWS = ("Home", "Dashboard", "News", "Macro")
 @st.cache_resource(show_spinner=False)
 def get_cached_app_dependencies(data_backend: str, app_env: str):
     engine = get_engine(data_backend=data_backend, app_env=app_env)
+    price_store = PriceStore(engine)
+    macro_store = MacroStore(engine)
+    duration_selector = DurationModelSelector()
     return {
         "engine": engine,
         "security_store": SecurityStore(engine),
-        "price_store": PriceStore(engine),
+        "price_store": price_store,
         "input_store": InputStore(engine),
         "metadata_store": MetadataStore(engine),
-        "macro_store": MacroStore(engine),
+        "macro_store": macro_store,
         "macro_feature_store": MacroFeatureStore(engine),
-        "duration_selector": DurationModelSelector(),
+        "duration_selector": duration_selector,
+        "analytics_service": FixedIncomeAnalyticsService(price_store, macro_store, duration_selector),
     }
 
 
 class DashboardApp:
     """Coordinate the Streamlit ETF dashboard and wire data stores into the UI."""
 
-    def __init__(self, security_store, price_store, input_store, metadata_store, macro_store, macro_feature_store, duration_selector):
+    def __init__(
+        self,
+        security_store,
+        price_store,
+        input_store,
+        metadata_store,
+        macro_store,
+        macro_feature_store,
+        analytics_service,
+    ):
         self.security_store = security_store
         self.price_store = price_store
         self.input_store = input_store
         self.metadata_store = metadata_store
         self.macro_store = macro_store
         self.macro_feature_store = macro_feature_store
-        self.duration_selector = duration_selector
         self.home_page = HomePage(price_store)
         self.news_page = NewsPage(macro_feature_store)
         self.macro_tab = MacroTab(macro_feature_store)
         self.security_header = SecurityHeader()
         self.overview_tab = OverviewTab()
-        self.analytics_tab = AnalyticsTab(price_store, macro_store, duration_selector)
+        self.analytics_tab = AnalyticsTab(analytics_service)
         self.rv_tab = RVTab(price_store)
         self.controls = DashboardControls()
 
@@ -185,6 +197,6 @@ def run_app():
         dependencies["metadata_store"],
         dependencies["macro_store"],
         dependencies["macro_feature_store"],
-        dependencies["duration_selector"],
+        dependencies["analytics_service"],
     )
     app.run()

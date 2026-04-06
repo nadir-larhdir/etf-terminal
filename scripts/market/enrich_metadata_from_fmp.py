@@ -1,15 +1,17 @@
 import argparse
+import logging
 
 from datetime import datetime
 
 from config import DEFAULT_TICKERS, FMP_API_KEY, FMP_BASE_URL, normalize_asset_class
 from db.connection import get_engine
-from stores.market import MetadataStore
+from scripts.logging_utils import configure_logging
 from scripts.script_helpers import add_ticker_argument, parse_ticker_list
 from services.market.fmp_client import FMPClient
+from stores.market import MetadataStore
 
 
-"""Internal overrides for known fixed-income ETF metadata fields."""
+# Internal overrides for known fixed-income ETF metadata fields.
 INTERNAL_METADATA = {
     "LQD": {
         "benchmark_index": "Markit iBoxx USD Liquid Investment Grade Index",
@@ -39,6 +41,7 @@ INTERNAL_METADATA = {
 }
 
 FMP_CLIENT = FMPClient(api_key=FMP_API_KEY, base_url=FMP_BASE_URL)
+logger = logging.getLogger(__name__)
 
 
 def _is_populated(value) -> bool:
@@ -219,6 +222,7 @@ def build_metadata_row(ticker: str, existing_row: dict | None = None) -> dict:
 
 
 if __name__ == "__main__":
+    configure_logging()
     parser = argparse.ArgumentParser(description="Enrich ETF metadata from Financial Modeling Prep.")
     parser.add_argument(
         "--mode",
@@ -243,9 +247,9 @@ if __name__ == "__main__":
             existing_row = metadata_store.get_ticker_metadata(ticker)
             row = build_metadata_row(ticker, existing_row=existing_row)
             rows.append(row)
-            print(f"Enriched metadata for {ticker}")
+            logger.info("Enriched metadata for %s", ticker)
         except Exception as exc:
-            print(f"Failed metadata enrichment for {ticker}: {exc}")
+            logger.warning("Failed metadata enrichment for %s: %s", ticker, exc)
 
     metadata_store.upsert_metadata(rows)
-    print("Security metadata enrichment complete.")
+    logger.info("Security metadata enrichment complete.")

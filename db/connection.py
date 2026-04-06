@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool, QueuePool
 
-from config import APP_ENV, DATA_BACKEND, DB_PATH, DB_SCHEMA, SUPABASE_DB_URL
+from config import APP_ENV, DATA_BACKEND, DB_PATH, DB_SCHEMA, DATABASE_URL
 
 
 def _sqlite_url(app_env: str) -> str:
@@ -33,19 +33,15 @@ def _uses_session_pooler(database_url: str) -> bool:
     return _is_supabase_pooler_url(database_url) and ":5432/" in database_url
 
 
-def get_engine(*, data_backend: str | None = None, app_env: str | None = None):
+def get_engine(*, data_backend: str | None = None, app_env: str | None = None, database_url: str | None = None):
     backend = (data_backend or DATA_BACKEND).strip().lower()
     env = (app_env or APP_ENV).strip().lower()
+    resolved_url = database_url or DATABASE_URL
 
-    if backend == "local":
+    if backend == "local" or not resolved_url:
         return create_engine(_sqlite_url(env), future=True).execution_options(schema_name=None)
 
-    if not SUPABASE_DB_URL:
-        raise RuntimeError(
-            "SUPABASE_DB_URL is not configured. Set it in .env or use DATA_BACKEND=local."
-        )
-
-    normalized_url = _ensure_sslmode(SUPABASE_DB_URL)
+    normalized_url = _ensure_sslmode(_normalize_postgres_url(resolved_url))
     engine_kwargs = {
         "future": True,
         "connect_args": _supabase_connect_args(DB_SCHEMA),

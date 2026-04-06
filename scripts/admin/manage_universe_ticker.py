@@ -1,9 +1,14 @@
 import argparse
+import logging
 
 from db.connection import get_engine
-from stores.market import InputStore, MetadataStore, PriceStore, SecurityStore
+from scripts.logging_utils import configure_logging
 from services.admin import TickerManagerService
 from services.market import MarketDataService
+from stores.market import InputStore, MetadataStore, PriceStore, SecurityStore
+
+
+logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -23,6 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 if __name__ == "__main__":
+    configure_logging()
     args = build_parser().parse_args()
 
     engine = get_engine()
@@ -45,12 +51,12 @@ if __name__ == "__main__":
             asset_class_override=args.asset_class,
             period=args.period,
         )
-        print("Ticker added successfully:")
-        print(" - ticker: {0}".format(profile.ticker))
-        print(" - name: {0}".format(profile.name))
-        print(" - asset_class: {0}".format(profile.asset_class))
-        print(" - quote_type: {0}".format(profile.diagnostics.get("quote_type") or "N/A"))
-        print(" - category: {0}".format(profile.diagnostics.get("category") or "N/A"))
+        logger.info("Ticker added successfully:")
+        logger.info(" - ticker: %s", profile.ticker)
+        logger.info(" - name: %s", profile.name)
+        logger.info(" - asset_class: %s", profile.asset_class)
+        logger.info(" - quote_type: %s", profile.diagnostics.get("quote_type") or "N/A")
+        logger.info(" - category: %s", profile.diagnostics.get("category") or "N/A")
     else:
         manager.delete_ticker(args.ticker)
-        print("Ticker deleted from securities, metadata, prices, and inputs: {0}".format(args.ticker.strip().upper()))
+        logger.info("Ticker deleted from securities, metadata, prices, and inputs: %s", args.ticker.strip().upper())
