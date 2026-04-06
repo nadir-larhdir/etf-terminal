@@ -6,8 +6,9 @@ from dashboard.home_page import HomePage
 from dashboard.news_page import NewsPage
 from dashboard.perf import timed_block
 from dashboard.styles import apply_dashboard_theme
-from dashboard.tabs import AnalyticsTab, GraphsTab, MacroTab, RVTab
-from stores.macro import MacroFeatureStore
+from dashboard.tabs import AnalyticsTab, MacroTab, OverviewTab, RVTab
+from services.analytics import DurationModelSelector
+from stores.macro import MacroFeatureStore, MacroStore
 from stores.market import InputStore, MetadataStore, PriceStore, SecurityStore
 from db.connection import get_engine
 from models.security import Security
@@ -25,25 +26,29 @@ def get_cached_app_dependencies(data_backend: str, app_env: str):
         "price_store": PriceStore(engine),
         "input_store": InputStore(engine),
         "metadata_store": MetadataStore(engine),
+        "macro_store": MacroStore(engine),
         "macro_feature_store": MacroFeatureStore(engine),
+        "duration_selector": DurationModelSelector(),
     }
 
 
 class DashboardApp:
     """Coordinate the Streamlit ETF dashboard and wire data stores into the UI."""
 
-    def __init__(self, security_store, price_store, input_store, metadata_store, macro_feature_store):
+    def __init__(self, security_store, price_store, input_store, metadata_store, macro_store, macro_feature_store, duration_selector):
         self.security_store = security_store
         self.price_store = price_store
         self.input_store = input_store
         self.metadata_store = metadata_store
+        self.macro_store = macro_store
         self.macro_feature_store = macro_feature_store
+        self.duration_selector = duration_selector
         self.home_page = HomePage(price_store)
         self.news_page = NewsPage(macro_feature_store)
         self.macro_tab = MacroTab(macro_feature_store)
         self.security_header = SecurityHeader()
-        self.graphs_tab = GraphsTab()
-        self.analytics_tab = AnalyticsTab(price_store)
+        self.overview_tab = OverviewTab()
+        self.analytics_tab = AnalyticsTab(price_store, macro_store, duration_selector)
         self.rv_tab = RVTab(price_store)
         self.controls = DashboardControls()
 
@@ -150,10 +155,10 @@ class DashboardApp:
         self.security_header.render_header_strip(hist, selected_security, metadata)
 
         all_tickers = securities["ticker"].tolist()
-        tab_graphs, tab_analytics, tab_rv = st.tabs(["Graphs", "Analytics", "RV Analysis"])
+        tab_overview, tab_analytics, tab_rv = st.tabs(["Overview", "Analytics", "RV Analysis"])
 
-        with tab_graphs:
-            self._render_tab_safe("Graphs", self.graphs_tab.render, security)
+        with tab_overview:
+            self._render_tab_safe("Overview", self.overview_tab.render, security)
 
         with tab_analytics:
             self._render_tab_safe("Analytics", self.analytics_tab.render, security)
@@ -178,6 +183,8 @@ def run_app():
         dependencies["price_store"],
         dependencies["input_store"],
         dependencies["metadata_store"],
+        dependencies["macro_store"],
         dependencies["macro_feature_store"],
+        dependencies["duration_selector"],
     )
     app.run()

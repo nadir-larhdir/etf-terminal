@@ -237,6 +237,34 @@
       "sub_category": "Employment",
       "frequency": "Monthly",
       "units": "Percent"
+    },
+    "BAMLC0A0CM": {
+      "name": "ICE BofA US Corporate Index Option-Adjusted Spread",
+      "category": "Credit",
+      "sub_category": "ig_oas",
+      "frequency": "Daily",
+      "units": "Percent"
+    },
+    "BAMLH0A0HYM2": {
+      "name": "ICE BofA US High Yield Index Option-Adjusted Spread",
+      "category": "Credit",
+      "sub_category": "hy_oas",
+      "frequency": "Daily",
+      "units": "Percent"
+    },
+    "BAMLC0A4CBBB": {
+      "name": "ICE BofA BBB US Corporate Index Option-Adjusted Spread",
+      "category": "Credit",
+      "sub_category": "bbb_oas",
+      "frequency": "Daily",
+      "units": "Percent"
+    },
+    "BAMLH0A2HYB": {
+      "name": "ICE BofA Single-B US High Yield Index Option-Adjusted Spread",
+      "category": "Credit",
+      "sub_category": "single_b_oas",
+      "frequency": "Daily",
+      "units": "Percent"
     }
   },
 

@@ -34,6 +34,10 @@ class MetadataStore:
     def __init__(self, engine):
         self.engine = engine
 
+    def _clear_caches(self) -> None:
+        _cached_existing_metadata_tickers.clear()
+        _cached_ticker_metadata.clear()
+
     def upsert_metadata(self, rows):
         if not rows:
             return
@@ -96,8 +100,7 @@ class MetadataStore:
 
         with self.engine.begin() as conn:
             conn.execute(text(statement), records)
-        _cached_existing_metadata_tickers.clear()
-        _cached_ticker_metadata.clear()
+        self._clear_caches()
 
     def get_existing_tickers(self) -> set[str]:
         return _cached_existing_metadata_tickers(cache_scope(self.engine), self.engine)
@@ -111,5 +114,4 @@ class MetadataStore:
                 text(f"DELETE FROM {qualified_table(self.engine, 'security_metadata')} WHERE ticker = :ticker"),
                 {"ticker": ticker},
             )
-        _cached_existing_metadata_tickers.clear()
-        _cached_ticker_metadata.clear()
+        self._clear_caches()

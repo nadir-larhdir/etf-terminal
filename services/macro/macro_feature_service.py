@@ -39,6 +39,24 @@ FEATURE_METADATA = {
     "UNRATE_LEVEL": ("Growth", "Labor"),
     "UNRATE_3M_CHANGE": ("Growth", "Labor"),
     "UNRATE_12M_CHANGE": ("Growth", "Labor"),
+    "IG_OAS_LEVEL": ("Credit", "OAS Level"),
+    "HY_OAS_LEVEL": ("Credit", "OAS Level"),
+    "BBB_OAS_LEVEL": ("Credit", "OAS Level"),
+    "SINGLE_B_OAS_LEVEL": ("Credit", "OAS Level"),
+    "IG_OAS_CHANGE_5D": ("Credit", "OAS Change"),
+    "IG_OAS_CHANGE_20D": ("Credit", "OAS Change"),
+    "HY_OAS_CHANGE_5D": ("Credit", "OAS Change"),
+    "HY_OAS_CHANGE_20D": ("Credit", "OAS Change"),
+    "BBB_OAS_CHANGE_20D": ("Credit", "OAS Change"),
+    "SINGLE_B_OAS_CHANGE_20D": ("Credit", "OAS Change"),
+    "HY_MINUS_IG_OAS": ("Credit", "Spread Curve"),
+    "BBB_MINUS_IG_OAS": ("Credit", "Spread Curve"),
+    "SINGLE_B_MINUS_HY_OAS": ("Credit", "Spread Curve"),
+    "IG_OAS_Z20": ("Credit", "OAS Z-Score"),
+    "IG_OAS_Z60": ("Credit", "OAS Z-Score"),
+    "HY_OAS_Z20": ("Credit", "OAS Z-Score"),
+    "HY_OAS_Z60": ("Credit", "OAS Z-Score"),
+    "HY_MINUS_IG_OAS_Z20": ("Credit", "OAS Z-Score"),
 }
 
 REQUIRED_SERIES = [
@@ -56,6 +74,10 @@ REQUIRED_SERIES = [
     "T5YIE",
     "FEDFUNDS",
     "UNRATE",
+    "BAMLC0A0CM",
+    "BAMLH0A0HYM2",
+    "BAMLC0A4CBBB",
+    "BAMLH0A2HYB",
 ]
 
 
@@ -149,6 +171,29 @@ class MacroFeatureService:
             features["UNRATE_LEVEL"] = unrate_monthly
             features["UNRATE_3M_CHANGE"] = self._change(unrate_monthly, 3)
             features["UNRATE_12M_CHANGE"] = self._change(unrate_monthly, 12)
+
+        ig_oas = raw.get("BAMLC0A0CM")
+        hy_oas = raw.get("BAMLH0A0HYM2")
+        bbb_oas = raw.get("BAMLC0A4CBBB")
+        single_b_oas = raw.get("BAMLH0A2HYB")
+        features["IG_OAS_LEVEL"] = ig_oas
+        features["HY_OAS_LEVEL"] = hy_oas
+        features["BBB_OAS_LEVEL"] = bbb_oas
+        features["SINGLE_B_OAS_LEVEL"] = single_b_oas
+        features["IG_OAS_CHANGE_5D"] = self._change(ig_oas, 5)
+        features["IG_OAS_CHANGE_20D"] = self._change(ig_oas, 20)
+        features["HY_OAS_CHANGE_5D"] = self._change(hy_oas, 5)
+        features["HY_OAS_CHANGE_20D"] = self._change(hy_oas, 20)
+        features["BBB_OAS_CHANGE_20D"] = self._change(bbb_oas, 20)
+        features["SINGLE_B_OAS_CHANGE_20D"] = self._change(single_b_oas, 20)
+        features["HY_MINUS_IG_OAS"] = hy_oas - ig_oas
+        features["BBB_MINUS_IG_OAS"] = bbb_oas - ig_oas
+        features["SINGLE_B_MINUS_HY_OAS"] = single_b_oas - hy_oas
+        features["IG_OAS_Z20"] = self._zscore(ig_oas, 20)
+        features["IG_OAS_Z60"] = self._zscore(ig_oas, 60)
+        features["HY_OAS_Z20"] = self._zscore(hy_oas, 20)
+        features["HY_OAS_Z60"] = self._zscore(hy_oas, 60)
+        features["HY_MINUS_IG_OAS_Z20"] = self._zscore(features["HY_MINUS_IG_OAS"], 20)
 
         return features.sort_index()
 
