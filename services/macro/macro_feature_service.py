@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -84,6 +84,9 @@ REQUIRED_SERIES = [
 class MacroFeatureService:
     """Build derived macro features from raw FRED observations."""
 
+    DEFAULT_INCREMENTAL_REBUILD_DAYS = 45
+    DEFAULT_WARMUP_DAYS = 450
+
     OUTPUT_COLUMNS = [
         "feature_name",
         "date",
@@ -118,8 +121,8 @@ class MacroFeatureService:
             return clean
         return transform(clean)
 
-    def build_feature_matrix(self) -> pd.DataFrame:
-        raw = self.macro_store.get_series_matrix(REQUIRED_SERIES)
+    def build_feature_matrix(self, start_date: str | None = None) -> pd.DataFrame:
+        raw = self.macro_store.get_series_matrix(REQUIRED_SERIES, start_date=start_date)
         if raw.empty:
             return pd.DataFrame()
 
@@ -197,10 +200,20 @@ class MacroFeatureService:
 
         return features.sort_index()
 
-    def build_feature_rows(self) -> pd.DataFrame:
-        matrix = self.build_feature_matrix()
+    def build_feature_rows(
+        self,
+        *,
+        output_start_date: str | None = None,
+        source_start_date: str | None = None,
+    ) -> pd.DataFrame:
+        matrix = self.build_feature_matrix(start_date=source_start_date)
         if matrix.empty:
             return pd.DataFrame(columns=self.OUTPUT_COLUMNS)
+
+        if output_start_date is not None:
+            matrix = matrix.loc[matrix.index >= pd.Timestamp(output_start_date)].copy()
+            if matrix.empty:
+                return pd.DataFrame(columns=self.OUTPUT_COLUMNS)
 
         stacked = matrix.stack(dropna=True).reset_index()
         stacked.columns = ["date", "feature_name", "value"]
@@ -211,8 +224,39 @@ class MacroFeatureService:
         stacked["last_updated_at"] = datetime.utcnow().isoformat()
         return stacked[self.OUTPUT_COLUMNS]
 
-    def persist_features(self) -> pd.DataFrame:
-        feature_rows = self.build_feature_rows()
+    def incremental_start_dates(
+        self,
+        *,
+        rebuild_days: int = DEFAULT_INCREMENTAL_REBUILD_DAYS,
+        warmup_days: int = DEFAULT_WARMUP_DAYS,
+    ) -> tuple[str | None, str | None]:
+        latest_feature_date = self.macro_feature_store.get_latest_feature_date()
+        if latest_feature_date is None:
+            return None, None
+
+        output_start = pd.Timestamp(latest_feature_date) - timedelta(days=rebuild_days)
+        source_start = output_start - timedelta(days=warmup_days)
+        return output_start.date().isoformat(), source_start.date().isoformat()
+
+    def persist_features(
+        self,
+        *,
+        incremental: bool = False,
+        rebuild_days: int = DEFAULT_INCREMENTAL_REBUILD_DAYS,
+        warmup_days: int = DEFAULT_WARMUP_DAYS,
+    ) -> pd.DataFrame:
+        output_start_date = None
+        source_start_date = None
+        if incremental:
+            output_start_date, source_start_date = self.incremental_start_dates(
+                rebuild_days=rebuild_days,
+                warmup_days=warmup_days,
+            )
+
+        feature_rows = self.build_feature_rows(
+            output_start_date=output_start_date,
+            source_start_date=source_start_date,
+        )
         if not feature_rows.empty:
             self.macro_feature_store.upsert_features(feature_rows)
         return feature_rows
