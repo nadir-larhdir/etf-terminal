@@ -38,6 +38,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip ETF metadata refresh from FMP.",
     )
+    parser.add_argument(
+        "--feature-rebuild-days",
+        type=int,
+        default=MacroFeatureService.DEFAULT_INCREMENTAL_REBUILD_DAYS,
+        help="How many recent calendar days of macro features to recompute.",
+    )
+    parser.add_argument(
+        "--feature-warmup-days",
+        type=int,
+        default=MacroFeatureService.DEFAULT_WARMUP_DAYS,
+        help="Extra raw history window used to support rolling feature calculations.",
+    )
     return parser
 
 
@@ -104,7 +116,11 @@ def main() -> None:
     logger.info("Macro refresh complete for %s series.", len(macro_statuses))
 
     logger.info("Step 3/4: rebuilding macro features...")
-    feature_rows = macro_feature_service.persist_features()
+    feature_rows = macro_feature_service.persist_features(
+        incremental=True,
+        rebuild_days=args.feature_rebuild_days,
+        warmup_days=args.feature_warmup_days,
+    )
     logger.info("Macro feature rebuild complete with %s upserted row(s).", len(feature_rows))
 
     if args.skip_metadata:
