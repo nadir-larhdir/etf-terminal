@@ -1,13 +1,11 @@
 import pandas as pd
-import streamlit as st
 from sqlalchemy import text
 
-from db.sql import cache_scope, pandas_to_sql_kwargs, qualified_table
+from db.sql import pandas_to_sql_kwargs, qualified_table
 from stores.query_utils import index_history_frame, latest_dates_map
 
 
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_existing_tickers(_cache_key: str, _engine, tickers: tuple[str, ...] | None) -> set[str]:
+def _existing_tickers(_engine, tickers: tuple[str, ...] | None) -> set[str]:
     query = f"SELECT DISTINCT ticker FROM {qualified_table(_engine, 'price_history')}"
     params = {}
 
@@ -22,8 +20,7 @@ def _cached_existing_tickers(_cache_key: str, _engine, tickers: tuple[str, ...] 
     return set(df["ticker"].tolist()) if not df.empty else set()
 
 
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_latest_stored_dates(_cache_key: str, _engine, tickers: tuple[str, ...] | None) -> dict[str, str]:
+def _latest_stored_dates(_engine, tickers: tuple[str, ...] | None) -> dict[str, str]:
     query = f"""
     SELECT ticker, MAX(date) AS latest_date
     FROM {qualified_table(_engine, 'price_history')}
@@ -43,8 +40,7 @@ def _cached_latest_stored_dates(_cache_key: str, _engine, tickers: tuple[str, ..
     return latest_dates_map(df, key_column="ticker")
 
 
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_ticker_price_history(_cache_key: str, _engine, ticker: str, start_date=None, end_date=None) -> pd.DataFrame:
+def _ticker_price_history(_engine, ticker: str, start_date=None, end_date=None) -> pd.DataFrame:
     query = f"""
     SELECT date, open, high, low, close, adj_close, volume
     FROM {qualified_table(_engine, 'price_history')}
@@ -68,8 +64,7 @@ def _cached_ticker_price_history(_cache_key: str, _engine, ticker: str, start_da
     return index_history_frame(df)
 
 
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_multi_ticker_history(_cache_key: str, _engine, tickers: tuple[str, ...], start_date=None, end_date=None) -> pd.DataFrame:
+def _multi_ticker_history(_engine, tickers: tuple[str, ...], start_date=None, end_date=None) -> pd.DataFrame:
     if not tickers:
         return pd.DataFrame(columns=["ticker", "date", "open", "high", "low", "close", "adj_close", "volume"])
 
@@ -100,12 +95,6 @@ class PriceStore:
 
     def __init__(self, engine):
         self.engine = engine
-
-    def _clear_caches(self) -> None:
-        _cached_existing_tickers.clear()
-        _cached_latest_stored_dates.clear()
-        _cached_ticker_price_history.clear()
-        _cached_multi_ticker_history.clear()
 
     def upsert_prices(self, df: pd.DataFrame):
         if df.empty:
@@ -148,7 +137,6 @@ class PriceStore:
         """.format(price_table=qualified_table(self.engine, "price_history"))
         with self.engine.begin() as conn:
             conn.execute(text(statement), records)
-        self._clear_caches()
 
     def replace_ticker_prices(self, ticker: str, df: pd.DataFrame):
         with self.engine.begin() as conn:
@@ -157,22 +145,21 @@ class PriceStore:
                 {"ticker": ticker},
             )
             df.to_sql("price_history", conn, if_exists="append", index=False, **pandas_to_sql_kwargs(self.engine))
-        self._clear_caches()
 
     def get_existing_tickers(self, tickers: list[str] | None = None) -> set[str]:
         normalized = tuple(sorted(tickers)) if tickers else None
-        return _cached_existing_tickers(cache_scope(self.engine), self.engine, normalized)
+        return _existing_tickers(self.engine, normalized)
 
     def get_latest_stored_dates(self, tickers: list[str] | None = None) -> dict[str, str]:
         normalized = tuple(sorted(tickers)) if tickers else None
-        return _cached_latest_stored_dates(cache_scope(self.engine), self.engine, normalized)
+        return _latest_stored_dates(self.engine, normalized)
 
     def get_ticker_price_history(self, ticker: str, start_date=None, end_date=None) -> pd.DataFrame:
-        return _cached_ticker_price_history(cache_scope(self.engine), self.engine, ticker, start_date, end_date).copy()
+        return _ticker_price_history(self.engine, ticker, start_date, end_date).copy()
 
     def get_multi_ticker_price_history(self, tickers: list[str], start_date=None, end_date=None) -> dict[str, pd.DataFrame]:
         normalized = tuple(sorted(dict.fromkeys(tickers)))
-        frame = _cached_multi_ticker_history(cache_scope(self.engine), self.engine, normalized, start_date, end_date).copy()
+        frame = _multi_ticker_history(self.engine, normalized, start_date, end_date).copy()
         if frame.empty:
             return {}
 
@@ -187,4 +174,3 @@ class PriceStore:
                 text(f"DELETE FROM {qualified_table(self.engine, 'price_history')} WHERE ticker = :ticker"),
                 {"ticker": ticker},
             )
-        self._clear_caches()

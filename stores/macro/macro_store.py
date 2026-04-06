@@ -1,14 +1,11 @@
 import pandas as pd
-import streamlit as st
 from sqlalchemy import text
 
-from db.sql import cache_scope, pandas_to_sql_kwargs, qualified_table
+from db.sql import pandas_to_sql_kwargs, qualified_table
 from stores.query_utils import index_history_frame, latest_dates_map, pivot_time_series
 
 
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_series_matrix(
-    _cache_key: str,
+def _series_matrix(
     _engine,
     series_ids: tuple[str, ...] | None = None,
     start_date: str | None = None,
@@ -88,8 +85,6 @@ class MacroStore:
         """.format(macro_table=qualified_table(self.engine, "macro_data"))
         with self.engine.begin() as conn:
             conn.execute(text(statement), records)
-        _cached_series_matrix.clear()
-
     def replace_series(self, series_id: str, df: pd.DataFrame):
         with self.engine.begin() as conn:
             conn.execute(
@@ -98,7 +93,6 @@ class MacroStore:
             )
             if not df.empty:
                 df.to_sql("macro_data", conn, if_exists="append", index=False, **pandas_to_sql_kwargs(self.engine))
-        _cached_series_matrix.clear()
 
     def get_latest_stored_dates(self, series_ids: list[str] | None = None) -> dict[str, str]:
         query = f"""
@@ -154,4 +148,4 @@ class MacroStore:
         end_date: str | None = None,
     ) -> pd.DataFrame:
         normalized = tuple(sorted(dict.fromkeys(series_ids))) if series_ids else None
-        return _cached_series_matrix(cache_scope(self.engine), self.engine, normalized, start_date, end_date).copy()
+        return _series_matrix(self.engine, normalized, start_date, end_date).copy()

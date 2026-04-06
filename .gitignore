@@ -1,8 +1,17 @@
 __pycache__/
 *.pyc
 .env
+.env.*
 .venv/
 venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.streamlit/
+dist/
+build/
 market_data.db
 market_data_backup.db
 market_data_prod.db

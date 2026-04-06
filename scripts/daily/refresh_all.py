@@ -1,12 +1,17 @@
 import argparse
+import logging
 
 from config import FMP_API_KEY, FMP_BASE_URL, FRED_API_KEY, FRED_BASE_URL
 from db.connection import get_engine
-from stores.macro import MacroFeatureStore, MacroStore
-from stores.market import MetadataStore, PriceStore, SecurityStore
+from scripts.logging_utils import configure_logging
 from scripts.market.enrich_metadata_from_fmp import build_metadata_row
 from services.macro import DEFAULT_MACRO_SERIES, FredClient, MacroDataService, MacroFeatureService
 from services.market import MarketDataService
+from stores.macro import MacroFeatureStore, MacroStore
+from stores.market import MetadataStore, PriceStore, SecurityStore
+
+
+logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -63,6 +68,7 @@ def _refresh_metadata(metadata_store: MetadataStore, tickers: list[str]) -> int:
 
 
 def main() -> None:
+    configure_logging()
     args = build_parser().parse_args()
 
     engine = get_engine()
@@ -81,39 +87,39 @@ def main() -> None:
     macro_data_service = MacroDataService(fred_client, macro_store)
     macro_feature_service = MacroFeatureService(macro_store, macro_feature_store)
 
-    print("Step 1/4: refreshing ETF prices...")
+    logger.info("Step 1/4: refreshing ETF prices...")
     price_statuses = market_service.sync_incremental_updates(
         tickers,
         period_for_new=args.price_period,
         overlap_days=args.price_overlap_days,
     )
-    print(f"Price refresh complete for {len(price_statuses)} ticker(s).")
+    logger.info("Price refresh complete for %s ticker(s).", len(price_statuses))
 
-    print("Step 2/4: refreshing FRED macro series...")
+    logger.info("Step 2/4: refreshing FRED macro series...")
     macro_statuses = macro_data_service.sync_incremental_updates(
         series_ids,
         overlap_days=args.macro_overlap_days,
         default_start="2000-01-01",
     )
-    print(f"Macro refresh complete for {len(macro_statuses)} series.")
+    logger.info("Macro refresh complete for %s series.", len(macro_statuses))
 
-    print("Step 3/4: rebuilding macro features...")
+    logger.info("Step 3/4: rebuilding macro features...")
     feature_rows = macro_feature_service.persist_features()
-    print(f"Macro feature rebuild complete with {len(feature_rows)} upserted row(s).")
+    logger.info("Macro feature rebuild complete with %s upserted row(s).", len(feature_rows))
 
     if args.skip_metadata:
         refreshed_metadata = 0
-        print("Step 4/4: skipping ETF metadata refresh.")
+        logger.info("Step 4/4: skipping ETF metadata refresh.")
     else:
-        print("Step 4/4: refreshing ETF metadata...")
+        logger.info("Step 4/4: refreshing ETF metadata...")
         refreshed_metadata = _refresh_metadata(metadata_store, tickers)
-        print(f"Metadata refresh complete for {refreshed_metadata} ticker(s).")
+        logger.info("Metadata refresh complete for %s ticker(s).", refreshed_metadata)
 
-    print("\nRefresh summary")
-    print(f" - latest ETF price date: {_latest_price_date(price_store, tickers)}")
-    print(f" - latest macro date: {_latest_macro_date(macro_store, series_ids)}")
-    print(f" - latest feature date: {_latest_feature_date(macro_feature_store)}")
-    print(f" - metadata rows refreshed: {refreshed_metadata}")
+    logger.info("Refresh summary")
+    logger.info(" - latest ETF price date: %s", _latest_price_date(price_store, tickers))
+    logger.info(" - latest macro date: %s", _latest_macro_date(macro_store, series_ids))
+    logger.info(" - latest feature date: %s", _latest_feature_date(macro_feature_store))
+    logger.info(" - metadata rows refreshed: %s", refreshed_metadata)
 
 
 if __name__ == "__main__":

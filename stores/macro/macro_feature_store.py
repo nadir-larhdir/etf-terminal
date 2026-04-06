@@ -1,14 +1,11 @@
 import pandas as pd
-import streamlit as st
 from sqlalchemy import text
 
-from db.sql import cache_scope, qualified_table
+from db.sql import qualified_table
 from stores.query_utils import index_history_frame, pivot_time_series
 
 
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_feature_matrix(
-    _cache_key: str,
+def _feature_matrix(
     _engine,
     feature_names: tuple[str, ...] | None = None,
     start_date: str | None = None,
@@ -37,8 +34,7 @@ def _cached_feature_matrix(
     return pivot_time_series(df, column_column="feature_name")
 
 
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_latest_feature_values(_cache_key: str, _engine, feature_names: tuple[str, ...]) -> pd.DataFrame:
+def _latest_feature_values(_engine, feature_names: tuple[str, ...]) -> pd.DataFrame:
     if not feature_names:
         return pd.DataFrame(columns=["feature_name", "date", "value"])
 
@@ -109,8 +105,6 @@ class MacroFeatureStore:
         with self.engine.begin() as conn:
             for start in range(0, len(records), chunk_size):
                 conn.execute(text(statement), records[start : start + chunk_size])
-        _cached_feature_matrix.clear()
-        _cached_latest_feature_values.clear()
 
     def get_feature_history(
         self,
@@ -147,11 +141,11 @@ class MacroFeatureStore:
         end_date: str | None = None,
     ) -> pd.DataFrame:
         normalized = tuple(sorted(dict.fromkeys(feature_names))) if feature_names else None
-        return _cached_feature_matrix(cache_scope(self.engine), self.engine, normalized, start_date, end_date).copy()
+        return _feature_matrix(self.engine, normalized, start_date, end_date).copy()
 
     def get_latest_feature_values(self, feature_names: list[str]) -> pd.DataFrame:
         normalized = tuple(sorted(dict.fromkeys(feature_names)))
-        return _cached_latest_feature_values(cache_scope(self.engine), self.engine, normalized).copy()
+        return _latest_feature_values(self.engine, normalized).copy()
 
     def get_feature_counts(self) -> pd.DataFrame:
         query = f"""

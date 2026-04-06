@@ -1,4 +1,5 @@
 import argparse
+import logging
 
 import pandas as pd
 from sqlalchemy import text
@@ -8,9 +9,11 @@ from config.config import ENV_DB_FILENAMES
 from db.connection import get_engine
 from db.schema import TABLE_DEFINITIONS, create_tables
 from db.sql import pandas_to_sql_kwargs, qualified_table
+from scripts.logging_utils import configure_logging
 
 
 TABLE_COPY_ORDER = list(TABLE_DEFINITIONS.keys())
+logger = logging.getLogger(__name__)
 
 
 def _parse_source_env(raw_value: str) -> str:
@@ -52,6 +55,7 @@ def migrate_environment(app_env: str) -> dict[str, int]:
 
 
 def main() -> None:
+    configure_logging()
     parser = argparse.ArgumentParser(
         description="Copy one local SQLite ETF Terminal database into the Supabase public schema.",
     )
@@ -64,9 +68,9 @@ def main() -> None:
 
     source_env = _parse_source_env(args.source_env)
     counts = migrate_environment(source_env)
-    print(f"Migrated local {source_env} -> supabase schema {DB_SCHEMA}")
+    logger.info("Migrated local %s -> supabase schema %s", source_env, DB_SCHEMA)
     for table_name, row_count in counts.items():
-        print(f" - {table_name}: {row_count} rows")
+        logger.info(" - %s: %s rows", table_name, row_count)
 
 
 if __name__ == "__main__":

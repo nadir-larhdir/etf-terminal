@@ -1,20 +1,17 @@
 import pandas as pd
-import streamlit as st
 from sqlalchemy import text
 from datetime import datetime
 
-from db.sql import cache_scope, qualified_table
+from db.sql import qualified_table
 
 
-@st.cache_data(ttl=900, show_spinner=False)
-def _cached_existing_metadata_tickers(_cache_key: str, _engine) -> set[str]:
+def _existing_metadata_tickers(_engine) -> set[str]:
     with _engine.connect() as conn:
         df = pd.read_sql(text(f"SELECT ticker FROM {qualified_table(_engine, 'security_metadata')}"), conn)
     return set(df["ticker"].tolist()) if not df.empty else set()
 
 
-@st.cache_data(ttl=900, show_spinner=False)
-def _cached_ticker_metadata(_cache_key: str, _engine, ticker: str):
+def _ticker_metadata(_engine, ticker: str):
     query = text(
         f"""
         SELECT *
@@ -33,10 +30,6 @@ class MetadataStore:
 
     def __init__(self, engine):
         self.engine = engine
-
-    def _clear_caches(self) -> None:
-        _cached_existing_metadata_tickers.clear()
-        _cached_ticker_metadata.clear()
 
     def upsert_metadata(self, rows):
         if not rows:
@@ -100,13 +93,12 @@ class MetadataStore:
 
         with self.engine.begin() as conn:
             conn.execute(text(statement), records)
-        self._clear_caches()
 
     def get_existing_tickers(self) -> set[str]:
-        return _cached_existing_metadata_tickers(cache_scope(self.engine), self.engine)
+        return _existing_metadata_tickers(self.engine)
 
     def get_ticker_metadata(self, ticker: str):
-        return _cached_ticker_metadata(cache_scope(self.engine), self.engine, ticker)
+        return _ticker_metadata(self.engine, ticker)
 
     def delete_ticker(self, ticker: str):
         with self.engine.begin() as conn:
@@ -114,4 +106,3 @@ class MetadataStore:
                 text(f"DELETE FROM {qualified_table(self.engine, 'security_metadata')} WHERE ticker = :ticker"),
                 {"ticker": ticker},
             )
-        self._clear_caches()

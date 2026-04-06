@@ -3,15 +3,14 @@ import streamlit as st
 from dashboard.components.info_panel import InfoPanel
 from dashboard.perf import timed_block
 from models.security import Security
+from services.analytics import format_model_label, format_oas_proxy_label
 
 
 class AnalyticsTab:
     """Display model-based ETF rate-risk and trading diagnostics."""
 
-    def __init__(self, price_store, macro_store, duration_selector) -> None:
-        self.price_store = price_store
-        self.macro_store = macro_store
-        self.duration_selector = duration_selector
+    def __init__(self, analytics_service) -> None:
+        self.analytics_service = analytics_service
         self.info_panel = InfoPanel()
 
     def render(self, security: Security) -> None:
@@ -20,39 +19,36 @@ class AnalyticsTab:
             metadata = security.metadata or {}
             asset_bucket = security.asset_class or metadata.get("category") or "N/A"
             snapshot = security.trading_snapshot()
-            rate_risk = security.rate_risk_proxy(self.macro_store, self.price_store, self.duration_selector)
+            analytics = self.analytics_service.analyze_security(security)
             liquidity_regime = self._liquidity_regime(snapshot["volume_z"])
             asset_regime = self._asset_regime_note(asset_bucket, metadata)
 
         a1, a2, a3, a4 = st.columns(4)
         with a1:
-            self._render_highlight_metric("Estimated Duration", self._format_years(rate_risk["estimated_duration"]), "#C94F4F")
+            self._render_highlight_metric("Estimated Duration", self._format_years(analytics.estimated_duration), "#C94F4F")
         with a2:
-            st.metric("DV01 / IR01", self._format_dollar(rate_risk["dv01_per_share"]))
+            st.metric("DV01 / IR01", self._format_dollar(analytics.dv01_per_share))
         with a3:
-            st.metric("SPREAD BETA (PER BP)", self._format_spread_beta(rate_risk["spread_beta_per_bp"]))
+            st.metric("SPREAD BETA (PER BP)", self._format_spread_beta(analytics.spread_beta_per_bp))
         with a4:
-            st.metric(
-                "SPREAD DV01 PROXY / SHARE",
-                self._format_dollar(rate_risk["spread_dv01_proxy_per_share"]),
-            )
+            st.metric("SPREAD DV01 PROXY / SHARE", self._format_dollar(analytics.spread_dv01_proxy_per_share))
 
-        if rate_risk["spread_proxy_used"]:
+        if analytics.spread_proxy_used:
             s1, s2, s3, s4 = st.columns(4)
             with s1:
-                st.metric("BENCHMARK USED", rate_risk["benchmark_used"] or "Curve")
+                st.metric("BENCHMARK USED", analytics.benchmark_used or "Curve")
             with s2:
-                st.metric("OAS PROXY USED", self._format_oas_proxy(rate_risk["spread_proxy_used"]))
+                st.metric("OAS PROXY USED", format_oas_proxy_label(analytics.spread_proxy_used))
             with s3:
-                st.metric("RATE MODEL R²", self._format_number(rate_risk["rate_model_r2"]))
+                st.metric("RATE MODEL R²", self._format_number(analytics.rate_model_r2))
             with s4:
-                st.metric("SPREAD MODEL R²", self._format_number(rate_risk["spread_model_r2"]))
+                st.metric("SPREAD MODEL R²", self._format_number(analytics.spread_model_r2))
         else:
             s1, s2 = st.columns(2)
             with s1:
-                st.metric("BENCHMARK USED", rate_risk["benchmark_used"] or "Curve")
+                st.metric("BENCHMARK USED", analytics.benchmark_used or "Curve")
             with s2:
-                st.metric("RATE MODEL R²", self._format_number(rate_risk["rate_model_r2"]))
+                st.metric("RATE MODEL R²", self._format_number(analytics.rate_model_r2))
 
         self.info_panel.render_note(
             title="Methodology Note",
@@ -73,17 +69,17 @@ class AnalyticsTab:
         elif liquidity_regime == "QUIET":
             tone = "subdued"
 
-        duration_text = self._format_years(rate_risk["estimated_duration"])
-        dv01_text = self._format_dollar(rate_risk["dv01_per_share"])
-        reason_text = rate_risk["reason"] or (
-            f"Estimated from smoothed 60D and 120D regressions using {rate_risk['rate_proxy_used']}."
+        duration_text = self._format_years(analytics.estimated_duration)
+        dv01_text = self._format_dollar(analytics.dv01_per_share)
+        reason_text = analytics.reason or (
+            f"Estimated from smoothed 60D and 120D regressions using {analytics.rate_proxy_used}."
         )
         self.info_panel.render_note(
             title="Current Read",
             body=(
                 f"{security.ticker} screens as {asset_regime}. Estimated duration is {duration_text} and DV01 is {dv01_text} "
-                f"per share. Model: {self._format_model(rate_risk['model_type_used'])}. "
-                f"Benchmark: {rate_risk['benchmark_used'] or 'Curve factors'}. {reason_text} Trading participation is {tone}, "
+                f"per share. Model: {format_model_label(analytics.model_type_used)}. "
+                f"Benchmark: {analytics.benchmark_used or 'Curve factors'}. {reason_text} Trading participation is {tone}, "
                 f"with volume at {self._volume_multiple(snapshot):.2f}x its 30-day average and the "
                 f"latest close at {self._format_percent(snapshot['range_position'])} of today’s range."
             ),
@@ -96,23 +92,19 @@ class AnalyticsTab:
         with left:
             self.info_panel.render(
                 title="Asset Bucket / Regime Note",
-                headline=rate_risk["bucket"],
-                body=f"{asset_regime} Confidence: {rate_risk['confidence_level']}. {rate_risk['notes']}",
+                headline=analytics.asset_bucket,
+                body=f"{asset_regime} Confidence: {analytics.confidence_level}. {analytics.notes}",
                 accent_color="#5DA9E9",
                 margin_top="0.35rem",
                 margin_bottom="0.20rem",
             )
             self.info_panel.render(
                 title="Spread Beta Proxy",
-                headline=(
-                    self._format_spread_beta(rate_risk["spread_beta_per_bp"])
-                    if rate_risk["spread_proxy_used"]
-                    else "N/A"
-                ),
+                headline=self._format_spread_beta(analytics.spread_beta_per_bp) if analytics.spread_proxy_used else "N/A",
                 body=(
-                    f"ICE BofA OAS proxy from FRED: {self._format_oas_proxy(rate_risk['spread_proxy_used'])}. "
-                    f"Spread DV01 proxy / share: {self._format_dollar(rate_risk['spread_dv01_proxy_per_share'])}. "
-                    f"Spread model R²: {self._format_number(rate_risk['spread_model_r2'])}. "
+                    f"ICE BofA OAS proxy from FRED: {format_oas_proxy_label(analytics.spread_proxy_used)}. "
+                    f"Spread DV01 proxy / share: {self._format_dollar(analytics.spread_dv01_proxy_per_share)}. "
+                    f"Spread model R²: {self._format_number(analytics.spread_model_r2)}. "
                     "This is a model-based spread sensitivity proxy per bp, not exact CS01."
                 ),
                 accent_color="#A78BFA",
@@ -130,11 +122,11 @@ class AnalyticsTab:
             )
             self.info_panel.render(
                 title="Model Diagnostics",
-                headline=f"Rate R² {self._format_number(rate_risk['rate_model_r2'])}",
+                headline=f"Rate R² {self._format_number(analytics.rate_model_r2)}",
                 body=(
-                    f"Rate proxy: {rate_risk['rate_proxy_used']}. "
-                    f"Spread model R²: {self._format_number(rate_risk['spread_model_r2'])}. "
-                    f"Observations used: {rate_risk['observations_used'] or 'N/A'}. "
+                    f"Rate proxy: {analytics.rate_proxy_used}. "
+                    f"Spread model R²: {self._format_number(analytics.spread_model_r2)}. "
+                    f"Observations used: {analytics.observations_used or 'N/A'}. "
                     f"60D/120D windows are smoothed with EWMA."
                 ),
                 accent_color="#FFD166",
@@ -162,15 +154,6 @@ class AnalyticsTab:
     def _format_percent(self, value: float | None) -> str:
         return "N/A" if value is None else f"{value:.0%}"
 
-    def _format_oas_proxy(self, series_id: str | None) -> str:
-        labels = {
-            "BAMLC0A0CM": "BoFA IG OAS",
-            "BAMLC0A4CBBB": "BoFA BBB OAS",
-            "BAMLH0A0HYM2": "BoFA HY OAS",
-            "BAMLH0A2HYB": "BoFA Single-B OAS",
-        }
-        return labels.get(str(series_id), series_id or "N/A")
-
     def _render_highlight_metric(self, label: str, value: str, color: str) -> None:
         st.markdown(
             (
@@ -188,14 +171,6 @@ class AnalyticsTab:
         if current_volume is None or average_volume in (None, 0.0):
             return 0.0
         return current_volume / average_volume
-
-    def _format_model(self, model_type: str | None) -> str:
-        labels = {
-            "treasury_curve_regression": "Treasury Curve",
-            "treasury_etf_benchmark_regression": "Treasury ETF Benchmark",
-            "low_duration_assumption_with_validation": "Low-Duration Validation",
-        }
-        return labels.get(str(model_type), "N/A")
 
     def _liquidity_regime(self, vol_z: float | None) -> str:
         if vol_z is None:

@@ -3,7 +3,7 @@ from sqlalchemy import inspect, text
 from db.sql import qualified_table, schema_name as active_schema_name
 
 
-"""SQLite table definitions managed by the database bootstrap script."""
+# SQLite table definitions managed by the database bootstrap script.
 TABLE_DEFINITIONS = {
     "securities": """
         CREATE TABLE IF NOT EXISTS securities (

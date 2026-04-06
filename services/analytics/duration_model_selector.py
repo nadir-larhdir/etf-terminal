@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from services.analytics.result_models import DurationModelSelection
+
 
 class DurationModelSelector:
     """Choose a duration model and Treasury ETF benchmark from simple ETF rules."""
@@ -36,9 +38,11 @@ class DurationModelSelector:
         },
     }
 
-    def select_for_security(self, security, rough_duration: float | None = None) -> dict[str, object]:
+    def select_for_security(self, security, rough_duration: float | None = None) -> DurationModelSelection:
         if security.ticker in self.FALLBACK_OVERRIDES:
-            return self.FALLBACK_OVERRIDES[security.ticker].copy()
+            override = self.FALLBACK_OVERRIDES[security.ticker].copy()
+            override["spread_proxy_series_id"] = self._spread_proxy_series_id(override["asset_bucket"], security)
+            return DurationModelSelection(**override)
 
         bucket = self.classify_bucket(security)
         benchmark = None
@@ -71,15 +75,16 @@ class DurationModelSelector:
             if benchmark is None
             else f"Treasury ETF benchmark regression using {benchmark}."
         )
-        return {
-            "asset_bucket": bucket,
-            "duration_model_type": model_type,
-            "treasury_benchmark_symbol": benchmark,
-            "rate_proxy_description": description,
-            "confidence_level": confidence,
-            "notes": notes,
-            "used_fallback": used_fallback,
-        }
+        return DurationModelSelection(
+            asset_bucket=bucket,
+            duration_model_type=model_type,
+            treasury_benchmark_symbol=benchmark,
+            spread_proxy_series_id=self._spread_proxy_series_id(bucket, security),
+            rate_proxy_description=description,
+            confidence_level=confidence,
+            notes=notes,
+            used_fallback=used_fallback,
+        )
 
     def classify_bucket(self, security) -> str:
         text_blob = " ".join(
@@ -161,3 +166,21 @@ class DurationModelSelector:
                 security.metadata.get("description"),
             )
         ).lower()
+
+    def _spread_proxy_series_id(self, bucket: str, security) -> str | None:
+        text_blob = " ".join(
+            str(value or "")
+            for value in (
+                security.ticker,
+                security.name,
+                security.asset_class,
+                security.metadata.get("category"),
+                security.metadata.get("long_name"),
+                security.metadata.get("description"),
+            )
+        ).lower()
+        if bucket == "Investment Grade Credit":
+            return "BAMLC0A4CBBB" if "bbb" in text_blob else "BAMLC0A0CM"
+        if bucket == "High Yield":
+            return "BAMLH0A2HYB" if "single-b" in text_blob or "single b" in text_blob else "BAMLH0A0HYM2"
+        return None
