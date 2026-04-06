@@ -1,5 +1,5 @@
-from models.security import Security
-from services.analytics import DurationModelSelector
+from fixed_income.analytics import DurationModelSelector
+from fixed_income.instruments.security import Security
 
 
 def test_duration_model_selector_routes_credit_and_treasury_buckets() -> None:

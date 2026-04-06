@@ -101,4 +101,3 @@ class SecurityAnalyticsSnapshot:
     @property
     def observations_used(self) -> int | None:
         return self.rate_risk.observations_used
-

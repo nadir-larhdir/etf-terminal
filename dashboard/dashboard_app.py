@@ -1,17 +1,13 @@
 import streamlit as st
 
-from config import APP_ENV, DATA_BACKEND, normalize_asset_class
-from dashboard.components import DashboardControls, SecurityHeader
-from dashboard.home_page import HomePage
-from dashboard.news_page import NewsPage
+from config import APP_ENV, DATA_BACKEND
+from dashboard.pages import DashboardPage, HomePage, MacroPage, NewsPage
 from dashboard.perf import timed_block
 from dashboard.styles import apply_dashboard_theme
-from dashboard.tabs import AnalyticsTab, MacroTab, OverviewTab, RVTab
-from services.analytics import DurationModelSelector, FixedIncomeAnalyticsService
+from fixed_income.analytics import DurationModelSelector, FixedIncomeAnalyticsService
 from stores.macro import MacroFeatureStore, MacroStore
 from stores.market import InputStore, MetadataStore, PriceStore, SecurityStore
 from db.connection import get_engine
-from models.security import Security
 
 
 NAVIGATION_VIEWS = ("Home", "Dashboard", "News", "Macro")
@@ -57,12 +53,8 @@ class DashboardApp:
         self.macro_feature_store = macro_feature_store
         self.home_page = HomePage(price_store)
         self.news_page = NewsPage(macro_feature_store)
-        self.macro_tab = MacroTab(macro_feature_store)
-        self.security_header = SecurityHeader()
-        self.overview_tab = OverviewTab()
-        self.analytics_tab = AnalyticsTab(analytics_service)
-        self.rv_tab = RVTab(price_store)
-        self.controls = DashboardControls()
+        self.dashboard_page = DashboardPage(price_store, metadata_store, analytics_service)
+        self.macro_page = MacroPage(macro_feature_store)
 
     def run(self):
         apply_dashboard_theme()
@@ -89,10 +81,10 @@ class DashboardApp:
             return
 
         if st.session_state["active_view"] == "Macro":
-            self._render_tab_safe("Macro", self.macro_tab.render)
+            self._render_tab_safe("Macro", self.macro_page.render)
             return
 
-        self._render_dashboard(securities)
+        self._render_tab_safe("Dashboard", self.dashboard_page.render, securities, self._render_tab_safe)
 
     def _render_navigation(self) -> None:
         nav_columns = st.columns([1, 1, 1, 1, 3], vertical_alignment="center")
@@ -106,77 +98,6 @@ class DashboardApp:
             st.caption(
                 f"Current View: {st.session_state['active_view']} | Environment: {APP_ENV.upper()} | Backend: {DATA_BACKEND.upper()}"
             )
-
-    def _render_dashboard(self, securities):
-        """Render the analytical dashboard workspace after the home page entry point."""
-
-        if "asset_class" not in securities.columns:
-            securities["asset_class"] = "Other"
-        securities["asset_class"] = securities["asset_class"].fillna("Other").map(normalize_asset_class)
-
-        asset_classes = sorted([asset for asset in securities["asset_class"].dropna().unique().tolist() if asset])
-        universe_options = ["All"] + asset_classes
-
-        filter_col, selector_col, desc_col = st.columns([0.7, 0.9, 2.4])
-
-        with filter_col:
-            selected_universe = self.controls.render_select(
-                "Universe",
-                universe_options,
-                key="main_security_universe",
-            )
-
-        if selected_universe == "All":
-            filtered_securities = securities.copy()
-        else:
-            filtered_securities = securities.loc[securities["asset_class"] == selected_universe].copy()
-
-        filtered_securities = filtered_securities.sort_values(["asset_class", "ticker"]).reset_index(drop=True)
-        ticker_options = filtered_securities["ticker"].tolist()
-
-        if not ticker_options:
-            st.warning("No securities available for the selected universe.")
-            return
-
-        with selector_col:
-            selected_security = self.controls.render_security_select(
-                "Security",
-                filtered_securities,
-                key="main_security_selector",
-            )
-
-        selected_row = filtered_securities.loc[filtered_securities["ticker"] == selected_security].iloc[0]
-        security = Security(
-            selected_security,
-            name=selected_row.get("name"),
-            asset_class=selected_row.get("asset_class"),
-        )
-        with timed_block("dashboard.load_metadata"):
-            metadata = security.load_metadata(self.metadata_store)
-
-        with desc_col:
-            self.security_header.render_description(securities, selected_security, metadata)
-
-        with timed_block("dashboard.load_price_history"):
-            hist = security.load_history(self.price_store)
-
-        if hist.empty:
-            st.warning(f"No price history found for {selected_security}.")
-            return
-
-        self.security_header.render_header_strip(hist, selected_security, metadata)
-
-        all_tickers = securities["ticker"].tolist()
-        tab_overview, tab_analytics, tab_rv = st.tabs(["Overview", "Analytics", "RV Analysis"])
-
-        with tab_overview:
-            self._render_tab_safe("Overview", self.overview_tab.render, security)
-
-        with tab_analytics:
-            self._render_tab_safe("Analytics", self.analytics_tab.render, security)
-
-        with tab_rv:
-            self._render_tab_safe("RV Analysis", self.rv_tab.render, security, all_tickers)
 
     def _render_tab_safe(self, tab_name: str, render_fn, *args) -> None:
         try:

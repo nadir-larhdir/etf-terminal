@@ -8,7 +8,7 @@ from dashboard.components.charts import (
 from dashboard.components.controls import DashboardControls
 from dashboard.components.info_panel import InfoPanel
 from dashboard.styles.table_styles import DashboardTable
-from models.security import Security
+from fixed_income.instruments.security import Security
 
 
 class OverviewTab:

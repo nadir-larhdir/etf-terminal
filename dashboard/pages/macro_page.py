@@ -78,8 +78,8 @@ LOOKBACK_MAP = {"30D": 30, "3M": 63, "6M": 126, "1Y": 252, "5Y": 1260, "ALL": No
 CHART_PALETTE = ["#FFD166", "#00ADB5", "#FF5A36", "#00C176"]
 
 
-class MacroTab:
-    """Render derived macro features, charts, and rule-based macro regimes."""
+class MacroPage:
+    """Render the macro page, including feature cards, charts, and regime summaries."""
 
     def __init__(self, macro_feature_store) -> None:
         self.macro_feature_store = macro_feature_store
