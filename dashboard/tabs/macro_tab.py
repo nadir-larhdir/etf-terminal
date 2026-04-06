@@ -253,13 +253,20 @@ class MacroTab:
             )
         return rows
 
-    def _chart_layout(self, title: str, *, height: int = 320, yaxis_title: str | None = None) -> dict:
+    def _chart_layout(
+        self,
+        title: str,
+        *,
+        height: int = 320,
+        yaxis_title: str | None = None,
+        margin: dict | None = None,
+    ) -> dict:
         return dict(
             title=dict(text=title, x=0.02, xanchor="left"),
             template="plotly_dark",
             paper_bgcolor="#000000",
             plot_bgcolor="#000000",
-            margin=dict(l=20, r=20, t=50, b=30),
+            margin=margin or dict(l=20, r=20, t=50, b=30),
             height=height,
             font=dict(
                 color="#F3F0E8",
@@ -408,8 +415,12 @@ class MacroTab:
                 )
             )
         fig.update_layout(
-            **self._chart_layout("Latest treasury yield curve", height=360, yaxis_title="Yield (%)"),
-            margin=dict(l=40, r=40, t=60, b=40),
+            **self._chart_layout(
+                "Latest treasury yield curve",
+                height=360,
+                yaxis_title="Yield (%)",
+                margin=dict(l=40, r=40, t=60, b=40),
+            ),
             xaxis=dict(
                 title="Maturity (Years)",
                 type="log",
