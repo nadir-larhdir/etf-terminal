@@ -241,14 +241,15 @@ class MacroTab:
         rows: list[dict[str, object]] = []
         for tenor_label, maturity_years, feature_name in YIELD_CURVE_CONFIG:
             value = self._latest_value(matrix, feature_name)
-            if value is None or pd.isna(value):
+            date = self._latest_date(matrix, feature_name)
+            if value is None or pd.isna(value) or date is None:
                 continue
             rows.append(
                 {
                     "tenor": tenor_label,
                     "maturity_years": maturity_years,
                     "value": float(value),
-                    "date": self._latest_date(matrix, feature_name),
+                    "date": date,
                 }
             )
         return rows
@@ -260,6 +261,8 @@ class MacroTab:
         height: int = 320,
         yaxis_title: str | None = None,
         margin: dict | None = None,
+        xaxis: dict | None = None,
+        legend: dict | None = None,
     ) -> dict:
         return dict(
             title=dict(text=title, x=0.02, xanchor="left"),
@@ -273,9 +276,9 @@ class MacroTab:
                 family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                 size=12,
             ),
-            xaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
+            xaxis=xaxis or dict(showgrid=True, gridcolor="#2A2A2A"),
             yaxis=dict(title=yaxis_title, showgrid=True, gridcolor="#2A2A2A"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+            legend=legend or dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
         )
 
     def _render_chart_grid(self, matrix: pd.DataFrame, start_date, end_date) -> None:
@@ -420,27 +423,32 @@ class MacroTab:
                 height=360,
                 yaxis_title="Yield (%)",
                 margin=dict(l=40, r=40, t=60, b=40),
-            ),
-            xaxis=dict(
-                title="Maturity (Years)",
-                type="log",
-                showgrid=True,
-                gridcolor="#2A2A2A",
-                tickmode="array",
-                tickvals=curve_df["maturity_years"].tolist(),
-                ticktext=curve_df["tenor"].tolist(),
-            ),
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="center",
-                x=0.5,
-                font=dict(size=10),
-                bgcolor="rgba(0,0,0,0)",
+                xaxis=dict(
+                    title="Maturity (Years)",
+                    type="log",
+                    showgrid=True,
+                    gridcolor="#2A2A2A",
+                    tickmode="array",
+                    tickvals=curve_df["maturity_years"].tolist(),
+                    ticktext=curve_df["tenor"].tolist(),
+                ),
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="center",
+                    x=0.5,
+                    font=dict(size=10),
+                    bgcolor="rgba(0,0,0,0)",
+                ),
             ),
         )
-        curve_date = max(row["date"] for row in curve_rows if row["date"] is not None)
+        curve_dates: list[pd.Timestamp] = []
+        for row in curve_rows:
+            date = row["date"]
+            if isinstance(date, pd.Timestamp):
+                curve_dates.append(date)
+        curve_date = max(curve_dates) if curve_dates else None
         st.plotly_chart(fig, use_container_width=True)
         if curve_date is not None:
             caption = f"Latest available yield-curve snapshot as of {pd.Timestamp(curve_date).strftime('%Y-%m-%d')}."
