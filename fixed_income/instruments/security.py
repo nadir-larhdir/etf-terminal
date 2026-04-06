@@ -13,7 +13,7 @@ def _empty_series() -> pd.Series:
 
 @dataclass
 class Security:
-    """Represent one ETF and expose convenience methods around its stored history."""
+    """Fixed-income instrument with metadata and historical price helpers."""
 
     ticker: str
     name: str | None = None
@@ -99,8 +99,9 @@ class Security:
     def history_between(self, start_date, end_date) -> pd.DataFrame:
         if self.history.empty:
             return self.history.copy()
+        index = pd.to_datetime(self.history.index)
         filtered = self.history.loc[
-            (self.history.index.date >= start_date.date()) & (self.history.index.date <= end_date.date())
+            (index >= pd.Timestamp(start_date)) & (index <= pd.Timestamp(end_date))
         ].copy()
         return filtered if not filtered.empty else self.history.tail(1).copy()
 
@@ -117,9 +118,12 @@ class Security:
         latest_price = self.last_price()
         current_volume = self.last_volume()
         volume = self.volume_series()
-        average_volume = float(volume.tail(volume_window).mean()) if not volume.empty else None
-        std_volume = float(volume.tail(volume_window).std(ddof=0)) if len(volume.tail(volume_window)) > 1 else None
-        volume_z = None if std_volume in (None, 0.0) or current_volume is None or average_volume is None else (current_volume - average_volume) / std_volume
+        trailing = volume.tail(volume_window)
+        average_volume = float(trailing.mean()) if not volume.empty else None
+        std_volume = float(trailing.std(ddof=0)) if len(trailing) > 1 else None
+        volume_z = None
+        if std_volume not in (None, 0.0) and current_volume is not None and average_volume is not None:
+            volume_z = (current_volume - average_volume) / std_volume
 
         high = float(self.history["high"].iloc[-1]) if "high" in self.history.columns else None
         low = float(self.history["low"].iloc[-1]) if "low" in self.history.columns else None

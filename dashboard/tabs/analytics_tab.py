@@ -2,8 +2,8 @@ import streamlit as st
 
 from dashboard.components.info_panel import InfoPanel
 from dashboard.perf import timed_block
-from models.security import Security
-from services.analytics import format_model_label, format_oas_proxy_label
+from fixed_income.analytics import format_model_label, format_oas_proxy_label
+from fixed_income.instruments.security import Security
 
 
 class AnalyticsTab:

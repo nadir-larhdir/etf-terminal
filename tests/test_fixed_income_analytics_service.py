@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from models.security import Security
-from services.analytics import DurationModelSelector, FixedIncomeAnalyticsService
+from fixed_income.analytics import DurationModelSelector, FixedIncomeAnalyticsService
+from fixed_income.instruments.security import Security
 
 
 class FakePriceStore:

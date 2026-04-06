@@ -12,8 +12,26 @@ from dashboard.components.info_panel import InfoPanel
 from dashboard.perf import timed_block
 from dashboard.styles.table_styles import DashboardTable
 from db.sql import cache_scope
-from models.security import Security
-from models.security_pair import SecurityPair
+from fixed_income.instruments.security import Security
+from fixed_income.rv.hedge_models import beta_stability as hedge_beta_stability
+from fixed_income.rv.pair_analytics import (
+    beta_metrics,
+    filtered_prices,
+    forward_reversion_stats,
+    half_life_proxy,
+    mean_reversion_quality,
+    ratio,
+    ratio_deviation_pct,
+    ratio_zscore,
+    regime_label,
+    returns_frame,
+    rolling_correlation,
+    screener_snapshot,
+    stability_score,
+    trade_bias,
+    window_zscore,
+)
+from fixed_income.rv.spread_definition import SpreadDefinition
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -39,11 +57,29 @@ def _cached_screener_rows(
 
         candidate_security = Security(candidate)
         candidate_security.set_history(candidate_hist)
-        pair = SecurityPair(base_security, candidate_security)
-        candidate_merged = pair.filtered_prices(start_date=pd.Timestamp(rv_start_date), end_date=pd.Timestamp(rv_end_date))
+        candidate_merged = filtered_prices(
+            base_security,
+            candidate_security,
+            start_date=pd.Timestamp(rv_start_date),
+            end_date=pd.Timestamp(rv_end_date),
+        )
         if len(candidate_merged) < 10:
             continue
-        screener_rows.append(pair.screener_row(start_date=pd.Timestamp(rv_start_date), end_date=pd.Timestamp(rv_end_date)))
+        snapshot = screener_snapshot(
+            SpreadDefinition(base_security.ticker, candidate_security.ticker),
+            base_security,
+            candidate_security,
+            start_date=pd.Timestamp(rv_start_date),
+            end_date=pd.Timestamp(rv_end_date),
+        )
+        screener_rows.append(
+            {
+                "PAIR": snapshot.name,
+                "Z": snapshot.zscore,
+                "CORR_20D": snapshot.correlation_20d,
+                "STABILITY": snapshot.stability,
+            }
+        )
 
     return pd.DataFrame(screener_rows)
 
@@ -107,8 +143,6 @@ class RVTab:
             st.warning(f"No price history found for {compare_security}.")
             return
 
-        pair = SecurityPair(security, compare_obj)
-
         merged = hist[["close", "volume"]].join(
             compare_hist[["close", "volume"]],
             how="inner",
@@ -147,71 +181,66 @@ class RVTab:
             st.warning("No overlapping RV history available for the selected dates.")
             return
 
-        ratio_series = pair.ratio(start_date=rv_start_date, end_date=rv_end_date)
+        ratio_series = ratio(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
         ratio_series = ratio_series.loc[rv_merged.index]
         rv_merged["ratio"] = ratio_series
         ratio_mean = float(rv_merged["ratio"].mean())
         ratio_std = float(rv_merged["ratio"].std(ddof=0)) if len(rv_merged) > 1 else 0.0
 
-        zscore_series = pair.ratio_zscore(start_date=rv_start_date, end_date=rv_end_date)
+        zscore_series = ratio_zscore(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
         zscore_series = zscore_series.loc[rv_merged.index]
         rv_merged["zscore"] = zscore_series if not zscore_series.empty else 0.0
 
         current_ratio = float(rv_merged["ratio"].iloc[-1])
         current_z = float(rv_merged["zscore"].iloc[-1])
-        abs_dev_pct = pair.ratio_deviation_pct(start_date=rv_start_date, end_date=rv_end_date)
+        abs_dev_pct = ratio_deviation_pct(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
 
         ratio_returns = rv_merged["ratio"].pct_change()
 
-        corr_20_series = pair.rolling_correlation(window=20)
+        corr_20_series = rolling_correlation(security, compare_obj, window=20)
         corr_20_series = corr_20_series.loc[rv_merged.index.intersection(corr_20_series.index)]
         current_corr_20 = float(corr_20_series.dropna().iloc[-1]) if not corr_20_series.dropna().empty else 0.0
 
-        corr_60_series = pair.rolling_correlation(window=60)
+        corr_60_series = rolling_correlation(security, compare_obj, window=60)
         corr_60_series = corr_60_series.loc[rv_merged.index.intersection(corr_60_series.index)]
         current_corr_60 = float(corr_60_series.dropna().iloc[-1]) if not corr_60_series.dropna().empty else 0.0
 
-        beta_series = pair.rolling_beta(window=20)
-        beta_series = beta_series.loc[rv_merged.index.intersection(beta_series.index)]
-        if not beta_series.dropna().empty:
-            current_beta = float(beta_series.dropna().iloc[-1])
-            beta_stability = float(beta_series.dropna().std(ddof=0)) if len(beta_series.dropna()) > 1 else 0.0
-        else:
-            current_beta = 1.0
-            beta_stability = 0.0
+        current_beta, beta_adj_spread, beta_adj_z = beta_metrics(
+            security,
+            compare_obj,
+            start_date=rv_start_date,
+            end_date=rv_end_date,
+        )
+        beta_adj_spread = beta_adj_spread.loc[rv_merged.index]
+        beta_adj_z = beta_adj_z.loc[rv_merged.index]
+        rv_merged["beta_adj_spread"] = beta_adj_spread
+        rv_merged["beta_adj_z"] = beta_adj_z if not beta_adj_z.empty else 0.0
+        current_beta_adj_z = float(rv_merged["beta_adj_z"].iloc[-1])
+        beta_stability_value = hedge_beta_stability(returns_frame(security, compare_obj), window=20)
 
         realized_vol = float(ratio_returns.std(ddof=0)) * (252 ** 0.5) if len(ratio_returns.dropna()) > 1 else 0.0
         vol_adj_score = current_z / realized_vol if realized_vol != 0 else 0.0
 
         lag1_autocorr = float(rv_merged["ratio"].autocorr(lag=1)) if len(rv_merged) > 3 else 0.0
-        half_life = pair.half_life_proxy(start_date=rv_start_date, end_date=rv_end_date)
+        half_life = half_life_proxy(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
 
-        rv_regime = pair.regime_label(start_date=rv_start_date, end_date=rv_end_date)
-        trade_bias = pair.trade_bias(start_date=rv_start_date, end_date=rv_end_date)
+        rv_regime = regime_label(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
+        trade_bias_label = trade_bias(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
 
-        mr_quality = pair.mean_reversion_quality(start_date=rv_start_date, end_date=rv_end_date)
+        mr_quality = mean_reversion_quality(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
 
         base_vol_ratio = (float(hist["volume"].iloc[-1]) / float(hist["volume"].tail(30).mean())) if float(hist["volume"].tail(30).mean()) != 0 else 0.0
         comp_vol_ratio = (float(compare_hist["volume"].iloc[-1]) / float(compare_hist["volume"].tail(30).mean())) if float(compare_hist["volume"].tail(30).mean()) != 0 else 0.0
 
-        z_30d = pair.window_zscore(30)
-        z_90d = pair.window_zscore(90)
-        z_180d = pair.window_zscore(180)
+        z_30d = window_zscore(security, compare_obj, 30)
+        z_90d = window_zscore(security, compare_obj, 90)
+        z_180d = window_zscore(security, compare_obj, 180)
 
-        beta_adj_spread = pair.beta_adjusted_spread(beta=current_beta, start_date=rv_start_date, end_date=rv_end_date)
-        beta_adj_spread = beta_adj_spread.loc[rv_merged.index]
-        rv_merged["beta_adj_spread"] = beta_adj_spread
+        stability = stability_score(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
 
-        beta_adj_z = pair.beta_adjusted_zscore(beta=current_beta, start_date=rv_start_date, end_date=rv_end_date)
-        beta_adj_z = beta_adj_z.loc[rv_merged.index]
-        rv_merged["beta_adj_z"] = beta_adj_z if not beta_adj_z.empty else 0.0
-        current_beta_adj_z = float(rv_merged["beta_adj_z"].iloc[-1])
-
-        stability_score = pair.stability_score(start_date=rv_start_date, end_date=rv_end_date)
-
-        fwd_5_avg, fwd_5_hit, fwd_5_n = pair.forward_reversion_stats(5)
-        fwd_10_avg, fwd_10_hit, fwd_10_n = pair.forward_reversion_stats(10)
-        fwd_20_avg, fwd_20_hit, fwd_20_n = pair.forward_reversion_stats(20)
+        fwd_5_avg, fwd_5_hit, fwd_5_n = forward_reversion_stats(security, compare_obj, 5)
+        fwd_10_avg, fwd_10_hit, fwd_10_n = forward_reversion_stats(security, compare_obj, 10)
+        fwd_20_avg, fwd_20_hit, fwd_20_n = forward_reversion_stats(security, compare_obj, 20)
 
         if abs(current_z) >= 2.0:
             stretch_comment = (
@@ -281,7 +310,7 @@ class RVTab:
                 ("BETA-ADJ Z", f"{current_beta_adj_z:,.2f}"),
                 ("VOL-ADJ SCORE", f"{vol_adj_score:,.2f}"),
                 ("HALF-LIFE", f"{half_life:,.1f}d" if half_life > 0 else "N/A"),
-                ("STABILITY", f"{stability_score:,.0f}/100"),
+                ("STABILITY", f"{stability:,.0f}/100"),
                 ("MR QUALITY", mr_quality),
             ],
             3,
@@ -292,14 +321,14 @@ class RVTab:
                 ("90D Z", f"{z_90d:,.2f}"),
                 ("180D Z", f"{z_180d:,.2f}"),
                 ("LIQUIDITY", f"{base_vol_ratio:.2f}x / {comp_vol_ratio:.2f}x"),
-                ("BETA STABILITY", f"{beta_stability:,.2f}"),
+                ("BETA STABILITY", f"{beta_stability_value:,.2f}"),
             ],
             3,
         )
 
         self.info_panel.render(
             title="RV Signal",
-            headline=trade_bias,
+            headline=trade_bias_label,
             body=rv_signal_paragraph,
             footer=(
                 "RV modules active: ratio z-score, return spread, rolling correlation, rolling beta, "
@@ -317,7 +346,7 @@ class RVTab:
                 "as a take-profit / exit region. If the z-score extends beyond ±3.0 or pair correlation "
                 "deteriorates sharply, reassess the trade as a potential stop / invalidation scenario."
             ),
-            footer=f"Current read: <span style='color:#F3F0E8; font-weight:700;'>{trade_bias}</span>",
+            footer=f"Current read: <span style='color:#F3F0E8; font-weight:700;'>{trade_bias_label}</span>",
             margin_top="0.20rem",
             margin_bottom="0.50rem",
         )

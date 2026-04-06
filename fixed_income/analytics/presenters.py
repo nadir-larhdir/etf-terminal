@@ -21,4 +21,3 @@ def format_model_label(model_type: str | None) -> str:
 
 def format_oas_proxy_label(series_id: str | None) -> str:
     return OAS_PROXY_LABELS.get(str(series_id), series_id or "N/A")
-
