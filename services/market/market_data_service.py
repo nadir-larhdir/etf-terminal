@@ -100,27 +100,31 @@ class MarketDataService:
         latest_dates = self.price_store.get_latest_stored_dates(tickers)
         today = datetime.utcnow().date()
         statuses: dict[str, str] = {}
+        new_tickers = [ticker for ticker in tickers if latest_dates.get(ticker) is None]
+        existing_tickers = [ticker for ticker in tickers if latest_dates.get(ticker) is not None]
 
-        for ticker in tickers:
-            latest_date = latest_dates.get(ticker)
+        if new_tickers:
+            self.sync_price_history(new_tickers, period=period_for_new, replace_existing=False)
+            statuses.update({ticker: f"initialized_{period_for_new}" for ticker in new_tickers})
 
-            if latest_date is None:
-                self.sync_price_history([ticker], period=period_for_new, replace_existing=False)
-                statuses[ticker] = f"initialized_{period_for_new}"
-                continue
+        if not existing_tickers:
+            return statuses
 
-            start_date = (
-                pd.to_datetime(latest_date).date() - timedelta(days=max(overlap_days, 0))
-            ).isoformat()
-            end_date = (today + timedelta(days=1)).isoformat()
-            raw = self._fetch_history(tickers=[ticker], start=start_date, end=end_date)
+        start_dates = {
+            ticker: (pd.to_datetime(latest_dates[ticker]).date() - timedelta(days=max(overlap_days, 0))).isoformat()
+            for ticker in existing_tickers
+        }
+        end_date = (today + timedelta(days=1)).isoformat()
+        earliest_start = min(start_dates.values())
+        raw = self._fetch_history(tickers=existing_tickers, start=earliest_start, end=end_date)
+
+        for ticker in existing_tickers:
             frame = self._build_price_frame(raw, ticker)
-
             if frame.empty:
                 statuses[ticker] = "no_new_rows"
                 continue
 
             self.price_store.upsert_prices(frame)
-            statuses[ticker] = f"updated_from_{start_date}"
+            statuses[ticker] = f"updated_from_{start_dates[ticker]}"
 
         return statuses

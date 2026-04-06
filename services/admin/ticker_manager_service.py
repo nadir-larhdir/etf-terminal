@@ -6,7 +6,7 @@ from config import FMP_API_KEY, FMP_BASE_URL, normalize_asset_class
 from services.market.fmp_client import FMPClient
 
 
-"""Keywords used to decide whether a new symbol looks like a fixed-income ETF."""
+# Keywords used to decide whether a new symbol looks like a fixed-income ETF.
 FIXED_INCOME_KEYWORDS = (
     "bond",
     "treasury",

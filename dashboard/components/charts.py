@@ -241,9 +241,6 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
 
     st.plotly_chart(fig, use_container_width=True)
 
-
-# ================== ADDED FUNCTIONS ==================
-
 def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
     fig = go.Figure()
 

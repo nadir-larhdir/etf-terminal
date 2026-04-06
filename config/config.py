@@ -49,11 +49,11 @@ def load_config() -> dict:
 
 _config = load_config()
 
-"""Static default ticker universe loaded from the JSON configuration file."""
+# Static default ticker universe loaded from the JSON configuration file.
 DEFAULT_TICKERS = _config["DEFAULT_TICKERS"]
-"""Predefined lookback windows used by the dashboard controls."""
+# Predefined lookback windows used by the dashboard controls.
 PERIOD_OPTIONS = _config["PERIOD_OPTIONS"]
-"""Canonical registry for supported FRED macro series."""
+# Canonical registry for supported FRED macro series.
 MACRO_SERIES_REGISTRY = _config["MACRO_SERIES_REGISTRY"]
-"""Configured RSS/news feeds shown in the News tab."""
+# Configured RSS/news feeds shown in the News tab.
 NEWS_FEEDS = _config["NEWS_FEEDS"]

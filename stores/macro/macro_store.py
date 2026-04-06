@@ -1,8 +1,41 @@
 import pandas as pd
+import streamlit as st
 from sqlalchemy import text
 
-from db.sql import pandas_to_sql_kwargs, qualified_table
+from db.sql import cache_scope, pandas_to_sql_kwargs, qualified_table
 from stores.query_utils import index_history_frame, latest_dates_map, pivot_time_series
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_series_matrix(
+    _cache_key: str,
+    _engine,
+    series_ids: tuple[str, ...] | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> pd.DataFrame:
+    query = f"""
+    SELECT series_id, date, value
+    FROM {qualified_table(_engine, 'macro_data')}
+    WHERE is_active = 1
+    """
+    params = {}
+
+    if series_ids:
+        placeholders = ", ".join(f":series_id_{idx}" for idx in range(len(series_ids)))
+        query += f" AND series_id IN ({placeholders})"
+        params.update({f"series_id_{idx}": series_id for idx, series_id in enumerate(series_ids)})
+    if start_date is not None:
+        query += " AND date >= :start_date"
+        params["start_date"] = str(start_date)
+    if end_date is not None:
+        query += " AND date <= :end_date"
+        params["end_date"] = str(end_date)
+
+    with _engine.connect() as conn:
+        df = pd.read_sql(text(query), conn, params=params)
+
+    return pivot_time_series(df, column_column="series_id")
 
 
 class MacroStore:
@@ -55,6 +88,7 @@ class MacroStore:
         """.format(macro_table=qualified_table(self.engine, "macro_data"))
         with self.engine.begin() as conn:
             conn.execute(text(statement), records)
+        _cached_series_matrix.clear()
 
     def replace_series(self, series_id: str, df: pd.DataFrame):
         with self.engine.begin() as conn:
@@ -64,6 +98,7 @@ class MacroStore:
             )
             if not df.empty:
                 df.to_sql("macro_data", conn, if_exists="append", index=False, **pandas_to_sql_kwargs(self.engine))
+        _cached_series_matrix.clear()
 
     def get_latest_stored_dates(self, series_ids: list[str] | None = None) -> dict[str, str]:
         query = f"""
@@ -112,20 +147,11 @@ class MacroStore:
 
         return index_history_frame(df)
 
-    def get_series_matrix(self, series_ids: list[str] | None = None) -> pd.DataFrame:
-        query = f"""
-        SELECT series_id, date, value
-        FROM {qualified_table(self.engine, 'macro_data')}
-        WHERE is_active = 1
-        """
-        params = {}
-
-        if series_ids:
-            placeholders = ", ".join(f":series_id_{idx}" for idx in range(len(series_ids)))
-            query += f" AND series_id IN ({placeholders})"
-            params = {f"series_id_{idx}": series_id for idx, series_id in enumerate(series_ids)}
-
-        with self.engine.connect() as conn:
-            df = pd.read_sql(text(query), conn, params=params)
-
-        return pivot_time_series(df, column_column="series_id")
+    def get_series_matrix(
+        self,
+        series_ids: list[str] | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> pd.DataFrame:
+        normalized = tuple(sorted(dict.fromkeys(series_ids))) if series_ids else None
+        return _cached_series_matrix(cache_scope(self.engine), self.engine, normalized, start_date, end_date).copy()

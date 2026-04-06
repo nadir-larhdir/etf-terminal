@@ -69,6 +69,9 @@ def _cached_latest_feature_values(_cache_key: str, _engine, feature_names: tuple
 class MacroFeatureStore:
     """Read and write derived macro feature time series."""
 
+    SUPABASE_CHUNK_SIZE = 2_000
+    DEFAULT_CHUNK_SIZE = 10_000
+
     def __init__(self, engine):
         self.engine = engine
 
@@ -102,8 +105,10 @@ class MacroFeatureStore:
             source = excluded.source,
             last_updated_at = excluded.last_updated_at
         """.format(feature_table=qualified_table(self.engine, "macro_features"))
+        chunk_size = self._write_chunk_size(len(records))
         with self.engine.begin() as conn:
-            conn.execute(text(statement), records)
+            for start in range(0, len(records), chunk_size):
+                conn.execute(text(statement), records[start : start + chunk_size])
         _cached_feature_matrix.clear()
         _cached_latest_feature_values.clear()
 
@@ -157,3 +162,12 @@ class MacroFeatureStore:
         """
         with self.engine.connect() as conn:
             return pd.read_sql(text(query), conn)
+
+    def _write_chunk_size(self, record_count: int) -> int:
+        """Use smaller batches for Supabase/Postgres to avoid long single upserts."""
+
+        if record_count <= self.DEFAULT_CHUNK_SIZE:
+            return record_count
+        if self.engine.dialect.name == "postgresql":
+            return self.SUPABASE_CHUNK_SIZE
+        return self.DEFAULT_CHUNK_SIZE

@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 
 from dashboard.components.info_panel import InfoPanel
 from dashboard.perf import timed_block
@@ -7,94 +6,66 @@ from models.security import Security
 
 
 class AnalyticsTab:
-    """Display single-security risk, fit, and liquidity diagnostics."""
+    """Display model-based ETF rate-risk and trading diagnostics."""
 
-    DURATION_ESTIMATES = {
-        "Short Duration": 2.0,
-        "7-10Y": 8.5,
-        "20Y+": 17.0,
-        "Intermediate Duration": 5.5,
-        "Intermediate / Long Duration": 8.0,
-        "Long Duration": 12.0,
-        "Broad Market": 6.0,
-        "Securitized": 4.0,
-        "Floating Rate": 0.3,
-        "Inflation-Linked": 7.0,
-    }
-
-    CREDIT_BETA_PROXIES = {
-        "UST Short": 0.00,
-        "UST Belly": 0.00,
-        "UST Long": 0.00,
-        "UST Broad": 0.00,
-        "IG Credit": 0.55,
-        "HY Credit": 1.00,
-        "EM Debt": 0.80,
-        "Core Bond": 0.35,
-        "Floating Rate": 0.20,
-        "Inflation-Linked": 0.05,
-        "MBS": 0.30,
-        "Municipal": 0.25,
-    }
-
-    BENCHMARK_PROXIES = {
-        "UST Short": ["VGSH", "SHY"],
-        "UST Belly": ["IEF", "IEI"],
-        "UST Long": ["TLT", "EDV"],
-        "UST Broad": ["GOVT"],
-        "IG Credit": ["LQD", "VCIT"],
-        "HY Credit": ["HYG", "JNK"],
-        "EM Debt": ["EMB", "VWOB"],
-        "Core Bond": ["AGG", "BND"],
-        "Floating Rate": ["FLOT", "FLRN"],
-        "Inflation-Linked": ["TIP", "STIP"],
-        "MBS": ["MBB", "VMBS"],
-        "Municipal": ["MUB", "VTEB"],
-    }
-
-    def __init__(self, price_store) -> None:
+    def __init__(self, price_store, macro_store, duration_selector) -> None:
         self.price_store = price_store
+        self.macro_store = macro_store
+        self.duration_selector = duration_selector
         self.info_panel = InfoPanel()
 
     def render(self, security: Security) -> None:
         st.subheader("Analytics")
         with timed_block("analytics.prepare_inputs"):
-            hist = security.history
             metadata = security.metadata or {}
             asset_bucket = security.asset_class or metadata.get("category") or "N/A"
-
-            px_last = security.last_price() or 0.0
-            close_series = security.close_series()
-            prev_close = float(close_series.iloc[-2]) if len(close_series) > 1 else px_last
-
-            volume = security.volume_series()
-            current_vol = security.last_volume() or 0.0
-            vol_mean_30d = float(volume.tail(30).mean()) if not volume.empty else 0.0
-            vol_std_30d = float(volume.tail(30).std(ddof=0)) if len(volume.tail(30)) > 1 else 0.0
-            vol_z = (current_vol - vol_mean_30d) / vol_std_30d if vol_std_30d != 0 else 0.0
-
-            high = float(hist["high"].iloc[-1])
-            low = float(hist["low"].iloc[-1])
-            range_position = ((px_last - low) / (high - low)) if high != low else 0.5
-
-            estimated_duration = self._estimated_duration(metadata)
-            dv01_per_share = self._dv01_per_share(estimated_duration, px_last)
-            credit_beta_proxy = self._credit_beta_proxy(asset_bucket)
-            model_fit, model_label = self._model_fit(security, asset_bucket)
-            liquidity_regime = self._liquidity_regime(vol_z)
+            snapshot = security.trading_snapshot()
+            rate_risk = security.rate_risk_proxy(self.macro_store, self.price_store, self.duration_selector)
+            liquidity_regime = self._liquidity_regime(snapshot["volume_z"])
             asset_regime = self._asset_regime_note(asset_bucket, metadata)
 
-        a1, a2, a3, a4, a5 = st.columns(5)
+        a1, a2, a3, a4 = st.columns(4)
         with a1:
-            st.metric("ESTIMATED DURATION", f"{estimated_duration:.1f}y" if estimated_duration is not None else "N/A")
+            self._render_highlight_metric("Estimated Duration", self._format_years(rate_risk["estimated_duration"]), "#C94F4F")
         with a2:
-            st.metric("DV01 PER SHARE", f"${dv01_per_share:.4f}" if dv01_per_share is not None else "N/A")
+            st.metric("DV01 / IR01", self._format_dollar(rate_risk["dv01_per_share"]))
         with a3:
-            st.metric("CREDIT BETA PROXY", f"{credit_beta_proxy:.2f}")
+            st.metric("SPREAD BETA (PER BP)", self._format_spread_beta(rate_risk["spread_beta_per_bp"]))
         with a4:
-            st.metric("MODEL FIT (R²)", f"{model_fit:.2f}" if model_fit is not None else "N/A", model_label)
-        with a5:
-            st.metric("ASSET BUCKET", asset_bucket)
+            st.metric(
+                "SPREAD DV01 PROXY / SHARE",
+                self._format_dollar(rate_risk["spread_dv01_proxy_per_share"]),
+            )
+
+        if rate_risk["spread_proxy_used"]:
+            s1, s2, s3, s4 = st.columns(4)
+            with s1:
+                st.metric("BENCHMARK USED", rate_risk["benchmark_used"] or "Curve")
+            with s2:
+                st.metric("OAS PROXY USED", self._format_oas_proxy(rate_risk["spread_proxy_used"]))
+            with s3:
+                st.metric("RATE MODEL R²", self._format_number(rate_risk["rate_model_r2"]))
+            with s4:
+                st.metric("SPREAD MODEL R²", self._format_number(rate_risk["spread_model_r2"]))
+        else:
+            s1, s2 = st.columns(2)
+            with s1:
+                st.metric("BENCHMARK USED", rate_risk["benchmark_used"] or "Curve")
+            with s2:
+                st.metric("RATE MODEL R²", self._format_number(rate_risk["rate_model_r2"]))
+
+        self.info_panel.render_note(
+            title="Methodology Note",
+            body=(
+                "Estimated metrics are model-based proxies from ETF adjusted-close returns and Treasury yield changes. "
+                "ICE BofA OAS spread inputs come from FRED and are measured in basis points for the spread regression. "
+                "These are model-based proxies, not official published fund analytics or exact CS01. "
+                "High-yield duration estimates are typically more sensitive than Treasury and IG estimates."
+            ),
+            accent_color="#FF9F1A",
+            margin_top="0.30rem",
+            margin_bottom="0.30rem",
+        )
 
         tone = "orderly"
         if liquidity_regime == "HIGH ACTIVITY":
@@ -102,89 +73,133 @@ class AnalyticsTab:
         elif liquidity_regime == "QUIET":
             tone = "subdued"
 
+        duration_text = self._format_years(rate_risk["estimated_duration"])
+        dv01_text = self._format_dollar(rate_risk["dv01_per_share"])
+        reason_text = rate_risk["reason"] or (
+            f"Estimated from smoothed 60D and 120D regressions using {rate_risk['rate_proxy_used']}."
+        )
         self.info_panel.render_note(
             title="Current Read",
             body=(
-                f"{security.ticker} screens as {asset_regime}. Estimated duration is "
-                f"{estimated_duration:.1f} years and DV01 is about ${dv01_per_share:.4f} per share. "
-                f"Trading participation is {tone}, with volume at "
-                f"{((current_vol / vol_mean_30d) if vol_mean_30d else 0.0):.2f}x its 30-day average and the latest close at {range_position:.0%} of today’s range."
+                f"{security.ticker} screens as {asset_regime}. Estimated duration is {duration_text} and DV01 is {dv01_text} "
+                f"per share. Model: {self._format_model(rate_risk['model_type_used'])}. "
+                f"Benchmark: {rate_risk['benchmark_used'] or 'Curve factors'}. {reason_text} Trading participation is {tone}, "
+                f"with volume at {self._volume_multiple(snapshot):.2f}x its 30-day average and the "
+                f"latest close at {self._format_percent(snapshot['range_position'])} of today’s range."
             ),
             accent_color="#FF9F1A",
             margin_top="0.30rem",
             margin_bottom="0.30rem",
         )
 
-        self.info_panel.render(
-            title="Asset Bucket / Regime Note",
-            headline=asset_bucket,
-            body=asset_regime,
-            accent_color="#5DA9E9",
-            margin_top="0.35rem",
-            margin_bottom="0.20rem",
-        )
-
-        self.info_panel.render(
-            title="Trading Activity",
-            headline=liquidity_regime,
-            body="Based on current volume versus the trailing 30-day average and its standardized z-score.",
-            accent_color="#00ADB5",
-            margin_top="0.35rem",
-            margin_bottom="0.00rem",
-        )
-
-    def _estimated_duration(self, metadata: dict) -> float | None:
-        duration_bucket = str(metadata.get("duration_bucket") or "")
-        return self.DURATION_ESTIMATES.get(duration_bucket)
-
-    def _dv01_per_share(self, estimated_duration: float | None, price: float) -> float | None:
-        if estimated_duration is None or price <= 0:
-            return None
-        return estimated_duration * price * 0.0001
-
-    def _credit_beta_proxy(self, asset_bucket: str) -> float:
-        return self.CREDIT_BETA_PROXIES.get(asset_bucket, 0.25)
-
-    def _model_fit(self, security: Security, asset_bucket: str) -> tuple[float | None, str]:
-        benchmark_ticker = self._benchmark_proxy_ticker(asset_bucket, security.ticker)
-        if not benchmark_ticker:
-            return None, "No proxy"
-
-        security_history = security.history
-        start_date = None
-        if not security_history.empty:
-            start_date = security_history.index.max() - pd.Timedelta(days=120)
-        benchmark_hist = self.price_store.get_ticker_price_history(benchmark_ticker, start_date=start_date)
-        if benchmark_hist.empty or "close" not in benchmark_hist.columns:
-            return None, benchmark_ticker
-
-        security_returns = security.returns().rename("security")
-        benchmark_returns = benchmark_hist["close"].pct_change().dropna().rename("benchmark")
-        aligned = security_returns.to_frame().join(benchmark_returns, how="inner").tail(60)
-        if len(aligned) < 20:
-            return None, benchmark_ticker
-
-        correlation = aligned["security"].corr(aligned["benchmark"])
-        if correlation is None:
-            return None, benchmark_ticker
-        return float(correlation ** 2), benchmark_ticker
-
-    def _benchmark_proxy_ticker(self, asset_bucket: str, selected_ticker: str) -> str | None:
-        candidates = self.BENCHMARK_PROXIES.get(asset_bucket, [])
-        for ticker in candidates:
-            if ticker != selected_ticker:
-                return ticker
-        return None
+        left, right = st.columns(2)
+        with left:
+            self.info_panel.render(
+                title="Asset Bucket / Regime Note",
+                headline=rate_risk["bucket"],
+                body=f"{asset_regime} Confidence: {rate_risk['confidence_level']}. {rate_risk['notes']}",
+                accent_color="#5DA9E9",
+                margin_top="0.35rem",
+                margin_bottom="0.20rem",
+            )
+            self.info_panel.render(
+                title="Spread Beta Proxy",
+                headline=(
+                    self._format_spread_beta(rate_risk["spread_beta_per_bp"])
+                    if rate_risk["spread_proxy_used"]
+                    else "N/A"
+                ),
+                body=(
+                    f"ICE BofA OAS proxy from FRED: {self._format_oas_proxy(rate_risk['spread_proxy_used'])}. "
+                    f"Spread DV01 proxy / share: {self._format_dollar(rate_risk['spread_dv01_proxy_per_share'])}. "
+                    f"Spread model R²: {self._format_number(rate_risk['spread_model_r2'])}. "
+                    "This is a model-based spread sensitivity proxy per bp, not exact CS01."
+                ),
+                accent_color="#A78BFA",
+                margin_top="0.35rem",
+                margin_bottom="0.20rem",
+            )
+        with right:
+            self.info_panel.render(
+                title="Trading Activity",
+                headline=liquidity_regime,
+                body="Based on current volume versus the trailing 30-day average and its standardized z-score.",
+                accent_color="#00ADB5",
+                margin_top="0.35rem",
+                margin_bottom="0.20rem",
+            )
+            self.info_panel.render(
+                title="Model Diagnostics",
+                headline=f"Rate R² {self._format_number(rate_risk['rate_model_r2'])}",
+                body=(
+                    f"Rate proxy: {rate_risk['rate_proxy_used']}. "
+                    f"Spread model R²: {self._format_number(rate_risk['spread_model_r2'])}. "
+                    f"Observations used: {rate_risk['observations_used'] or 'N/A'}. "
+                    f"60D/120D windows are smoothed with EWMA."
+                ),
+                accent_color="#FFD166",
+                margin_top="0.35rem",
+                margin_bottom="0.20rem",
+            )
 
     def _asset_regime_note(self, asset_bucket: str, metadata: dict) -> str:
         duration_bucket = str(metadata.get("duration_bucket") or "N/A")
         benchmark = str(metadata.get("benchmark_index") or "N/A")
-        return (
-            f"{asset_bucket} exposure with a {duration_bucket.lower()} profile. "
-            f"Benchmark context: {benchmark}."
+        return f"{asset_bucket} exposure with a {duration_bucket.lower()} profile. Benchmark context: {benchmark}."
+
+    def _format_dollar(self, value: float | None) -> str:
+        return "N/A" if value is None else f"${value:.4f}"
+
+    def _format_years(self, value: float | None) -> str:
+        return "N/A" if value is None else f"{value:.1f}y"
+
+    def _format_number(self, value: float | None) -> str:
+        return "N/A" if value is None else f"{value:.2f}"
+
+    def _format_spread_beta(self, value: float | None) -> str:
+        return "N/A" if value is None else f"{value:+.5f}"
+
+    def _format_percent(self, value: float | None) -> str:
+        return "N/A" if value is None else f"{value:.0%}"
+
+    def _format_oas_proxy(self, series_id: str | None) -> str:
+        labels = {
+            "BAMLC0A0CM": "BoFA IG OAS",
+            "BAMLC0A4CBBB": "BoFA BBB OAS",
+            "BAMLH0A0HYM2": "BoFA HY OAS",
+            "BAMLH0A2HYB": "BoFA Single-B OAS",
+        }
+        return labels.get(str(series_id), series_id or "N/A")
+
+    def _render_highlight_metric(self, label: str, value: str, color: str) -> None:
+        st.markdown(
+            (
+                "<div style='padding:0.1rem 0 0.35rem 0;'>"
+                "<div style='font-size:0.78rem;text-transform:uppercase;color:rgba(243,240,232,0.75);margin-bottom:0.2rem;'>{label}</div>"
+                "<div style='font-size:2rem;font-weight:600;color:{color};line-height:1.1;'>{value}</div>"
+                "</div>"
+            ).format(label=label, value=value, color=color),
+            unsafe_allow_html=True,
         )
 
-    def _liquidity_regime(self, vol_z: float) -> str:
+    def _volume_multiple(self, snapshot: dict[str, float | None]) -> float:
+        current_volume = snapshot["current_volume"]
+        average_volume = snapshot["average_volume"]
+        if current_volume is None or average_volume in (None, 0.0):
+            return 0.0
+        return current_volume / average_volume
+
+    def _format_model(self, model_type: str | None) -> str:
+        labels = {
+            "treasury_curve_regression": "Treasury Curve",
+            "treasury_etf_benchmark_regression": "Treasury ETF Benchmark",
+            "low_duration_assumption_with_validation": "Low-Duration Validation",
+        }
+        return labels.get(str(model_type), "N/A")
+
+    def _liquidity_regime(self, vol_z: float | None) -> str:
+        if vol_z is None:
+            return "NORMAL"
         if vol_z > 2:
             return "HIGH ACTIVITY"
         if vol_z < -1:

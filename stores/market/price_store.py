@@ -101,6 +101,12 @@ class PriceStore:
     def __init__(self, engine):
         self.engine = engine
 
+    def _clear_caches(self) -> None:
+        _cached_existing_tickers.clear()
+        _cached_latest_stored_dates.clear()
+        _cached_ticker_price_history.clear()
+        _cached_multi_ticker_history.clear()
+
     def upsert_prices(self, df: pd.DataFrame):
         if df.empty:
             return
@@ -142,10 +148,7 @@ class PriceStore:
         """.format(price_table=qualified_table(self.engine, "price_history"))
         with self.engine.begin() as conn:
             conn.execute(text(statement), records)
-        _cached_existing_tickers.clear()
-        _cached_latest_stored_dates.clear()
-        _cached_ticker_price_history.clear()
-        _cached_multi_ticker_history.clear()
+        self._clear_caches()
 
     def replace_ticker_prices(self, ticker: str, df: pd.DataFrame):
         with self.engine.begin() as conn:
@@ -154,10 +157,7 @@ class PriceStore:
                 {"ticker": ticker},
             )
             df.to_sql("price_history", conn, if_exists="append", index=False, **pandas_to_sql_kwargs(self.engine))
-        _cached_existing_tickers.clear()
-        _cached_latest_stored_dates.clear()
-        _cached_ticker_price_history.clear()
-        _cached_multi_ticker_history.clear()
+        self._clear_caches()
 
     def get_existing_tickers(self, tickers: list[str] | None = None) -> set[str]:
         normalized = tuple(sorted(tickers)) if tickers else None
@@ -187,7 +187,4 @@ class PriceStore:
                 text(f"DELETE FROM {qualified_table(self.engine, 'price_history')} WHERE ticker = :ticker"),
                 {"ticker": ticker},
             )
-        _cached_existing_tickers.clear()
-        _cached_latest_stored_dates.clear()
-        _cached_ticker_price_history.clear()
-        _cached_multi_ticker_history.clear()
+        self._clear_caches()

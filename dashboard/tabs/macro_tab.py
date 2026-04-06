@@ -13,6 +13,9 @@ CARD_CONFIG = [
     ("2s10s", "UST_2S10S", "UST_2S10S_Z20", "UST_2S10S_Z20", "Curve"),
     ("5s30s", "UST_5S30S", "UST_5S30S_Z20", "UST_5S30S_Z20", "Curve"),
     ("5Y breakeven", "BEI_5Y", "BEI_5Y_CHANGE_20D", "BEI_5Y_Z20", "Inflation"),
+    ("IG OAS", "IG_OAS_LEVEL", "IG_OAS_CHANGE_20D", "IG_OAS_Z20", "Credit"),
+    ("HY OAS", "HY_OAS_LEVEL", "HY_OAS_CHANGE_20D", "HY_OAS_Z20", "Credit"),
+    ("HY-IG spread", "HY_MINUS_IG_OAS", "HY_OAS_CHANGE_20D", "HY_MINUS_IG_OAS_Z20", "Credit"),
     ("CPI YoY", "CPI_YOY", "CPI_3M_ANN", None, "Inflation"),
     ("Fed Funds", "FEDFUNDS_LEVEL", "FEDFUNDS_CHANGE_3M", None, "Policy"),
     ("Unemployment rate", "UNRATE_LEVEL", "UNRATE_3M_CHANGE", None, "Growth"),
@@ -20,10 +23,12 @@ CARD_CONFIG = [
 
 CHART_CONFIG = [
     ("Treasury yields", ["UST_2Y_LEVEL", "UST_10Y_LEVEL", "UST_30Y_LEVEL"]),
+    ("Credit OAS", ["IG_OAS_LEVEL", "BBB_OAS_LEVEL", "HY_OAS_LEVEL"]),
     ("2s10s", ["UST_2S10S"]),
     ("5s30s", ["UST_5S30S"]),
     ("CPI YoY", ["CPI_YOY"]),
     ("5Y breakeven", ["BEI_5Y"]),
+    ("HY minus IG OAS", ["HY_MINUS_IG_OAS"]),
     ("Real-rate proxy", ["REAL_RATE_PROXY"]),
     ("Fed Funds", ["FEDFUNDS_LEVEL"]),
     ("Unemployment", ["UNRATE_LEVEL"]),
@@ -53,7 +58,24 @@ FEATURE_LABELS = {
     "REAL_RATE_PROXY": "Real-Rate Proxy",
     "FEDFUNDS_LEVEL": "Fed Funds",
     "UNRATE_LEVEL": "Unemployment",
+    "IG_OAS_LEVEL": "IG OAS",
+    "HY_OAS_LEVEL": "HY OAS",
+    "BBB_OAS_LEVEL": "BBB OAS",
+    "HY_MINUS_IG_OAS": "HY-IG OAS",
 }
+
+OAS_FEATURES = {
+    "IG_OAS_LEVEL",
+    "HY_OAS_LEVEL",
+    "BBB_OAS_LEVEL",
+    "SINGLE_B_OAS_LEVEL",
+    "HY_MINUS_IG_OAS",
+    "BBB_MINUS_IG_OAS",
+    "SINGLE_B_MINUS_HY_OAS",
+}
+
+LOOKBACK_MAP = {"30D": 30, "3M": 63, "6M": 126, "1Y": 252, "5Y": 1260, "ALL": None}
+CHART_PALETTE = ["#FFD166", "#00ADB5", "#FF5A36", "#00C176"]
 
 
 class MacroTab:
@@ -73,6 +95,15 @@ class MacroTab:
         if value is None or pd.isna(value):
             return "n/a"
         return f"{value:+.2f}"
+
+    def _format_feature_value(self, feature_name: str, value: float | None, signed: bool = False) -> str:
+        if feature_name in OAS_FEATURES:
+            if value is None or pd.isna(value):
+                return "n/a"
+            number = value * 100.0
+            return f"{number:+.0f} bps" if signed else f"{number:,.0f} bps"
+        formatter = self._format_delta if signed else self._format_value
+        return formatter(value)
 
     def _badge_html(self, label: str, tone: str) -> str:
         color_map = {
@@ -171,6 +202,9 @@ class MacroTab:
             return None
         return series.index[-1]
 
+    def _display_series(self, feature_name: str, series: pd.Series) -> pd.Series:
+        return series * 100.0 if feature_name in OAS_FEATURES else series
+
     def _feature_names(self) -> list[str]:
         """Build one stable feature list for cards, charts, and the yield curve."""
         feature_names = [item[1] for item in CARD_CONFIG]
@@ -182,24 +216,122 @@ class MacroTab:
         feature_names.extend(["UST_2S10S_Z20", "UST_5S30S_Z20", "BEI_5Y_CHANGE_20D", "UNRATE_3M_CHANGE"])
         return sorted(dict.fromkeys(feature_names))
 
-    def _render_cards(self, matrix: pd.DataFrame) -> None:
-        cols = st.columns(len(CARD_CONFIG))
-        for idx, (label, feature_name, delta_feature, badge_feature, badge_label) in enumerate(CARD_CONFIG):
+    def _selected_lookback(self) -> int | None:
+        window_col, _ = st.columns([0.28, 0.72])
+        with window_col:
+            selected_window = self.controls.render_select(
+                "Macro Window",
+                list(LOOKBACK_MAP),
+                index=3,
+                key="macro_window",
+            )
+        return LOOKBACK_MAP.get(selected_window)
+
+    def _matrix_start_date(self, lookback: int | None) -> str | None:
+        if lookback is None:
+            return None
+        return (pd.Timestamp.utcnow().normalize() - pd.tseries.offsets.BDay(lookback + 10)).date().isoformat()
+
+    def _windowed_matrix(self, matrix: pd.DataFrame, lookback: int | None) -> pd.DataFrame:
+        if matrix.empty:
+            return matrix
+        return matrix.copy() if lookback is None else matrix.tail(min(lookback, len(matrix))).copy()
+
+    def _curve_rows(self, matrix: pd.DataFrame) -> list[dict[str, object]]:
+        rows: list[dict[str, object]] = []
+        for tenor_label, maturity_years, feature_name in YIELD_CURVE_CONFIG:
             value = self._latest_value(matrix, feature_name)
-            delta_value = self._latest_value(matrix, delta_feature)
-            badge_value = self._latest_value(matrix, badge_feature) if badge_feature else None
-            with cols[idx]:
-                st.metric(label.upper(), self._format_value(value), self._format_delta(delta_value))
-                if badge_feature:
-                    st.markdown(
-                        self._badge_html(
-                            f"{badge_label} z {self._format_value(badge_value)}",
-                            self._metric_tone(badge_value),
-                        ),
-                        unsafe_allow_html=True,
+            if value is None or pd.isna(value):
+                continue
+            rows.append(
+                {
+                    "tenor": tenor_label,
+                    "maturity_years": maturity_years,
+                    "value": float(value),
+                    "date": self._latest_date(matrix, feature_name),
+                }
+            )
+        return rows
+
+    def _chart_layout(self, title: str, *, height: int = 320, yaxis_title: str | None = None) -> dict:
+        return dict(
+            title=dict(text=title, x=0.02, xanchor="left"),
+            template="plotly_dark",
+            paper_bgcolor="#000000",
+            plot_bgcolor="#000000",
+            margin=dict(l=20, r=20, t=50, b=30),
+            height=height,
+            font=dict(
+                color="#F3F0E8",
+                family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                size=12,
+            ),
+            xaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
+            yaxis=dict(title=yaxis_title, showgrid=True, gridcolor="#2A2A2A"),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+        )
+
+    def _render_chart_grid(self, matrix: pd.DataFrame, start_date, end_date) -> None:
+        chart_pairs = [(CHART_CONFIG[i], CHART_CONFIG[i + 1]) for i in range(0, len(CHART_CONFIG), 2)]
+        for (left_title, left_features), (right_title, right_features) in chart_pairs:
+            col1, col2 = st.columns(2)
+            with col1:
+                self._render_chart(matrix, left_title, left_features, start_date, end_date)
+            with col2:
+                self._render_chart(matrix, right_title, right_features, start_date, end_date)
+
+    def _render_regimes(self, matrix: pd.DataFrame) -> None:
+        st.markdown("---")
+        st.subheader("Macro Regime")
+        regimes = self._rule_based_regimes(matrix)
+        left_cards = [
+            ("Duration Regime", "duration_regime", "#FFD166"),
+            ("Inflation Regime", "inflation_regime", "#FF5A36"),
+        ]
+        right_cards = [
+            ("Curve Regime", "curve_regime", "#00ADB5"),
+            ("Growth Regime", "growth_regime", "#00C176"),
+        ]
+        col1, col2 = st.columns(2)
+        for column, cards in ((col1, left_cards), (col2, right_cards)):
+            with column:
+                for title, key, accent in cards:
+                    headline, body = regimes[key]
+                    self.info_panel.render(
+                        title=title,
+                        headline=headline,
+                        body=body,
+                        accent_color=accent,
+                        margin_bottom="0.35rem",
                     )
-                else:
-                    st.caption(f"Recent change: {self._format_delta(delta_value)}")
+        st.caption(
+            "Rules are deliberately simple: duration uses 10Y changes, curve uses 2s10s level, inflation uses CPI and breakevens, and growth uses unemployment changes."
+        )
+
+    def _render_cards(self, matrix: pd.DataFrame) -> None:
+        for start in range(0, len(CARD_CONFIG), 5):
+            row = CARD_CONFIG[start : start + 5]
+            cols = st.columns(len(row))
+            for col, (label, feature_name, delta_feature, badge_feature, badge_label) in zip(cols, row, strict=False):
+                value = self._latest_value(matrix, feature_name)
+                delta_value = self._latest_value(matrix, delta_feature)
+                badge_value = self._latest_value(matrix, badge_feature) if badge_feature else None
+                with col:
+                    st.metric(
+                        label.upper(),
+                        self._format_feature_value(feature_name, value),
+                        self._format_feature_value(delta_feature, delta_value, signed=True),
+                    )
+                    if badge_feature:
+                        st.markdown(
+                            self._badge_html(
+                                f"{badge_label} z {self._format_value(badge_value)}",
+                                self._metric_tone(badge_value),
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.caption(f"Recent change: {self._format_delta(delta_value)}")
 
     def _nelson_siegel_curve(self, maturities: np.ndarray, beta0: float, beta1: float, beta2: float, tau: float) -> np.ndarray:
         safe_tau = max(float(tau), 1e-6)
@@ -229,28 +361,12 @@ class MacroTab:
         return result.x
 
     def _render_yield_curve(self, matrix: pd.DataFrame) -> None:
-        curve_rows = []
-        for tenor_label, maturity_years, feature_name in YIELD_CURVE_CONFIG:
-            value = self._latest_value(matrix, feature_name)
-            if value is None or pd.isna(value):
-                continue
-            observation_date = self._latest_date(matrix, feature_name)
-            curve_rows.append(
-                {
-                    "tenor": tenor_label,
-                    "maturity_years": maturity_years,
-                    "feature_name": feature_name,
-                    "value": float(value),
-                    "date": observation_date,
-                }
-            )
-
+        curve_rows = self._curve_rows(matrix)
         if not curve_rows:
             st.info("No yield-curve levels available yet.")
             return
 
-        curve_df = pd.DataFrame(curve_rows)
-        curve_df = curve_df.sort_values("maturity_years").reset_index(drop=True)
+        curve_df = pd.DataFrame(curve_rows).sort_values("maturity_years").reset_index(drop=True)
         maturities = curve_df["maturity_years"].to_numpy(dtype=float)
         yields = curve_df["value"].to_numpy(dtype=float)
         fitted_params = self._fit_nelson_siegel(maturities, yields)
@@ -292,17 +408,8 @@ class MacroTab:
                 )
             )
         fig.update_layout(
-            title=dict(text="Latest treasury yield curve", x=0.02, xanchor="left"),
-            template="plotly_dark",
-            paper_bgcolor="#000000",
-            plot_bgcolor="#000000",
+            **self._chart_layout("Latest treasury yield curve", height=360, yaxis_title="Yield (%)"),
             margin=dict(l=40, r=40, t=60, b=40),
-            height=360,
-            font=dict(
-                color="#F3F0E8",
-                family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                size=12,
-            ),
             xaxis=dict(
                 title="Maturity (Years)",
                 type="log",
@@ -312,7 +419,6 @@ class MacroTab:
                 tickvals=curve_df["maturity_years"].tolist(),
                 ticktext=curve_df["tenor"].tolist(),
             ),
-            yaxis=dict(title="Yield (%)", showgrid=True, gridcolor="#2A2A2A"),
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
@@ -338,7 +444,6 @@ class MacroTab:
             return
 
         fig = go.Figure()
-        palette = ["#FFD166", "#00ADB5", "#FF5A36", "#00C176"]
         traces_added = 0
         for idx, feature_name in enumerate(feature_names):
             if feature_name not in filtered.columns:
@@ -349,11 +454,14 @@ class MacroTab:
             fig.add_trace(
                 go.Scatter(
                     x=series.index,
-                    y=series,
+                    y=self._display_series(feature_name, series),
                     mode="lines",
                     name=FEATURE_LABELS.get(feature_name, feature_name.replace("_", " ")),
-                    line=dict(color=palette[idx % len(palette)], width=2),
+                    line=dict(color=CHART_PALETTE[idx % len(CHART_PALETTE)], width=2),
                     connectgaps=False,
+                    hovertemplate="%{x|%Y-%m-%d}<br>%{y:.0f} bps<extra></extra>"
+                    if feature_name in OAS_FEATURES
+                    else None,
                 )
             )
             traces_added += 1
@@ -362,50 +470,21 @@ class MacroTab:
             st.info(f"No data available for {title.lower()} in the selected window.")
             return
 
-        fig.update_layout(
-            title=dict(text=title, x=0.02, xanchor="left"),
-            template="plotly_dark",
-            paper_bgcolor="#000000",
-            plot_bgcolor="#000000",
-            margin=dict(l=20, r=20, t=50, b=30),
-            height=320,
-            font=dict(
-                color="#F3F0E8",
-                family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                size=12,
-            ),
-            xaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
-            yaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
-        )
+        fig.update_layout(**self._chart_layout(title, yaxis_title="bps" if any(name in OAS_FEATURES for name in feature_names) else None))
         st.plotly_chart(fig, use_container_width=True)
 
     def render(self) -> None:
         st.subheader("Macro")
         feature_names = self._feature_names()
-
-        lookback_map = {"30D": 30, "3M": 63, "6M": 126, "1Y": 252, "5Y": 1260, "ALL": None}
-        window_col, _ = st.columns([0.28, 0.72])
-        with window_col:
-            selected_window = self.controls.render_select(
-                "Macro Window",
-                ["30D", "3M", "6M", "1Y", "5Y", "ALL"],
-                index=3,
-                key="macro_window",
-            )
-        lookback = lookback_map.get(selected_window)
-        start_date_filter = None
-        if lookback is not None:
-            start_date_filter = (
-                pd.Timestamp.utcnow().normalize() - pd.tseries.offsets.BDay(lookback + 10)
-            ).date().isoformat()
+        lookback = self._selected_lookback()
+        start_date_filter = self._matrix_start_date(lookback)
 
         with timed_block("macro.load_feature_matrix"):
             matrix = self.macro_feature_store.get_feature_matrix(feature_names, start_date=start_date_filter)
         if matrix.empty:
             st.warning("No macro features found. Run scripts.macro.build_macro_features first.")
             return
-        filtered_matrix = matrix.copy() if lookback is None else matrix.tail(min(lookback, len(matrix))).copy()
+        filtered_matrix = self._windowed_matrix(matrix, lookback)
 
         if filtered_matrix.empty:
             st.warning("No macro features available for the selected window.")
@@ -418,50 +497,5 @@ class MacroTab:
             self._render_yield_curve(filtered_matrix)
         with timed_block("macro.render_cards"):
             self._render_cards(filtered_matrix)
-
-        chart_pairs = [(CHART_CONFIG[i], CHART_CONFIG[i + 1]) for i in range(0, len(CHART_CONFIG), 2)]
-        for (left_title, left_features), (right_title, right_features) in chart_pairs:
-            col1, col2 = st.columns(2)
-            with col1:
-                self._render_chart(filtered_matrix, left_title, left_features, start_date, end_date)
-            with col2:
-                self._render_chart(filtered_matrix, right_title, right_features, start_date, end_date)
-
-        st.markdown("---")
-        st.subheader("Macro Regime")
-        regimes = self._rule_based_regimes(filtered_matrix)
-        col1, col2 = st.columns(2)
-        with col1:
-            self.info_panel.render(
-                title="Duration Regime",
-                headline=regimes["duration_regime"][0],
-                body=regimes["duration_regime"][1],
-                accent_color="#FFD166",
-                margin_bottom="0.35rem",
-            )
-            self.info_panel.render(
-                title="Inflation Regime",
-                headline=regimes["inflation_regime"][0],
-                body=regimes["inflation_regime"][1],
-                accent_color="#FF5A36",
-                margin_bottom="0.35rem",
-            )
-        with col2:
-            self.info_panel.render(
-                title="Curve Regime",
-                headline=regimes["curve_regime"][0],
-                body=regimes["curve_regime"][1],
-                accent_color="#00ADB5",
-                margin_bottom="0.35rem",
-            )
-            self.info_panel.render(
-                title="Growth Regime",
-                headline=regimes["growth_regime"][0],
-                body=regimes["growth_regime"][1],
-                accent_color="#00C176",
-                margin_bottom="0.35rem",
-            )
-
-        st.caption(
-            "Rules are deliberately simple: duration uses 10Y changes, curve uses 2s10s level, inflation uses CPI and breakevens, and growth uses unemployment changes."
-        )
+        self._render_chart_grid(filtered_matrix, start_date, end_date)
+        self._render_regimes(filtered_matrix)

@@ -11,7 +11,7 @@ from dashboard.styles.table_styles import DashboardTable
 from models.security import Security
 
 
-class GraphsTab:
+class OverviewTab:
     """Render price and volume charts plus the raw history table."""
 
     def __init__(self) -> None:
@@ -33,7 +33,7 @@ class GraphsTab:
         )
 
     def render(self, security: Security) -> None:
-        st.subheader("Charts")
+        st.subheader("Overview")
 
         hist = security.history
         selected_security = security.ticker
@@ -56,12 +56,7 @@ class GraphsTab:
             end_key=f"end_{selected_security}_{default_period}",
         )
 
-        filtered_hist = hist.loc[
-            (hist.index.date >= start_date.date()) & (hist.index.date <= end_date.date())
-        ].copy()
-        if filtered_hist.empty:
-            filtered_hist = hist.tail(1).copy()
-
+        filtered_hist = security.history_between(start_date, end_date)
         latest_close = float(filtered_hist["close"].iloc[-1])
         observations = len(filtered_hist)
         average_volume = float(filtered_hist["volume"].mean())
