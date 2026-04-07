@@ -1,31 +1,100 @@
 from __future__ import annotations
 
+import logging
+from datetime import datetime
+
 import pandas as pd
 
-from fixed_income.analytics.factor_data import benchmark_returns, spread_changes_bps, treasury_rate_changes_bps
+from fixed_income.analytics.factor_data import spread_changes_bps, treasury_rate_changes_bps
 from fixed_income.analytics.rate_models import ewma_blend, regress_benchmark_duration, regress_duration
 from fixed_income.analytics.result_models import RateRiskEstimate, SecurityAnalyticsSnapshot, SpreadRiskEstimate
 from fixed_income.analytics.spread_models import regress_credit_benchmark_duration
-from fixed_income.config.model_settings import RATE_FACTOR_LABEL, RATE_SERIES
+from fixed_income.config.benchmark_rules import BENCHMARK_POOL
+from fixed_income.config.model_settings import ANALYTICS_MODEL_VERSION, RATE_FACTOR_LABEL, RATE_SERIES
+from fixed_income.config.spread_proxy_rules import SPREAD_PROXY_BY_BUCKET
 from fixed_income.instruments.security import Security
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class FixedIncomeAnalyticsService:
     """Estimate rate and spread risk for fixed-income instruments from stored data."""
 
-    def __init__(self, price_store, macro_store, duration_selector) -> None:
+    def __init__(self, price_store, macro_store, duration_selector, analytics_snapshot_store=None) -> None:
         self.price_store = price_store
         self.macro_store = macro_store
         self.duration_selector = duration_selector
+        self.analytics_snapshot_store = analytics_snapshot_store
+
+    def model_settings_key(self) -> str:
+        spread_series = sorted({series_id for series_id in SPREAD_PROXY_BY_BUCKET.values() if series_id})
+        return "|".join([*RATE_SERIES, *spread_series])
+
+    def latest_macro_factor_date(self) -> str | None:
+        series_ids = [*RATE_SERIES, *sorted({series_id for series_id in SPREAD_PROXY_BY_BUCKET.values() if series_id})]
+        latest_dates = self.macro_store.get_latest_stored_dates(series_ids)
+        return max(latest_dates.values()) if latest_dates else None
+
+    def get_latest_snapshot(self, symbol: str) -> SecurityAnalyticsSnapshot | None:
+        if self.analytics_snapshot_store is None:
+            return None
+        return self.analytics_snapshot_store.get_latest_snapshot(symbol)
+
+    def persist_snapshot(self, snapshot: SecurityAnalyticsSnapshot, *, as_of_date: str) -> None:
+        if self.analytics_snapshot_store is None:
+            return
+        self.analytics_snapshot_store.upsert_snapshot(snapshot, as_of_date=as_of_date)
 
     def analyze_security(self, security: Security) -> SecurityAnalyticsSnapshot:
+        factor_bundle = self.load_factor_bundle(security)
+        return self.analyze_factor_bundle(security, factor_bundle)
+
+    def load_factor_bundle(self, security: Security) -> dict[str, object]:
         returns = security.log_returns()
         latest_price = security.last_price()
+        start_date = None if returns.empty else (returns.index.max() - pd.Timedelta(days=260)).date().isoformat()
+        rate_changes_bps = treasury_rate_changes_bps(self.macro_store, start_date=start_date) if start_date else pd.DataFrame()
+        if start_date and hasattr(self.price_store, "get_multi_ticker_price_history"):
+            benchmark_history = self.price_store.get_multi_ticker_price_history(list(BENCHMARK_POOL), start_date=start_date)
+        elif start_date:
+            benchmark_history = {
+                ticker: self.price_store.get_ticker_price_history(ticker, start_date=start_date) for ticker in BENCHMARK_POOL
+            }
+        else:
+            benchmark_history = {}
+        benchmark_returns_map: dict[str, pd.Series] = {}
+        for benchmark_ticker, history in benchmark_history.items():
+            if history.empty:
+                continue
+            benchmark_security = Security(benchmark_ticker, history=history)
+            series = benchmark_security.log_returns()
+            if not series.empty:
+                benchmark_returns_map[benchmark_ticker] = series.rename("benchmark_return")
+
+        spread_series_map: dict[str, pd.Series] = {}
+        for series_id in sorted({series for series in SPREAD_PROXY_BY_BUCKET.values() if series}):
+            spread_series = spread_changes_bps(self.macro_store, series_id, start_date=start_date) if start_date else pd.Series(dtype=float)
+            if not spread_series.empty:
+                spread_series_map[series_id] = spread_series
+
+        return {
+            "returns": returns.rename("etf_return"),
+            "latest_price": latest_price,
+            "start_date": start_date,
+            "rate_changes_bps": rate_changes_bps,
+            "benchmark_returns": benchmark_returns_map,
+            "spread_series": spread_series_map,
+        }
+
+    def analyze_factor_bundle(self, security: Security, factor_bundle: dict[str, object]) -> SecurityAnalyticsSnapshot:
+        returns = factor_bundle["returns"]
+        latest_price = factor_bundle["latest_price"]
         if returns.empty or latest_price is None:
             return self._empty_snapshot(security, "Insufficient ETF price history.")
 
-        start_date = (returns.index.max() - pd.Timedelta(days=260)).date().isoformat()
-        rate_changes_bps = treasury_rate_changes_bps(self.macro_store, start_date=start_date)
+        start_date = factor_bundle["start_date"]
+        rate_changes_bps = factor_bundle["rate_changes_bps"]
         if rate_changes_bps.empty:
             return self._empty_snapshot(security, "Treasury rate history is unavailable.")
 
@@ -33,7 +102,7 @@ class FixedIncomeAnalyticsService:
         if missing:
             return self._empty_snapshot(security, f"Missing Treasury series: {', '.join(missing)}.")
 
-        aligned = returns.rename("etf_return").to_frame().join(rate_changes_bps, how="inner")
+        aligned = returns.to_frame().join(rate_changes_bps, how="inner")
         if len(aligned) < 20:
             return self._empty_snapshot(security, "Not enough overlapping ETF and Treasury observations.")
 
@@ -47,12 +116,17 @@ class FixedIncomeAnalyticsService:
         spread_estimate: SpreadRiskEstimate | None = None
 
         if selection.duration_model_type == "treasury_etf_benchmark_regression" and selection.treasury_benchmark_symbol:
-            benchmark_duration = self._benchmark_duration_proxy(selection.treasury_benchmark_symbol, start_date)
-            benchmark_series = benchmark_returns(self.price_store, selection.treasury_benchmark_symbol, start_date=start_date)
+            benchmark_duration = self._benchmark_duration_proxy(
+                selection.treasury_benchmark_symbol,
+                start_date,
+                rate_changes_bps,
+                factor_bundle["benchmark_returns"],
+            )
+            benchmark_series = factor_bundle["benchmark_returns"].get(selection.treasury_benchmark_symbol, pd.Series(dtype=float))
             if benchmark_duration is not None and not benchmark_series.empty:
                 benchmark_frame = aligned.join(benchmark_series.rename("benchmark_return"), how="inner")
                 if selection.spread_proxy_series_id:
-                    spread_series = spread_changes_bps(self.macro_store, selection.spread_proxy_series_id, start_date=start_date)
+                    spread_series = factor_bundle["spread_series"].get(selection.spread_proxy_series_id, pd.Series(dtype=float))
                     if not spread_series.empty:
                         benchmark_frame = benchmark_frame.join(spread_series, how="inner")
                     if len(benchmark_frame) >= 20 and "spread_change_bps" in benchmark_frame.columns:
@@ -72,7 +146,7 @@ class FixedIncomeAnalyticsService:
                     headline_60d = regress_benchmark_duration(benchmark_frame.tail(60), 60, benchmark_duration)
                     headline_120d = regress_benchmark_duration(benchmark_frame.tail(120), 120, benchmark_duration)
         elif selection.spread_proxy_series_id:
-            spread_series = spread_changes_bps(self.macro_store, selection.spread_proxy_series_id, start_date=start_date)
+            spread_series = factor_bundle["spread_series"].get(selection.spread_proxy_series_id, pd.Series(dtype=float))
             if not spread_series.empty:
                 spread_frame = aligned.join(spread_series, how="inner")
                 if len(spread_frame) >= 20:
@@ -93,6 +167,8 @@ class FixedIncomeAnalyticsService:
             extra = "High-yield duration is model-based and more sensitive to benchmark and spread specification than Treasury and IG estimates."
             reason = f"{reason} {extra}".strip() if reason else extra
 
+        as_of_date = None if security.history.empty else pd.Timestamp(security.history.index.max()).date().isoformat()
+        LOGGER.info("Analytics live compute for %s (as_of=%s)", security.ticker, as_of_date)
         return SecurityAnalyticsSnapshot(
             ticker=security.ticker,
             asset_bucket=selection.asset_bucket,
@@ -111,20 +187,26 @@ class FixedIncomeAnalyticsService:
                 observations_used=headline_120d["observations_used"] or headline_60d["observations_used"],
             ),
             spread_risk=spread_estimate,
+            as_of_date=as_of_date,
+            updated_at=datetime.utcnow().isoformat(),
+            model_version=ANALYTICS_MODEL_VERSION,
+            computed_from_start_date=start_date,
+            computed_from_end_date=as_of_date,
         )
 
-    def _benchmark_duration_proxy(self, benchmark_ticker: str, start_date: str) -> float | None:
-        benchmark_history = self.price_store.get_ticker_price_history(benchmark_ticker, start_date=start_date)
-        if benchmark_history.empty:
+    def _benchmark_duration_proxy(
+        self,
+        benchmark_ticker: str,
+        start_date: str,
+        rate_changes_bps: pd.DataFrame,
+        benchmark_returns_map: dict[str, pd.Series],
+    ) -> float | None:
+        benchmark_returns_series = benchmark_returns_map.get(benchmark_ticker)
+        if benchmark_returns_series is None or benchmark_returns_series.empty:
             return None
-        benchmark = Security(benchmark_ticker, history=benchmark_history)
-        returns = benchmark.log_returns()
-        if returns.empty:
-            return None
-        rate_changes_bps = treasury_rate_changes_bps(self.macro_store, start_date=start_date)
         if rate_changes_bps.empty or any(series_id not in rate_changes_bps.columns for series_id in RATE_SERIES):
             return None
-        aligned = returns.rename("etf_return").to_frame().join(rate_changes_bps, how="inner")
+        aligned = benchmark_returns_series.rename("etf_return").to_frame().join(rate_changes_bps, how="inner")
         if len(aligned) < 20:
             return None
         model_60d = regress_duration(aligned.tail(60), 60, list(RATE_SERIES))
@@ -158,4 +240,9 @@ class FixedIncomeAnalyticsService:
             )
             if selection.spread_proxy_series_id
             else None,
+            as_of_date=None if security.history.empty else pd.Timestamp(security.history.index.max()).date().isoformat(),
+            updated_at=datetime.utcnow().isoformat(),
+            model_version=ANALYTICS_MODEL_VERSION,
+            computed_from_start_date=None,
+            computed_from_end_date=None if security.history.empty else pd.Timestamp(security.history.index.max()).date().isoformat(),
         )

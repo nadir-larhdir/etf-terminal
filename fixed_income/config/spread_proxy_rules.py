@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+SPREAD_PROXY_BY_BUCKET = {
+    "Investment Grade Credit": "BAMLC0A0CM",
+    "High Yield": "BAMLH0A0HYM2",
+}
+
 
 def spread_proxy_for_bucket(bucket: str, security) -> str | None:
     text_blob = " ".join(

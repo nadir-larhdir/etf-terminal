@@ -8,6 +8,7 @@ from fixed_income.analytics.result_models import (
     SecurityAnalyticsSnapshot,
     SpreadRiskEstimate,
 )
+from fixed_income.analytics.snapshot_utils import is_snapshot_stale, snapshot_age_hours
 
 __all__ = [
     "DurationModelSelection",
@@ -19,4 +20,6 @@ __all__ = [
     "SpreadRiskEstimate",
     "format_model_label",
     "format_oas_proxy_label",
+    "is_snapshot_stale",
+    "snapshot_age_hours",
 ]

@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 
+from dashboard.cache import app_cache_key, cached_multi_price_history, cached_price_history
 from dashboard.components.charts import (
     compute_default_date_range,
     render_beta_adjusted_z_chart,
@@ -134,11 +135,13 @@ class RVTab:
                 "Compare With",
                 rv_candidates,
                 key=f"rv_compare_{selected_security}",
-            )
+        )
 
         compare_obj = Security(compare_security)
+        cache_key = app_cache_key(self.price_store.engine)
         with timed_block("rv.load_compare_history"):
-            compare_hist = compare_obj.load_history(self.price_store)
+            compare_hist = cached_price_history(cache_key, compare_security, None, None, self.price_store)
+            compare_obj.set_history(compare_hist)
         if compare_hist.empty:
             st.warning(f"No price history found for {compare_security}.")
             return
@@ -386,14 +389,16 @@ class RVTab:
         ).tail(12)
 
         with timed_block("rv.bulk_load_candidate_histories"):
-            candidate_histories = self.price_store.get_multi_ticker_price_history(
-                rv_candidates,
+            candidate_histories = cached_multi_price_history(
+                cache_key,
+                tuple(sorted(rv_candidates)),
                 start_date=rv_start_date,
                 end_date=rv_end_date,
+                _price_store=self.price_store,
             )
 
         screener_cache_key = (
-            f"{cache_scope(self.price_store.engine)}:"
+            f"{cache_key}:"
             f"{selected_security}:{rv_start_date.date()}:{rv_end_date.date()}:"
             f"{max(hist.index).date() if not hist.empty else 'na'}:{len(rv_candidates)}"
         )

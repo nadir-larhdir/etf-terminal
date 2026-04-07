@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 from scipy.optimize import minimize
 import streamlit as st
 
+from dashboard.cache import app_cache_key, cached_feature_matrix
 from dashboard.components import DashboardControls, InfoPanel
 from dashboard.perf import timed_block
 
@@ -499,7 +500,13 @@ class MacroPage:
         start_date_filter = self._matrix_start_date(lookback)
 
         with timed_block("macro.load_feature_matrix"):
-            matrix = self.macro_feature_store.get_feature_matrix(feature_names, start_date=start_date_filter)
+            matrix = cached_feature_matrix(
+                app_cache_key(self.macro_feature_store.engine),
+                tuple(feature_names),
+                start_date_filter,
+                None,
+                self.macro_feature_store,
+            )
         if matrix.empty:
             st.warning("No macro features found. Run scripts.macro.build_macro_features first.")
             return
