@@ -3,6 +3,7 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
+from dashboard.cache import app_cache_key, cached_latest_feature_values
 from dashboard.components import InfoPanel
 from dashboard.perf import timed_block
 from services.news import NewsFeedService
@@ -101,7 +102,11 @@ class NewsPage:
         return fallback.get(bucket, "News")
 
     def _load_snapshot_values(self) -> dict[str, dict]:
-        latest = self.macro_feature_store.get_latest_feature_values(list(self.SNAPSHOT_FEATURES.keys()))
+        latest = cached_latest_feature_values(
+            app_cache_key(self.macro_feature_store.engine),
+            tuple(sorted(self.SNAPSHOT_FEATURES)),
+            self.macro_feature_store,
+        )
         if latest.empty:
             return {}
 

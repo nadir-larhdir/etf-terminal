@@ -1,9 +1,23 @@
+import logging
+import pandas as pd
 import streamlit as st
 
+from dashboard.cache import (
+    app_cache_key,
+    cached_analytics_factor_bundle,
+    cached_live_analytics_snapshot,
+    cached_precomputed_analytics_snapshot,
+    is_snapshot_stale,
+    restore_analytics_snapshot,
+    snapshot_age_hours,
+)
 from dashboard.components.info_panel import InfoPanel
 from dashboard.perf import timed_block
 from fixed_income.analytics import format_model_label, format_oas_proxy_label
 from fixed_income.instruments.security import Security
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class AnalyticsTab:
@@ -19,7 +33,7 @@ class AnalyticsTab:
             metadata = security.metadata or {}
             asset_bucket = security.asset_class or metadata.get("category") or "N/A"
             snapshot = security.trading_snapshot()
-            analytics = self.analytics_service.analyze_security(security)
+            analytics = self._analytics_snapshot(security)
             liquidity_regime = self._liquidity_regime(snapshot["volume_z"])
             asset_regime = self._asset_regime_note(asset_bucket, metadata)
 
@@ -133,6 +147,62 @@ class AnalyticsTab:
                 margin_top="0.35rem",
                 margin_bottom="0.20rem",
             )
+
+    def _analytics_snapshot(self, security: Security):
+        cache_key = app_cache_key(self.analytics_service.price_store.engine)
+        price_as_of = pd.Timestamp(security.history.index.max()).date().isoformat() if not security.history.empty else "n/a"
+        with timed_block("analytics.fetch_precomputed_snapshot"):
+            precomputed = restore_analytics_snapshot(
+                cached_precomputed_analytics_snapshot(cache_key, security.ticker, self.analytics_service)
+            )
+        stale = is_snapshot_stale(precomputed, ttl_hours=24, required_as_of_date=price_as_of)
+        if precomputed is not None and not stale:
+            LOGGER.info(
+                "Analytics snapshot hit for %s (age_hours=%.2f)",
+                security.ticker,
+                snapshot_age_hours(precomputed) or 0.0,
+            )
+            return precomputed
+        LOGGER.info(
+            "Analytics snapshot miss for %s (missing=%s stale=%s age_hours=%s)",
+            security.ticker,
+            precomputed is None,
+            stale,
+            "n/a" if precomputed is None else f"{(snapshot_age_hours(precomputed) or 0.0):.2f}",
+        )
+
+        macro_as_of = self.analytics_service.latest_macro_factor_date()
+        settings_key = self.analytics_service.model_settings_key()
+        with timed_block("analytics.load_factor_bundle"):
+            factor_bundle = cached_analytics_factor_bundle(
+                cache_key,
+                security.ticker,
+                price_as_of,
+                macro_as_of,
+                security.history,
+                security.metadata or {},
+                security.asset_class,
+                security.name,
+                self.analytics_service,
+            )
+        with timed_block("analytics.compute_snapshot"):
+            analytics = restore_analytics_snapshot(
+                cached_live_analytics_snapshot(
+                    cache_key,
+                    security.ticker,
+                    price_as_of,
+                    macro_as_of,
+                    settings_key,
+                    security.history,
+                    security.metadata or {},
+                    security.asset_class,
+                    security.name,
+                    self.analytics_service,
+                    factor_bundle,
+                )
+            )
+        self.analytics_service.persist_snapshot(analytics, as_of_date=price_as_of)
+        return analytics
 
     def _asset_regime_note(self, asset_bucket: str, metadata: dict) -> str:
         duration_bucket = str(metadata.get("duration_bucket") or "N/A")

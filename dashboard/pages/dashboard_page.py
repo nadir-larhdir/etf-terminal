@@ -1,6 +1,7 @@
 import streamlit as st
 
 from config import normalize_asset_class
+from dashboard.cache import app_cache_key, cached_price_history, cached_security_metadata
 from dashboard.components import DashboardControls, SecurityHeader
 from dashboard.perf import timed_block
 from dashboard.tabs import AnalyticsTab, OverviewTab, RVTab
@@ -61,14 +62,17 @@ class DashboardPage:
             name=selected_row.get("name"),
             asset_class=selected_row.get("asset_class"),
         )
+        cache_key = app_cache_key(self.price_store.engine)
         with timed_block("dashboard.load_metadata"):
-            metadata = security.load_metadata(self.metadata_store)
+            metadata = cached_security_metadata(cache_key, selected_security, self.metadata_store) or {}
+            security.set_metadata(metadata)
 
         with desc_col:
             self.security_header.render_description(securities, selected_security, metadata)
 
         with timed_block("dashboard.load_price_history"):
-            hist = security.load_history(self.price_store)
+            hist = cached_price_history(cache_key, selected_security, None, None, self.price_store)
+            security.set_history(hist)
 
         if hist.empty:
             st.warning(f"No price history found for {selected_security}.")
@@ -77,13 +81,20 @@ class DashboardPage:
         self.security_header.render_header_strip(hist, selected_security, metadata)
 
         all_tickers = securities["ticker"].tolist()
-        tab_overview, tab_analytics, tab_rv = st.tabs(["Overview", "Analytics", "RV Analysis"])
+        active_section = st.radio(
+            "Dashboard Section",
+            ["Overview", "Analytics", "RV Analysis"],
+            horizontal=True,
+            key="dashboard_section",
+            label_visibility="collapsed",
+        )
 
-        with tab_overview:
+        if active_section == "Overview":
             render_tab_safe("Overview", self.overview_tab.render, security)
+            return
 
-        with tab_analytics:
+        if active_section == "Analytics":
             render_tab_safe("Analytics", self.analytics_tab.render, security)
+            return
 
-        with tab_rv:
-            render_tab_safe("RV Analysis", self.rv_tab.render, security, all_tickers)
+        render_tab_safe("RV Analysis", self.rv_tab.render, security, all_tickers)
