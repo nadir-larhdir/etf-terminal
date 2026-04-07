@@ -134,6 +134,23 @@ def apply_dashboard_theme():
             line-height: 1.15;
         }
 
+        .bb-highlight-metric {
+            padding: 0.1rem 0 0.35rem 0;
+        }
+
+        .bb-highlight-metric-label {
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            color: rgba(243, 240, 232, 0.75);
+            margin-bottom: 0.2rem;
+        }
+
+        .bb-highlight-metric-value {
+            font-size: 2rem;
+            font-weight: 600;
+            line-height: 1.1;
+        }
+
         .bb-pos {
             color: #00C176 !important;
         }
@@ -146,6 +163,87 @@ def apply_dashboard_theme():
             border: none;
             border-top: 1px solid #1F1F1F;
             margin: 0.6rem 0 0.8rem 0;
+        }
+
+        @media (max-width: 900px) {
+            .main .block-container {
+                padding-left: 0.9rem;
+                padding-right: 0.9rem;
+                padding-bottom: 1rem;
+            }
+
+            div[data-testid="stHorizontalBlock"] {
+                flex-wrap: wrap !important;
+                gap: 0.55rem !important;
+            }
+
+            div[data-testid="column"] {
+                min-width: calc(50% - 0.55rem) !important;
+                flex: 1 1 calc(50% - 0.55rem) !important;
+            }
+
+            div.stButton > button,
+            div[data-baseweb="select"] > div,
+            div[data-baseweb="input"] > div,
+            [data-testid="stDateInputField"] {
+                min-height: 44px !important;
+            }
+
+            .bb-header-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 640px) {
+            .main .block-container {
+                padding-top: 0.45rem;
+                padding-left: 0.65rem;
+                padding-right: 0.65rem;
+                padding-bottom: 0.85rem;
+            }
+
+            h1 {
+                font-size: 1.55rem !important;
+            }
+
+            h2, h3 {
+                font-size: 1.0rem !important;
+            }
+
+            div[data-testid="column"] {
+                min-width: 100% !important;
+                flex: 1 1 100% !important;
+            }
+
+            div.stButton > button {
+                width: 100% !important;
+                font-size: 0.85rem !important;
+                padding: 0.55rem 0.6rem !important;
+            }
+
+            [data-testid="stMetricLabel"] {
+                font-size: 0.70rem !important;
+            }
+
+            [data-testid="stMetricValue"] {
+                font-size: 1.15rem !important;
+            }
+
+            .bb-highlight-metric-label {
+                font-size: 0.7rem;
+            }
+
+            .bb-highlight-metric-value {
+                font-size: 1.45rem;
+            }
+
+            .bb-header-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .bb-header-cell {
+                min-height: auto;
+            }
         }
         </style>
         """,

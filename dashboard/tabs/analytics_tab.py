@@ -213,9 +213,9 @@ class AnalyticsTab:
     def _render_highlight_metric(self, label: str, value: str, color: str) -> None:
         st.markdown(
             (
-                "<div style='padding:0.1rem 0 0.35rem 0;'>"
-                "<div style='font-size:0.78rem;text-transform:uppercase;color:rgba(243,240,232,0.75);margin-bottom:0.2rem;'>{label}</div>"
-                "<div style='font-size:2rem;font-weight:600;color:{color};line-height:1.1;'>{value}</div>"
+                "<div class='bb-highlight-metric'>"
+                "<div class='bb-highlight-metric-label'>{label}</div>"
+                "<div class='bb-highlight-metric-value' style='color:{color};'>{value}</div>"
                 "</div>"
             ).format(label=label, value=value, color=color),
             unsafe_allow_html=True,
