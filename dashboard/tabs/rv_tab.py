@@ -12,7 +12,6 @@ from dashboard.components.controls import DashboardControls
 from dashboard.components.info_panel import InfoPanel
 from dashboard.perf import timed_block
 from dashboard.styles.table_styles import DashboardTable
-from db.sql import cache_scope
 from fixed_income.instruments.security import Security
 from fixed_income.rv.hedge_models import beta_stability as hedge_beta_stability
 from fixed_income.rv.pair_analytics import (

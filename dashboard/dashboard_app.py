@@ -8,7 +8,7 @@ from dashboard.styles import apply_dashboard_theme
 from fixed_income.analytics import DurationModelSelector, FixedIncomeAnalyticsService
 from stores.macro import MacroFeatureStore, MacroStore
 from stores.analytics import AnalyticsSnapshotStore
-from stores.market import InputStore, MetadataStore, PriceStore, SecurityStore
+from stores.market import MetadataStore, PriceStore, SecurityStore
 from db.connection import get_engine
 
 
@@ -26,7 +26,6 @@ def get_cached_app_dependencies(data_backend: str, app_env: str):
         "engine": engine,
         "security_store": SecurityStore(engine),
         "price_store": price_store,
-        "input_store": InputStore(engine),
         "metadata_store": MetadataStore(engine),
         "macro_store": macro_store,
         "macro_feature_store": MacroFeatureStore(engine),
@@ -43,7 +42,6 @@ class DashboardApp:
         self,
         security_store,
         price_store,
-        input_store,
         metadata_store,
         macro_store,
         macro_feature_store,
@@ -51,7 +49,6 @@ class DashboardApp:
     ):
         self.security_store = security_store
         self.price_store = price_store
-        self.input_store = input_store
         self.metadata_store = metadata_store
         self.macro_store = macro_store
         self.macro_feature_store = macro_feature_store
@@ -119,7 +116,6 @@ def run_app():
     app = DashboardApp(
         dependencies["security_store"],
         dependencies["price_store"],
-        dependencies["input_store"],
         dependencies["metadata_store"],
         dependencies["macro_store"],
         dependencies["macro_feature_store"],

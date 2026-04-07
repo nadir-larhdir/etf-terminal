@@ -40,7 +40,7 @@ def run_precompute_analytics(*, engine=None, force: bool = False, ttl_hours: int
     securities = security_store.list_active_securities()
     if securities.empty:
         logger.info("No active securities found for analytics precompute.")
-        return
+        return 0, 0
 
     tickers = securities["ticker"].astype(str).tolist()
     latest_price_dates = price_store.get_latest_stored_dates(tickers)
