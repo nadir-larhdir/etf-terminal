@@ -23,7 +23,6 @@ class DurationModelSelection:
 class RateRiskEstimate:
     estimated_duration: float | None
     dv01_per_share: float | None
-    ir01_per_share: float | None
     regression_r2: float | None
     benchmark_used: str | None
     rate_proxy_used: str
@@ -38,14 +37,6 @@ class SpreadRiskEstimate:
     regression_r2: float | None
     proxy_used: str | None
 
-
-@dataclass(frozen=True)
-class EquityRiskEstimate:
-    beta: float | None = None
-    proxy_used: str | None = None
-    regression_r2: float | None = None
-
-
 @dataclass(frozen=True)
 class SecurityAnalyticsSnapshot:
     ticker: str
@@ -56,7 +47,7 @@ class SecurityAnalyticsSnapshot:
     reason: str | None
     rate_risk: RateRiskEstimate
     spread_risk: SpreadRiskEstimate | None = None
-    equity_risk: EquityRiskEstimate | None = None
+    equity_beta: float | None = None
     as_of_date: str | None = None
     updated_at: str | None = None
     model_version: str | None = None
@@ -78,10 +69,6 @@ class SecurityAnalyticsSnapshot:
     @property
     def dv01_per_share(self) -> float | None:
         return self.rate_risk.dv01_per_share
-
-    @property
-    def ir01_per_share(self) -> float | None:
-        return self.rate_risk.ir01_per_share
 
     @property
     def rate_model_r2(self) -> float | None:
@@ -118,7 +105,7 @@ class SecurityAnalyticsSnapshot:
             "rate_dv01_per_share": self.dv01_per_share,
             "cs01_proxy_per_share": self.spread_dv01_proxy_per_share,
             "spread_beta_per_bp": self.spread_beta_per_bp,
-            "equity_beta": None if self.equity_risk is None else self.equity_risk.beta,
+            "equity_beta": self.equity_beta,
             "rate_model_r2": self.rate_model_r2,
             "spread_model_r2": self.spread_model_r2,
             "confidence_level": self.confidence_level,
@@ -146,7 +133,6 @@ class SecurityAnalyticsSnapshot:
             rate_risk=RateRiskEstimate(
                 estimated_duration=row.get("estimated_duration"),
                 dv01_per_share=row.get("rate_dv01_per_share"),
-                ir01_per_share=row.get("rate_dv01_per_share"),
                 regression_r2=row.get("rate_model_r2"),
                 benchmark_used=row.get("benchmark_used"),
                 rate_proxy_used=str(row.get("rate_proxy_used") or ""),
@@ -163,15 +149,7 @@ class SecurityAnalyticsSnapshot:
                 if row.get("spread_proxy_used") or row.get("cs01_proxy_per_share") is not None
                 else None
             ),
-            equity_risk=(
-                EquityRiskEstimate(
-                    beta=row.get("equity_beta"),
-                    proxy_used=None,
-                    regression_r2=None,
-                )
-                if row.get("equity_beta") is not None
-                else None
-            ),
+            equity_beta=row.get("equity_beta"),
             as_of_date=None if row.get("as_of_date") is None else str(row.get("as_of_date")),
             updated_at=None if row.get("updated_at") is None else str(row.get("updated_at")),
             model_version=None if row.get("model_version") is None else str(row.get("model_version")),

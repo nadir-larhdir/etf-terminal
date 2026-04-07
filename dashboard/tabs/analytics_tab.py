@@ -4,7 +4,6 @@ import streamlit as st
 
 from dashboard.cache import (
     app_cache_key,
-    cached_analytics_factor_bundle,
     cached_live_analytics_snapshot,
     cached_precomputed_analytics_snapshot,
     is_snapshot_stale,
@@ -173,18 +172,6 @@ class AnalyticsTab:
 
         macro_as_of = self.analytics_service.latest_macro_factor_date()
         settings_key = self.analytics_service.model_settings_key()
-        with timed_block("analytics.load_factor_bundle"):
-            factor_bundle = cached_analytics_factor_bundle(
-                cache_key,
-                security.ticker,
-                price_as_of,
-                macro_as_of,
-                security.history,
-                security.metadata or {},
-                security.asset_class,
-                security.name,
-                self.analytics_service,
-            )
         with timed_block("analytics.compute_snapshot"):
             analytics = restore_analytics_snapshot(
                 cached_live_analytics_snapshot(
@@ -198,7 +185,6 @@ class AnalyticsTab:
                     security.asset_class,
                     security.name,
                     self.analytics_service,
-                    factor_bundle,
                 )
             )
         self.analytics_service.persist_snapshot(analytics, as_of_date=price_as_of)

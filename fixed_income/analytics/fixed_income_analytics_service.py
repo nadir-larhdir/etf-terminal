@@ -78,12 +78,21 @@ class FixedIncomeAnalyticsService:
             if not spread_series.empty:
                 spread_series_map[series_id] = spread_series
 
+        benchmark_duration_map = {
+            benchmark_ticker: self._regressed_benchmark_duration(
+                benchmark_returns_map.get(benchmark_ticker, pd.Series(dtype=float)),
+                rate_changes_bps,
+            )
+            for benchmark_ticker in BENCHMARK_POOL
+        }
+
         return {
             "returns": returns.rename("etf_return"),
             "latest_price": latest_price,
             "start_date": start_date,
             "rate_changes_bps": rate_changes_bps,
             "benchmark_returns": benchmark_returns_map,
+            "benchmark_durations": benchmark_duration_map,
             "spread_series": spread_series_map,
         }
 
@@ -118,9 +127,7 @@ class FixedIncomeAnalyticsService:
         if selection.duration_model_type == "treasury_etf_benchmark_regression" and selection.treasury_benchmark_symbol:
             benchmark_duration = self._benchmark_duration_proxy(
                 selection.treasury_benchmark_symbol,
-                start_date,
-                rate_changes_bps,
-                factor_bundle["benchmark_returns"],
+                factor_bundle["benchmark_durations"],
             )
             benchmark_series = factor_bundle["benchmark_returns"].get(selection.treasury_benchmark_symbol, pd.Series(dtype=float))
             if benchmark_duration is not None and not benchmark_series.empty:
@@ -179,7 +186,6 @@ class FixedIncomeAnalyticsService:
             rate_risk=RateRiskEstimate(
                 estimated_duration=estimated_duration,
                 dv01_per_share=None if estimated_duration is None else estimated_duration * latest_price * 0.0001,
-                ir01_per_share=None if estimated_duration is None else estimated_duration * latest_price * 0.0001,
                 regression_r2=rate_model_r2,
                 benchmark_used=selection.treasury_benchmark_symbol,
                 rate_proxy_used=selection.rate_proxy_description,
@@ -197,14 +203,18 @@ class FixedIncomeAnalyticsService:
     def _benchmark_duration_proxy(
         self,
         benchmark_ticker: str,
-        start_date: str,
-        rate_changes_bps: pd.DataFrame,
-        benchmark_returns_map: dict[str, pd.Series],
+        benchmark_duration_map: dict[str, float | None],
     ) -> float | None:
-        benchmark_returns_series = benchmark_returns_map.get(benchmark_ticker)
-        if benchmark_returns_series is None or benchmark_returns_series.empty:
+        return benchmark_duration_map.get(benchmark_ticker)
+
+    def _regressed_benchmark_duration(
+        self,
+        benchmark_returns_series: pd.Series,
+        rate_changes_bps: pd.DataFrame,
+    ) -> float | None:
+        if benchmark_returns_series.empty or rate_changes_bps.empty:
             return None
-        if rate_changes_bps.empty or any(series_id not in rate_changes_bps.columns for series_id in RATE_SERIES):
+        if any(series_id not in rate_changes_bps.columns for series_id in RATE_SERIES):
             return None
         aligned = benchmark_returns_series.rename("etf_return").to_frame().join(rate_changes_bps, how="inner")
         if len(aligned) < 20:
@@ -225,7 +235,6 @@ class FixedIncomeAnalyticsService:
             rate_risk=RateRiskEstimate(
                 estimated_duration=None,
                 dv01_per_share=None,
-                ir01_per_share=None,
                 regression_r2=None,
                 benchmark_used=selection.treasury_benchmark_symbol,
                 rate_proxy_used=selection.rate_proxy_description or RATE_FACTOR_LABEL,

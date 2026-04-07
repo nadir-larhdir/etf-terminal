@@ -50,22 +50,6 @@ def cached_precomputed_analytics_snapshot(cache_key: str, ticker: str, _analytic
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def cached_analytics_factor_bundle(
-    cache_key: str,
-    ticker: str,
-    price_as_of: str,
-    macro_as_of: str | None,
-    history: pd.DataFrame,
-    metadata: dict,
-    asset_class: str | None,
-    name: str | None,
-    _analytics_service,
-):
-    security = Security(ticker=ticker, name=name, asset_class=asset_class, metadata=metadata or {}, history=history.copy())
-    return _analytics_service.load_factor_bundle(security)
-
-
-@st.cache_data(ttl=1800, show_spinner=False)
 def cached_live_analytics_snapshot(
     cache_key: str,
     ticker: str,
@@ -77,9 +61,9 @@ def cached_live_analytics_snapshot(
     asset_class: str | None,
     name: str | None,
     _analytics_service,
-    factor_bundle,
 ):
     security = Security(ticker=ticker, name=name, asset_class=asset_class, metadata=metadata or {}, history=history.copy())
+    factor_bundle = _analytics_service.load_factor_bundle(security)
     snapshot = _analytics_service.analyze_factor_bundle(security, factor_bundle)
     return snapshot.to_record()
 
@@ -97,7 +81,6 @@ __all__ = [
     "cached_feature_matrix",
     "cached_latest_feature_values",
     "cached_precomputed_analytics_snapshot",
-    "cached_analytics_factor_bundle",
     "cached_live_analytics_snapshot",
     "restore_analytics_snapshot",
     "is_snapshot_stale",
