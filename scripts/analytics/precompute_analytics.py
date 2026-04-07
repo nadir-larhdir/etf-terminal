@@ -1,5 +1,5 @@
-import logging
 import argparse
+import logging
 
 from db.connection import get_engine
 from fixed_income.analytics import DurationModelSelector, FixedIncomeAnalyticsService, is_snapshot_stale, snapshot_age_hours
@@ -26,10 +26,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> None:
-    configure_logging()
-    args = build_parser().parse_args()
-    engine = get_engine()
+def run_precompute_analytics(*, engine=None, force: bool = False, ttl_hours: int = 24) -> tuple[int, int]:
+    if engine is None:
+        engine = get_engine()
     security_store = SecurityStore(engine)
     price_store = PriceStore(engine)
     metadata_store = MetadataStore(engine)
@@ -58,7 +57,7 @@ def main() -> None:
         snapshot = None
         if ticker in latest_snapshot_map:
             snapshot = SecurityAnalyticsSnapshot.from_record(latest_snapshot_map[ticker])
-        if not args.force and not is_snapshot_stale(snapshot, ttl_hours=args.ttl_hours, required_as_of_date=latest_price_date):
+        if not force and not is_snapshot_stale(snapshot, ttl_hours=ttl_hours, required_as_of_date=latest_price_date):
             logger.info(
                 "Skipping %s: fresh snapshot hit (age_hours=%.2f).",
                 ticker,
@@ -88,6 +87,13 @@ def main() -> None:
         persisted += 1
 
     logger.info("Analytics precompute complete: %s persisted, %s skipped.", persisted, skipped)
+    return persisted, skipped
+
+
+def main() -> None:
+    configure_logging()
+    args = build_parser().parse_args()
+    run_precompute_analytics(force=args.force, ttl_hours=args.ttl_hours)
 
 
 if __name__ == "__main__":
