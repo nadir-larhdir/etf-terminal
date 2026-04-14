@@ -306,6 +306,7 @@ class RVTab:
             ],
             3,
         )
+        st.markdown("<div class='bb-metric-group-spacer'></div>", unsafe_allow_html=True)
         self._render_metric_grid(
             [
                 ("ROLLING BETA", f"{current_beta:,.2f}"),
@@ -317,6 +318,7 @@ class RVTab:
             ],
             3,
         )
+        st.markdown("<div class='bb-metric-group-spacer'></div>", unsafe_allow_html=True)
         self._render_metric_grid(
             [
                 ("30D Z", f"{z_30d:,.2f}"),
@@ -327,6 +329,7 @@ class RVTab:
             ],
             3,
         )
+        st.markdown("<div class='bb-metric-group-spacer'></div>", unsafe_allow_html=True)
 
         self.info_panel.render(
             title="RV Signal",
@@ -360,6 +363,8 @@ class RVTab:
             st.metric("FWD 10D REV", f"{fwd_10_avg:+.2f}%", f"{fwd_10_hit:.0%} hit | n={fwd_10_n}")
         with f3:
             st.metric("FWD 20D REV", f"{fwd_20_avg:+.2f}%", f"{fwd_20_hit:.0%} hit | n={fwd_20_n}")
+
+        st.markdown("<div class='bb-metric-group-spacer'></div>", unsafe_allow_html=True)
 
         render_zscore_chart(rv_merged["zscore"], selected_security, compare_security)
 

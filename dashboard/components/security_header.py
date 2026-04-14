@@ -39,13 +39,12 @@ class SecurityHeader:
         color: str = "#F3F0E8",
         emphasis: str = "standard",
     ) -> str:
-        value_size = "1.18rem" if emphasis == "primary" else "0.90rem"
-        value_weight = "800" if emphasis == "primary" else "700"
-        glow = "box-shadow: inset 0 0 0 1px rgba(255,159,26,0.20);" if emphasis == "primary" else ""
+        primary_class = " bb-summary-cell--primary" if emphasis == "primary" else ""
+        value_class = " bb-summary-value--primary" if emphasis == "primary" else ""
         return (
-            f'<div style="border:1px solid #2A2A2A; background:#0A0A0A; padding:0.38rem 0.48rem;{glow}">'
-            f'<div style="color:#B8B1A3; font-size:0.68rem; text-transform:uppercase;">{label}</div>'
-            f'<div style="color:{color}; font-size:{value_size}; font-weight:{value_weight}; line-height:1.18;">{value}</div>'
+            f'<div class="bb-summary-cell{primary_class}">'
+            f'<div class="bb-summary-label">{label}</div>'
+            f'<div class="bb-summary-value{value_class}" style="color:{color};">{value}</div>'
             "</div>"
         )
 
@@ -113,19 +112,8 @@ class SecurityHeader:
 
         st.markdown(
             f"""
-            <div style="
-                border: 1px solid #2A2A2A;
-                background-color: #050505;
-                padding: 0.45rem 0.55rem;
-                margin: 0.2rem 0 0.65rem 0;
-                border-radius: 2px;
-            ">
-                <div style="
-                    display:grid;
-                    grid-template-columns: 1.15fr 1fr 1fr 1fr 1.15fr 0.95fr 0.95fr 0.95fr;
-                    gap: 0.4rem;
-                    align-items:stretch;
-                ">
+            <div class="bb-summary-strip">
+                <div class="bb-summary-grid">
                     {''.join(header_cells)}
                 </div>
             </div>

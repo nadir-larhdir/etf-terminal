@@ -46,6 +46,8 @@ class AnalyticsTab:
         with a4:
             st.metric("SPREAD DV01 PROXY / SHARE", self._format_dollar(analytics.spread_dv01_proxy_per_share))
 
+        st.markdown("<div class='bb-metric-group-spacer'></div>", unsafe_allow_html=True)
+
         if analytics.spread_proxy_used:
             s1, s2, s3, s4 = st.columns(4)
             with s1:
@@ -62,6 +64,8 @@ class AnalyticsTab:
                 st.metric("BENCHMARK USED", analytics.benchmark_used or "Curve")
             with s2:
                 st.metric("RATE MODEL R²", self._format_number(analytics.rate_model_r2))
+
+        st.markdown("<div class='bb-metric-group-spacer'></div>", unsafe_allow_html=True)
 
         self.info_panel.render_note(
             title="Methodology Note",

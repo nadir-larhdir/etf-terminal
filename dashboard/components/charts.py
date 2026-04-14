@@ -3,6 +3,8 @@ from pandas import DatetimeIndex
 import plotly.graph_objects as go
 import streamlit as st
 
+from dashboard.mobile import responsive_chart_layout
+
 
 TERMINAL_FONT = '"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
 
@@ -41,23 +43,13 @@ def format_volume_label(value: float) -> str:
 
 def _apply_terminal_chart_layout(fig: go.Figure, *, title: str, height: int, margin=None, legend=None) -> None:
     fig.update_layout(
-        title=dict(text=title, x=0.02, xanchor="left"),
-        template="plotly_dark",
-        paper_bgcolor="#000000",
-        plot_bgcolor="#000000",
-        font=dict(color="#F3F0E8", family=TERMINAL_FONT, size=12),
-        margin=margin or dict(l=20, r=20, t=50, b=30),
-        height=height,
-        legend=legend
-        or dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="center",
-            x=0.5,
-            font=dict(size=10),
-            bgcolor="rgba(0,0,0,0)",
-        ),
+        **responsive_chart_layout(
+            title,
+            height=height,
+            margin=margin,
+            legend=legend,
+            font_family=TERMINAL_FONT,
+        )
     )
 
 
@@ -161,6 +153,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             range=[filtered.index.min(), filtered.index.max()],
             rangeslider=dict(visible=False),
             fixedrange=True,
+            automargin=True,
         ),
         yaxis=dict(
             title="Price",
@@ -170,6 +163,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             range=[price_min - padding, price_max + padding],
             tickformat=".2f",
             fixedrange=True,
+            automargin=True,
         ),
     )
 
@@ -225,6 +219,7 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             range=[filtered.index.min(), filtered.index.max()],
             rangeslider=dict(visible=False),
             fixedrange=True,
+            automargin=True,
         ),
         yaxis=dict(
             title="Volume",
@@ -236,6 +231,7 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             ticktext=tick_text,
             range=[0, max_volume * 1.15],
             fixedrange=True,
+            automargin=True,
         ),
     )
 
@@ -291,8 +287,8 @@ def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
         legend=dict(orientation="h", y=1.02, x=0.5, xanchor="center"),
     )
     fig.update_layout(
-        xaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
-        yaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
+        xaxis=dict(showgrid=True, gridcolor="#2A2A2A", automargin=True),
+        yaxis=dict(showgrid=True, gridcolor="#2A2A2A", automargin=True),
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -313,8 +309,8 @@ def render_return_spread_chart(ratio_series: pd.Series, ticker_a: str, ticker_b:
 
     _apply_terminal_chart_layout(fig, title=f"Return Spread: {ticker_a}/{ticker_b}", height=420)
     fig.update_layout(
-        xaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
-        yaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
+        xaxis=dict(showgrid=True, gridcolor="#2A2A2A", automargin=True),
+        yaxis=dict(showgrid=True, gridcolor="#2A2A2A", automargin=True),
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -347,8 +343,8 @@ def render_beta_adjusted_z_chart(z_series: pd.Series, beta_series: pd.Series, ti
 
     _apply_terminal_chart_layout(fig, title=f"Beta-Adjusted Z: {ticker_a}/{ticker_b}", height=420)
     fig.update_layout(
-        xaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
-        yaxis=dict(showgrid=True, gridcolor="#2A2A2A"),
+        xaxis=dict(showgrid=True, gridcolor="#2A2A2A", automargin=True),
+        yaxis=dict(showgrid=True, gridcolor="#2A2A2A", automargin=True),
     )
 
     st.plotly_chart(fig, use_container_width=True)
