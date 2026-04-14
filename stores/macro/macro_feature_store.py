@@ -157,6 +157,14 @@ class MacroFeatureStore:
         with self.engine.connect() as conn:
             return pd.read_sql(text(query), conn)
 
+    def get_latest_feature_date(self) -> str | None:
+        query = f"SELECT MAX(date) AS latest_date FROM {qualified_table(self.engine, 'macro_features')}"
+        with self.engine.connect() as conn:
+            df = pd.read_sql(text(query), conn)
+        if df.empty or pd.isna(df.iloc[0]["latest_date"]):
+            return None
+        return str(df.iloc[0]["latest_date"])
+
     def _write_chunk_size(self, record_count: int) -> int:
         """Use smaller batches for Supabase/Postgres to avoid long single upserts."""
 

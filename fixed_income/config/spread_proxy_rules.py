@@ -1,18 +1,15 @@
 from __future__ import annotations
 
+from fixed_income.config.text_utils import security_text_blob
+
+SPREAD_PROXY_BY_BUCKET = {
+    "Investment Grade Credit": "BAMLC0A0CM",
+    "High Yield": "BAMLH0A0HYM2",
+}
+
 
 def spread_proxy_for_bucket(bucket: str, security) -> str | None:
-    text_blob = " ".join(
-        str(value or "")
-        for value in (
-            security.ticker,
-            security.name,
-            security.asset_class,
-            security.metadata.get("category"),
-            security.metadata.get("long_name"),
-            security.metadata.get("description"),
-        )
-    ).lower()
+    text_blob = security_text_blob(security)
     if bucket == "Investment Grade Credit":
         return "BAMLC0A4CBBB" if "bbb" in text_blob else "BAMLC0A0CM"
     if bucket == "High Yield":

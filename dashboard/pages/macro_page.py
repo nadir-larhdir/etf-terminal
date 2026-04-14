@@ -4,7 +4,9 @@ import plotly.graph_objects as go
 from scipy.optimize import minimize
 import streamlit as st
 
+from dashboard.cache import app_cache_key, cached_feature_matrix
 from dashboard.components import DashboardControls, InfoPanel
+from dashboard.mobile import responsive_chart_layout
 from dashboard.perf import timed_block
 
 
@@ -113,9 +115,9 @@ class MacroPage:
         }
         background, text = color_map.get(tone, color_map["neutral"])
         return (
-            f"<div style='margin-top:0.30rem;'>"
-            f"<span style='display:inline-block;padding:0.16rem 0.42rem;border:1px solid {text};"
-            f"background:{background};color:{text};font-size:0.72rem;text-transform:uppercase;'>"
+            f"<div style='margin-top:0.36rem;'>"
+            f"<span class='bb-regime-badge' style='border:1px solid {text};"
+            f"background:{background};color:{text};'>"
             f"{label}</span></div>"
         )
 
@@ -217,7 +219,7 @@ class MacroPage:
         return sorted(dict.fromkeys(feature_names))
 
     def _selected_lookback(self) -> int | None:
-        window_col, _ = st.columns([0.28, 0.72])
+        window_col, _ = st.columns([0.45, 0.55])
         with window_col:
             selected_window = self.controls.render_select(
                 "Macro Window",
@@ -264,21 +266,14 @@ class MacroPage:
         xaxis: dict | None = None,
         legend: dict | None = None,
     ) -> dict:
-        return dict(
-            title=dict(text=title, x=0.02, xanchor="left"),
-            template="plotly_dark",
-            paper_bgcolor="#000000",
-            plot_bgcolor="#000000",
-            margin=margin or dict(l=20, r=20, t=50, b=30),
+        return responsive_chart_layout(
+            title,
             height=height,
-            font=dict(
-                color="#F3F0E8",
-                family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                size=12,
-            ),
-            xaxis=xaxis or dict(showgrid=True, gridcolor="#2A2A2A"),
-            yaxis=dict(title=yaxis_title, showgrid=True, gridcolor="#2A2A2A"),
-            legend=legend or dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+            yaxis_title=yaxis_title,
+            margin=margin,
+            xaxis=xaxis,
+            legend=legend,
+            font_family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
         )
 
     def _render_chart_grid(self, matrix: pd.DataFrame, start_date, end_date) -> None:
@@ -289,6 +284,7 @@ class MacroPage:
                 self._render_chart(matrix, left_title, left_features, start_date, end_date)
             with col2:
                 self._render_chart(matrix, right_title, right_features, start_date, end_date)
+            st.markdown("<div class='bb-metric-group-spacer'></div>", unsafe_allow_html=True)
 
     def _render_regimes(self, matrix: pd.DataFrame) -> None:
         st.markdown("---")
@@ -319,29 +315,32 @@ class MacroPage:
         )
 
     def _render_cards(self, matrix: pd.DataFrame) -> None:
-        for start in range(0, len(CARD_CONFIG), 5):
-            row = CARD_CONFIG[start : start + 5]
-            cols = st.columns(len(row))
-            for col, (label, feature_name, delta_feature, badge_feature, badge_label) in zip(cols, row, strict=False):
-                value = self._latest_value(matrix, feature_name)
-                delta_value = self._latest_value(matrix, delta_feature)
-                badge_value = self._latest_value(matrix, badge_feature) if badge_feature else None
-                with col:
-                    st.metric(
-                        label.upper(),
-                        self._format_feature_value(feature_name, value),
-                        self._format_feature_value(delta_feature, delta_value, signed=True),
-                    )
-                    if badge_feature:
-                        st.markdown(
-                            self._badge_html(
-                                f"{badge_label} z {self._format_value(badge_value)}",
-                                self._metric_tone(badge_value),
-                            ),
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        st.caption(f"Recent change: {self._format_delta(delta_value)}")
+        cards: list[str] = []
+        for label, feature_name, delta_feature, badge_feature, badge_label in CARD_CONFIG:
+            value = self._latest_value(matrix, feature_name)
+            delta_value = self._latest_value(matrix, delta_feature)
+            badge_value = self._latest_value(matrix, badge_feature) if badge_feature else None
+            delta_text = self._format_feature_value(delta_feature, delta_value, signed=True)
+            if badge_feature:
+                footer_html = self._badge_html(
+                    f"{badge_label} z {self._format_value(badge_value)}",
+                    self._metric_tone(badge_value),
+                )
+            else:
+                footer_html = f"<div class='bb-macro-card-delta'>Recent change: {self._format_delta(delta_value)}</div>"
+
+            cards.append(
+                (
+                    "<div class='bb-macro-card'>"
+                    f"<div class='bb-macro-card-label'>{label.upper()}</div>"
+                    f"<div class='bb-macro-card-value'>{self._format_feature_value(feature_name, value)}</div>"
+                    f"<div class='bb-macro-card-delta'>{delta_text}</div>"
+                    f"{footer_html}"
+                    "</div>"
+                )
+            )
+
+        st.markdown(f"<div class='bb-macro-card-grid'>{''.join(cards)}</div>", unsafe_allow_html=True)
 
     def _nelson_siegel_curve(self, maturities: np.ndarray, beta0: float, beta1: float, beta2: float, tau: float) -> np.ndarray:
         safe_tau = max(float(tau), 1e-6)
@@ -422,23 +421,25 @@ class MacroPage:
                 "Latest treasury yield curve",
                 height=360,
                 yaxis_title="Yield (%)",
-                margin=dict(l=40, r=40, t=60, b=40),
+                margin=dict(l=40, r=40, t=92, b=52),
                 xaxis=dict(
                     title="Maturity (Years)",
                     type="log",
                     showgrid=True,
                     gridcolor="#2A2A2A",
+                    automargin=True,
+                    title_standoff=16,
                     tickmode="array",
                     tickvals=curve_df["maturity_years"].tolist(),
                     ticktext=curve_df["tenor"].tolist(),
                 ),
                 legend=dict(
                     orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="center",
-                    x=0.5,
-                    font=dict(size=10),
+                    yanchor="top",
+                    y=1.0,
+                    xanchor="left",
+                    x=0.0,
+                    font=dict(size=9),
                     bgcolor="rgba(0,0,0,0)",
                 ),
             ),
@@ -489,7 +490,13 @@ class MacroPage:
             st.info(f"No data available for {title.lower()} in the selected window.")
             return
 
-        fig.update_layout(**self._chart_layout(title, yaxis_title="bps" if any(name in OAS_FEATURES for name in feature_names) else None))
+        fig.update_layout(
+            **self._chart_layout(
+                title,
+                yaxis_title="bps" if any(name in OAS_FEATURES for name in feature_names) else None,
+                margin=dict(l=24, r=24, t=82, b=42),
+            )
+        )
         st.plotly_chart(fig, use_container_width=True)
 
     def render(self) -> None:
@@ -499,7 +506,13 @@ class MacroPage:
         start_date_filter = self._matrix_start_date(lookback)
 
         with timed_block("macro.load_feature_matrix"):
-            matrix = self.macro_feature_store.get_feature_matrix(feature_names, start_date=start_date_filter)
+            matrix = cached_feature_matrix(
+                app_cache_key(self.macro_feature_store.engine),
+                tuple(feature_names),
+                start_date_filter,
+                None,
+                self.macro_feature_store,
+            )
         if matrix.empty:
             st.warning("No macro features found. Run scripts.macro.build_macro_features first.")
             return

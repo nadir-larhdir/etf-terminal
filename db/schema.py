@@ -86,6 +86,34 @@ TABLE_DEFINITIONS = {
             PRIMARY KEY (feature_name, date)
         )
     """,
+    "analytics_snapshots": """
+        CREATE TABLE IF NOT EXISTS analytics_snapshots (
+            symbol TEXT NOT NULL,
+            as_of_date DATE NOT NULL,
+            asset_bucket TEXT,
+            benchmark_used TEXT,
+            spread_proxy_used TEXT,
+            estimated_duration REAL,
+            rate_dv01_per_share REAL,
+            cs01_proxy_per_share REAL,
+            spread_beta_per_bp REAL,
+            equity_beta REAL,
+            rate_model_r2 REAL,
+            spread_model_r2 REAL,
+            confidence_level TEXT,
+            model_type TEXT,
+            rate_proxy_used TEXT,
+            model_version TEXT,
+            computed_from_start_date DATE,
+            computed_from_end_date DATE,
+            notes TEXT,
+            reason TEXT,
+            lookback_days_used INTEGER,
+            observations_used INTEGER,
+            updated_at TIMESTAMP,
+            PRIMARY KEY (symbol, as_of_date)
+        )
+    """,
 }
 
 EXPECTED_MACRO_DATA_COLUMNS = [
@@ -109,6 +137,7 @@ INDEX_DEFINITIONS = {
     "idx_macro_data_series_date": "CREATE INDEX IF NOT EXISTS idx_macro_data_series_date ON macro_data (series_id, date)",
     "idx_macro_features_date": "CREATE INDEX IF NOT EXISTS idx_macro_features_date ON macro_features (date)",
     "idx_macro_features_feature_date": "CREATE INDEX IF NOT EXISTS idx_macro_features_feature_date ON macro_features (feature_name, date)",
+    "idx_analytics_snapshots_symbol_date": "CREATE INDEX IF NOT EXISTS idx_analytics_snapshots_symbol_date ON analytics_snapshots (symbol, as_of_date)",
     "idx_securities_active_ticker": "CREATE INDEX IF NOT EXISTS idx_securities_active_ticker ON securities (active, ticker)",
 }
 
@@ -126,6 +155,7 @@ def create_tables(engine):
         for ddl in INDEX_DEFINITIONS.values():
             conn.execute(text(_qualify_index_ddl(engine, ddl)))
         ensure_macro_data_schema(conn)
+        ensure_analytics_snapshot_schema(conn)
 
 
 def ensure_macro_data_schema(conn):
@@ -188,6 +218,31 @@ def ensure_macro_data_schema(conn):
         conn.exec_driver_sql(insert_statement)
 
     conn.exec_driver_sql("DROP TABLE macro_data_legacy")
+
+
+def ensure_analytics_snapshot_schema(conn):
+    engine = conn.engine
+    inspector = inspect(conn)
+    schema = active_schema_name(engine)
+    if "analytics_snapshots" not in set(inspector.get_table_names(schema=schema)):
+        return
+
+    existing_columns = {row["name"] for row in inspector.get_columns("analytics_snapshots", schema=schema)}
+    missing_columns = {
+        "model_version": "TEXT",
+        "computed_from_start_date": "DATE",
+        "computed_from_end_date": "DATE",
+        "spread_beta_per_bp": "REAL",
+    }
+    for column_name, column_type in missing_columns.items():
+        if column_name in existing_columns:
+            continue
+        conn.execute(
+            text(
+                f"ALTER TABLE {qualified_table(engine, 'analytics_snapshots')} "
+                f"ADD COLUMN {column_name} {column_type}"
+            )
+        )
 
 
 def _ensure_schema(conn) -> None:

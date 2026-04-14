@@ -1,12 +1,14 @@
 import streamlit as st
 
 from config import APP_ENV, DATA_BACKEND
+from dashboard.cache import app_cache_key, cached_active_securities
 from dashboard.pages import DashboardPage, HomePage, MacroPage, NewsPage
 from dashboard.perf import timed_block
 from dashboard.styles import apply_dashboard_theme
 from fixed_income.analytics import DurationModelSelector, FixedIncomeAnalyticsService
 from stores.macro import MacroFeatureStore, MacroStore
-from stores.market import InputStore, MetadataStore, PriceStore, SecurityStore
+from stores.analytics import AnalyticsSnapshotStore
+from stores.market import MetadataStore, PriceStore, SecurityStore
 from db.connection import get_engine
 
 
@@ -19,16 +21,17 @@ def get_cached_app_dependencies(data_backend: str, app_env: str):
     price_store = PriceStore(engine)
     macro_store = MacroStore(engine)
     duration_selector = DurationModelSelector()
+    analytics_snapshot_store = AnalyticsSnapshotStore(engine)
     return {
         "engine": engine,
         "security_store": SecurityStore(engine),
         "price_store": price_store,
-        "input_store": InputStore(engine),
         "metadata_store": MetadataStore(engine),
         "macro_store": macro_store,
         "macro_feature_store": MacroFeatureStore(engine),
+        "analytics_snapshot_store": analytics_snapshot_store,
         "duration_selector": duration_selector,
-        "analytics_service": FixedIncomeAnalyticsService(price_store, macro_store, duration_selector),
+        "analytics_service": FixedIncomeAnalyticsService(price_store, macro_store, duration_selector, analytics_snapshot_store),
     }
 
 
@@ -39,7 +42,6 @@ class DashboardApp:
         self,
         security_store,
         price_store,
-        input_store,
         metadata_store,
         macro_store,
         macro_feature_store,
@@ -47,7 +49,6 @@ class DashboardApp:
     ):
         self.security_store = security_store
         self.price_store = price_store
-        self.input_store = input_store
         self.metadata_store = metadata_store
         self.macro_store = macro_store
         self.macro_feature_store = macro_feature_store
@@ -61,8 +62,9 @@ class DashboardApp:
         st.title("ETF Terminal")
         st.caption("Fixed income ETF analytics terminal for market structure, liquidity, and relative value monitoring.")
 
+        cache_key = app_cache_key(self.security_store.engine)
         with timed_block("dashboard.load_active_securities"):
-            securities = self.security_store.list_active_securities().copy()
+            securities = cached_active_securities(cache_key, self.security_store)
         if securities.empty or "ticker" not in securities.columns:
             st.warning("No active securities found in the database.")
             return
@@ -114,7 +116,6 @@ def run_app():
     app = DashboardApp(
         dependencies["security_store"],
         dependencies["price_store"],
-        dependencies["input_store"],
         dependencies["metadata_store"],
         dependencies["macro_store"],
         dependencies["macro_feature_store"],

@@ -23,7 +23,6 @@ class DurationModelSelection:
 class RateRiskEstimate:
     estimated_duration: float | None
     dv01_per_share: float | None
-    ir01_per_share: float | None
     regression_r2: float | None
     benchmark_used: str | None
     rate_proxy_used: str
@@ -38,14 +37,6 @@ class SpreadRiskEstimate:
     regression_r2: float | None
     proxy_used: str | None
 
-
-@dataclass(frozen=True)
-class EquityRiskEstimate:
-    beta: float | None = None
-    proxy_used: str | None = None
-    regression_r2: float | None = None
-
-
 @dataclass(frozen=True)
 class SecurityAnalyticsSnapshot:
     ticker: str
@@ -56,7 +47,12 @@ class SecurityAnalyticsSnapshot:
     reason: str | None
     rate_risk: RateRiskEstimate
     spread_risk: SpreadRiskEstimate | None = None
-    equity_risk: EquityRiskEstimate | None = None
+    equity_beta: float | None = None
+    as_of_date: str | None = None
+    updated_at: str | None = None
+    model_version: str | None = None
+    computed_from_start_date: str | None = None
+    computed_from_end_date: str | None = None
 
     @property
     def benchmark_used(self) -> str | None:
@@ -73,10 +69,6 @@ class SecurityAnalyticsSnapshot:
     @property
     def dv01_per_share(self) -> float | None:
         return self.rate_risk.dv01_per_share
-
-    @property
-    def ir01_per_share(self) -> float | None:
-        return self.rate_risk.ir01_per_share
 
     @property
     def rate_model_r2(self) -> float | None:
@@ -101,3 +93,70 @@ class SecurityAnalyticsSnapshot:
     @property
     def observations_used(self) -> int | None:
         return self.rate_risk.observations_used
+
+    def to_record(self) -> dict[str, Any]:
+        return {
+            "symbol": self.ticker,
+            "as_of_date": self.as_of_date,
+            "asset_bucket": self.asset_bucket,
+            "benchmark_used": self.benchmark_used,
+            "spread_proxy_used": self.spread_proxy_used,
+            "estimated_duration": self.estimated_duration,
+            "rate_dv01_per_share": self.dv01_per_share,
+            "cs01_proxy_per_share": self.spread_dv01_proxy_per_share,
+            "spread_beta_per_bp": self.spread_beta_per_bp,
+            "equity_beta": self.equity_beta,
+            "rate_model_r2": self.rate_model_r2,
+            "spread_model_r2": self.spread_model_r2,
+            "confidence_level": self.confidence_level,
+            "model_type": self.model_type_used,
+            "rate_proxy_used": self.rate_proxy_used,
+            "notes": self.notes,
+            "reason": self.reason,
+            "lookback_days_used": self.rate_risk.lookback_days_used,
+            "observations_used": self.observations_used,
+            "updated_at": self.updated_at,
+            "model_version": self.model_version,
+            "computed_from_start_date": self.computed_from_start_date,
+            "computed_from_end_date": self.computed_from_end_date,
+        }
+
+    @classmethod
+    def from_record(cls, row: dict[str, Any]) -> "SecurityAnalyticsSnapshot":
+        return cls(
+            ticker=str(row["symbol"]),
+            asset_bucket=str(row.get("asset_bucket") or "Unknown"),
+            model_type_used=str(row.get("model_type") or "unknown"),
+            confidence_level=str(row.get("confidence_level") or "unknown"),
+            notes=str(row.get("notes") or ""),
+            reason=row.get("reason"),
+            rate_risk=RateRiskEstimate(
+                estimated_duration=row.get("estimated_duration"),
+                dv01_per_share=row.get("rate_dv01_per_share"),
+                regression_r2=row.get("rate_model_r2"),
+                benchmark_used=row.get("benchmark_used"),
+                rate_proxy_used=str(row.get("rate_proxy_used") or ""),
+                lookback_days_used=row.get("lookback_days_used"),
+                observations_used=row.get("observations_used"),
+            ),
+            spread_risk=(
+                SpreadRiskEstimate(
+                    beta_per_bp=row.get("spread_beta_per_bp"),
+                    dv01_proxy_per_share=row.get("cs01_proxy_per_share"),
+                    regression_r2=row.get("spread_model_r2"),
+                    proxy_used=row.get("spread_proxy_used"),
+                )
+                if row.get("spread_proxy_used") or row.get("cs01_proxy_per_share") is not None
+                else None
+            ),
+            equity_beta=row.get("equity_beta"),
+            as_of_date=None if row.get("as_of_date") is None else str(row.get("as_of_date")),
+            updated_at=None if row.get("updated_at") is None else str(row.get("updated_at")),
+            model_version=None if row.get("model_version") is None else str(row.get("model_version")),
+            computed_from_start_date=None
+            if row.get("computed_from_start_date") is None
+            else str(row.get("computed_from_start_date")),
+            computed_from_end_date=None
+            if row.get("computed_from_end_date") is None
+            else str(row.get("computed_from_end_date")),
+        )
