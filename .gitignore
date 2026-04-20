@@ -12,6 +12,7 @@ htmlcov/
 .streamlit/
 dist/
 build/
+*.egg-info/
 market_data.db
 market_data_backup.db
 market_data_prod.db

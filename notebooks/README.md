@@ -2,6 +2,12 @@
 
 Starter notebooks for exploring ETF Terminal data and domain logic from Jupyter.
 
+Before using the notebooks, install the repo once into your active Python environment:
+
+```bash
+python -m pip install -e .
+```
+
 Suggested flow:
 
 1. `00_setup_and_connections.ipynb`
@@ -31,4 +37,4 @@ Typical backend choices:
 - Supabase:
   - `DATA_BACKEND = "supabase"`
 
-Open Jupyter from the repo root so imports like `from db.connection import get_engine` resolve cleanly.
+After that, notebook imports like `from db.connection import get_engine` should resolve cleanly from any notebook in this repo.
