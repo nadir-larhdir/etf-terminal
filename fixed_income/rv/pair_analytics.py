@@ -29,6 +29,15 @@ def filtered_prices(left, right, *, start_date=None, end_date=None) -> pd.DataFr
     return aligned
 
 
+def returns_from_prices(prices: pd.DataFrame) -> pd.DataFrame:
+    if prices.empty:
+        return pd.DataFrame(columns=["ret_left", "ret_right"])
+    returns = prices.pct_change().dropna()
+    if returns.empty:
+        return pd.DataFrame(columns=["ret_left", "ret_right"])
+    return returns.rename(columns={"close_left": "ret_left", "close_right": "ret_right"})
+
+
 def ratio(left, right, *, start_date=None, end_date=None) -> pd.Series:
     prices = filtered_prices(left, right, start_date=start_date, end_date=end_date)
     if prices.empty:
@@ -200,8 +209,20 @@ def window_zscore(left, right, window: int) -> float:
     return 0.0 if std_val == 0 else (float(window_ratio.iloc[-1]) - mean_val) / std_val
 
 
-def screener_snapshot(definition: SpreadDefinition, left, right, *, start_date=None, end_date=None) -> RVAnalyticsSnapshot:
-    series = ratio(left, right, start_date=start_date, end_date=end_date)
+def screener_snapshot(
+    definition: SpreadDefinition,
+    left,
+    right,
+    *,
+    start_date=None,
+    end_date=None,
+    prices: pd.DataFrame | None = None,
+) -> RVAnalyticsSnapshot:
+    prices = filtered_prices(left, right, start_date=start_date, end_date=end_date) if prices is None else prices
+    if prices.empty:
+        return RVAnalyticsSnapshot(name=definition.name, zscore=0.0, correlation_20d=0.0, stability=0.0)
+
+    series = prices["close_left"] / prices["close_right"]
     if series.empty:
         return RVAnalyticsSnapshot(name=definition.name, zscore=0.0, correlation_20d=0.0, stability=0.0)
 
@@ -209,13 +230,23 @@ def screener_snapshot(definition: SpreadDefinition, left, right, *, start_date=N
     ratio_std = float(series.std(ddof=0)) if len(series) > 1 else 0.0
     current_ratio = float(series.iloc[-1])
     current_z = ((current_ratio - ratio_mean) / ratio_std) if ratio_std != 0 else 0.0
-    corr_series = rolling_correlation(left, right, window=20).dropna()
+    returns = returns_from_prices(prices)
+    corr_series = returns["ret_left"].rolling(20).corr(returns["ret_right"]).dropna() if not returns.empty else pd.Series(dtype=float)
     current_corr = float(corr_series.iloc[-1]) if not corr_series.empty else 0.0
+    ratio_autocorr = float(series.autocorr(lag=1)) if len(series) > 3 else 0.0
+    half_life_component = (
+        max(min(1 - abs(((-math.log(2) / math.log(ratio_autocorr)) if 0 < ratio_autocorr < 1 else 0.0) - 10) / 20, 1.0), 0.0)
+        if 0 < ratio_autocorr < 1
+        else 0.0
+    )
+    corr_component = max(min(abs(current_corr), 1.0), 0.0)
+    beta_component = max(min(1 / (1 + beta_stability(returns, window=20)), 1.0), 0.0) if not returns.empty else 0.0
+    stability = 100 * (0.45 * corr_component + 0.30 * half_life_component + 0.25 * beta_component)
     return RVAnalyticsSnapshot(
         name=definition.name,
         zscore=round(current_z, 2),
         correlation_20d=round(current_corr, 2),
-        stability=round(stability_score(left, right, start_date=start_date, end_date=end_date), 0),
+        stability=round(stability, 0),
     )
 
 

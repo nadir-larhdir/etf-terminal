@@ -3,6 +3,15 @@
 import pandas as pd
 
 
+def sql_in_clause_params(prefix: str, items: tuple[str, ...] | list[str]) -> tuple[str, dict[str, str]]:
+    """Build named SQL placeholders and params for a small IN-clause list."""
+
+    values = list(items)
+    placeholders = ", ".join(f":{prefix}_{idx}" for idx in range(len(values)))
+    params = {f"{prefix}_{idx}": value for idx, value in enumerate(values)}
+    return placeholders, params
+
+
 def latest_dates_map(df: pd.DataFrame, *, key_column: str, date_column: str = "latest_date") -> dict[str, str]:
     """Convert grouped latest-date query results into a simple string mapping."""
     if df.empty:

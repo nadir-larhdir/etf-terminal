@@ -7,6 +7,7 @@ from sqlalchemy import text
 
 from db.sql import qualified_table
 from fixed_income.analytics.result_models import SecurityAnalyticsSnapshot
+from stores.query_utils import sql_in_clause_params
 
 
 class AnalyticsSnapshotStore:
@@ -114,7 +115,7 @@ class AnalyticsSnapshotStore:
     def get_latest_snapshots(self, symbols: list[str]) -> pd.DataFrame:
         if not symbols:
             return pd.DataFrame()
-        placeholders = ", ".join(f":symbol_{idx}" for idx in range(len(symbols)))
+        placeholders, params = sql_in_clause_params("symbol", symbols)
         query = text(
             f"""
             WITH ranked AS (
@@ -129,6 +130,5 @@ class AnalyticsSnapshotStore:
             ORDER BY symbol
             """
         )
-        params = {f"symbol_{idx}": symbol for idx, symbol in enumerate(symbols)}
         with self.engine.connect() as conn:
             return pd.read_sql(query, conn, params=params)

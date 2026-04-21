@@ -156,7 +156,7 @@ class AnalyticsTab:
         price_as_of = pd.Timestamp(security.history.index.max()).date().isoformat() if not security.history.empty else "n/a"
         with timed_block("analytics.fetch_precomputed_snapshot"):
             precomputed = restore_analytics_snapshot(
-                cached_precomputed_analytics_snapshot(cache_key, security.ticker, self.analytics_service)
+                cached_precomputed_analytics_snapshot(cache_key, security.ticker, price_as_of, self.analytics_service)
             )
         stale = is_snapshot_stale(precomputed, ttl_hours=24, required_as_of_date=price_as_of)
         if precomputed is not None and not stale:

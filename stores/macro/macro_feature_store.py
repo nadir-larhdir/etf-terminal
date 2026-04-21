@@ -2,7 +2,7 @@ import pandas as pd
 from sqlalchemy import text
 
 from db.sql import qualified_table
-from stores.query_utils import index_history_frame, pivot_time_series
+from stores.query_utils import index_history_frame, pivot_time_series, sql_in_clause_params
 
 
 def _feature_matrix(
@@ -18,9 +18,8 @@ def _feature_matrix(
     """
     params = {}
     if feature_names:
-        placeholders = ", ".join(f":feature_{idx}" for idx in range(len(feature_names)))
+        placeholders, params = sql_in_clause_params("feature", feature_names)
         query += f" AND feature_name IN ({placeholders})"
-        params.update({f"feature_{idx}": name for idx, name in enumerate(feature_names)})
     if start_date is not None:
         query += " AND date >= :start_date"
         params["start_date"] = str(start_date)
@@ -38,7 +37,7 @@ def _latest_feature_values(_engine, feature_names: tuple[str, ...]) -> pd.DataFr
     if not feature_names:
         return pd.DataFrame(columns=["feature_name", "date", "value"])
 
-    placeholders = ", ".join(f":feature_{idx}" for idx in range(len(feature_names)))
+    placeholders, params = sql_in_clause_params("feature", feature_names)
     query = f"""
     WITH ranked AS (
         SELECT
@@ -48,15 +47,14 @@ def _latest_feature_values(_engine, feature_names: tuple[str, ...]) -> pd.DataFr
             category,
             sub_category,
             ROW_NUMBER() OVER (PARTITION BY feature_name ORDER BY date DESC) AS rn
-        FROM macro_features
+        FROM {qualified_table(_engine, 'macro_features')}
         WHERE feature_name IN ({placeholders})
     )
     SELECT feature_name, date, value, category, sub_category
     FROM ranked
     WHERE rn = 1
     ORDER BY feature_name
-    """.replace("FROM macro_features", f"FROM {qualified_table(_engine, 'macro_features')}")
-    params = {f"feature_{idx}": name for idx, name in enumerate(feature_names)}
+    """
 
     with _engine.connect() as conn:
         return pd.read_sql(text(query), conn, params=params)
