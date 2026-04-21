@@ -42,6 +42,38 @@ class NewsPage:
         self.info_panel = InfoPanel()
         self.macro_feature_store = macro_feature_store
 
+    def _render_news_link_styles(self) -> None:
+        st.markdown(
+            """
+            <style>
+            .bb-news-link {
+                color: #F3F0E8 !important;
+                text-decoration: none !important;
+                transition: color 0.18s ease;
+            }
+            .bb-news-link--rates:hover {
+                color: #5DA9E9 !important;
+            }
+            .bb-news-link--credit:hover {
+                color: #FF9F1A !important;
+            }
+            .bb-news-link--macro:hover {
+                color: #FF5A36 !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    def _news_link_style(self, *, font_size: str, weight: int = 700, line_height: str = "1.4") -> str:
+        return (
+            f"color:#F3F0E8;text-decoration:none;font-weight:{weight};font-size:{font_size};line-height:{line_height};"
+            "transition:color 0.18s ease;"
+        )
+
+    def _news_link_class(self, bucket: str) -> str:
+        return f"bb-news-link bb-news-link--{bucket}"
+
     def _dedupe_feeds(self, feed_data: dict[str, dict]) -> dict[str, list[dict]]:
         seen_keys: set[str] = set()
         deduped: dict[str, list[dict]] = {}
@@ -177,8 +209,9 @@ class NewsPage:
         body = (
             f"<span style='display:inline-block;padding:0.12rem 0.34rem;border:1px solid {accent_color};"
             f"color:{accent_color};font-size:0.68rem;text-transform:uppercase;margin-bottom:0.45rem;'>{tag}</span><br>"
-            f"<a href='{featured['link']}' target='_blank' "
-            f"style='color:#B8B1A3;text-decoration:none;font-weight:700;font-size:0.95rem;'>"
+            f"<a href='{featured['link']}' target='_blank' class='{self._news_link_class(bucket)}' "
+            f"style='{self._news_link_style(font_size='0.95rem')}' "
+            f" rel='noopener noreferrer'>"
             f"{featured['title']}</a><br><br>"
             f"<span style='color:#B8B1A3;font-size:0.78rem;'>"
             f"{featured['source']} | {self._format_timestamp(featured.get('published_at'))}</span>"
@@ -204,7 +237,8 @@ class NewsPage:
                 f"<div style='padding:0.38rem 0;border-bottom:1px solid #1A1A1A;'>"
                 f"<span style='display:inline-block;padding:0.10rem 0.28rem;border:1px solid {accent_color};"
                 f"color:{accent_color};font-size:0.64rem;text-transform:uppercase;margin-bottom:0.25rem;'>{tag}</span><br>"
-                f"<a href='{item['link']}' target='_blank' style='color:#B8B1A3;text-decoration:none;'>"
+                f"<a href='{item['link']}' target='_blank' class='{self._news_link_class(bucket)}' style='{self._news_link_style(font_size='0.92rem', weight=500)}' "
+                f" rel='noopener noreferrer'>"
                 f"{item['title']}</a><br>"
                 f"<span style='color:#8D877B;font-size:0.75rem;'>{item['source']} | {self._format_timestamp(item.get('published_at'))}</span>"
                 f"</div>"
@@ -223,6 +257,7 @@ class NewsPage:
         )
 
     def render(self) -> None:
+        self._render_news_link_styles()
         with timed_block("news.load_feeds"):
             feed_data, feed_error = load_news_feeds()
         with timed_block("news.dedupe_feeds"):
@@ -262,8 +297,9 @@ class NewsPage:
                 title=section_label,
                 headline="Lead headline",
                 body=(
-                    f"<a href='{top_story['link']}' target='_blank' "
-                    f"style='color:#B8B1A3;text-decoration:none;font-weight:700;font-size:1.08rem;line-height:1.45;'>"
+                    f"<a href='{top_story['link']}' target='_blank' class='{self._news_link_class(top_story_bucket or 'credit')}' "
+                    f"style='{self._news_link_style(font_size='1.08rem', line_height='1.45')}' "
+                    f" rel='noopener noreferrer'>"
                     f"{top_story['title']}</a><br><br>"
                     f"<span style='color:#B8B1A3;font-size:0.80rem;'>"
                     f"{top_story['source']} | {self._format_timestamp(top_story.get('published_at'))}</span>"
@@ -290,25 +326,26 @@ class NewsPage:
             self.info_panel.render(
                 title="Rates",
                 headline="Curve, auctions, and policy tone",
-                body="This section can hold front-end, belly, and long-end headlines plus Treasury supply context and central-bank commentary.",
+                body="This section tracks front-end, belly, and long-end rate moves, Treasury supply, and Fed-sensitive market pricing.",
                 margin_top="0.10rem",
                 margin_bottom="0.20rem",
+                accent_color="#5DA9E9",
             )
         with coverage_col2:
             self.info_panel.render(
-                title="Credit",
-                headline="Spread tone and risk appetite",
-                body="This section can cover IG vs HY leadership, spread decompression, issuance tone, and sector-level stress signals.",
+                title="Credit And ETFs",
+                headline="Spreads, flows, and implementation",
+                body="This section combines IG and HY spread tone with bond ETF flows, liquidity, creation-redemption activity, and allocator positioning.",
                 margin_top="0.10rem",
                 margin_bottom="0.20rem",
-                accent_color="#00ADB5",
+                accent_color="#FF9F1A",
             )
         with coverage_col3:
             self.info_panel.render(
-                title="ETF Market",
-                headline="Flows, liquidity, and implementation",
-                body="This section can focus on where ETF turnover, creation-redemption activity, and allocator demand are changing execution conditions.",
+                title="Macro",
+                headline="Inflation, labor, and policy backdrop",
+                body="This section focuses on inflation prints, labor data, central-bank communication, and the broader macro narrative shaping fixed income.",
                 margin_top="0.10rem",
                 margin_bottom="0.20rem",
-                accent_color="#FFD166",
+                accent_color="#FF5A36",
             )

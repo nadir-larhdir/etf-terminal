@@ -232,6 +232,18 @@ def apply_dashboard_theme():
             margin-bottom: 0.2rem;
         }
 
+        .bb-macro-card-delta--positive {
+            color: #00C176;
+        }
+
+        .bb-macro-card-delta--negative {
+            color: #FF5A36;
+        }
+
+        .bb-macro-card-delta--neutral {
+            color: #B8B1A3;
+        }
+
         .bb-highlight-metric {
             padding: 0.1rem 0 0.55rem 0;
         }
