@@ -23,7 +23,9 @@ def _filter_by_period(hist: pd.DataFrame, period_label: str) -> pd.DataFrame:
 
 def _filter_by_dates(hist: pd.DataFrame, start_date, end_date) -> pd.DataFrame:
     idx = DatetimeIndex(hist.index)
-    filtered = hist.loc[(idx.date >= start_date) & (idx.date <= end_date)].copy()
+    start_ts = pd.Timestamp(start_date)
+    end_ts = pd.Timestamp(end_date)
+    filtered = hist.loc[(idx >= start_ts) & (idx <= end_ts)].copy()
     return filtered if not filtered.empty else hist.tail(1).copy()
 
 

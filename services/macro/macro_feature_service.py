@@ -20,6 +20,9 @@ FEATURE_METADATA = {
     "UST_2S10S": ("Rates", "Curve"),
     "UST_5S30S": ("Rates", "Curve"),
     "UST_3M10Y": ("Rates", "Curve"),
+    "UST_2S10S_CHANGE_20D": ("Rates", "Curve"),
+    "UST_5S30S_CHANGE_20D": ("Rates", "Curve"),
+    "UST_10Y_Z20": ("Rates", "Rates Level"),
     "UST_2S10S_Z20": ("Rates", "Curve"),
     "UST_2S10S_Z60": ("Rates", "Curve"),
     "UST_5S30S_Z20": ("Rates", "Curve"),
@@ -49,6 +52,7 @@ FEATURE_METADATA = {
     "HY_OAS_CHANGE_20D": ("Credit", "OAS Change"),
     "BBB_OAS_CHANGE_20D": ("Credit", "OAS Change"),
     "SINGLE_B_OAS_CHANGE_20D": ("Credit", "OAS Change"),
+    "HY_MINUS_IG_OAS_CHANGE_20D": ("Credit", "Spread Curve"),
     "HY_MINUS_IG_OAS": ("Credit", "Spread Curve"),
     "BBB_MINUS_IG_OAS": ("Credit", "Spread Curve"),
     "SINGLE_B_MINUS_HY_OAS": ("Credit", "Spread Curve"),
@@ -143,6 +147,9 @@ class MacroFeatureService:
         features["UST_2S10S"] = raw.get("DGS10") - raw.get("DGS2")
         features["UST_5S30S"] = raw.get("DGS30") - raw.get("DGS5")
         features["UST_3M10Y"] = raw.get("DGS10") - raw.get("DGS3MO")
+        features["UST_2S10S_CHANGE_20D"] = self._change(features["UST_2S10S"], 20)
+        features["UST_5S30S_CHANGE_20D"] = self._change(features["UST_5S30S"], 20)
+        features["UST_10Y_Z20"] = self._zscore(raw.get("DGS10"), 20)
         features["UST_2S10S_Z20"] = self._zscore(features["UST_2S10S"], 20)
         features["UST_2S10S_Z60"] = self._zscore(features["UST_2S10S"], 60)
         features["UST_5S30S_Z20"] = self._zscore(features["UST_5S30S"], 20)
@@ -190,6 +197,7 @@ class MacroFeatureService:
         features["BBB_OAS_CHANGE_20D"] = self._change(bbb_oas, 20)
         features["SINGLE_B_OAS_CHANGE_20D"] = self._change(single_b_oas, 20)
         features["HY_MINUS_IG_OAS"] = hy_oas - ig_oas
+        features["HY_MINUS_IG_OAS_CHANGE_20D"] = self._change(features["HY_MINUS_IG_OAS"], 20)
         features["BBB_MINUS_IG_OAS"] = bbb_oas - ig_oas
         features["SINGLE_B_MINUS_HY_OAS"] = single_b_oas - hy_oas
         features["IG_OAS_Z20"] = self._zscore(ig_oas, 20)
