@@ -6,6 +6,7 @@ import streamlit as st
 
 from dashboard.cache import app_cache_key, cached_feature_matrix
 from dashboard.components import DashboardControls, InfoPanel
+from dashboard.components.controls import WINDOW_LOOKBACK_MAP
 from dashboard.mobile import responsive_chart_layout
 from dashboard.perf import timed_block
 
@@ -97,7 +98,7 @@ Z_SCORE_FEATURES = {
     "HY_MINUS_IG_OAS_Z20",
 }
 
-LOOKBACK_MAP = {"30D": 30, "3M": 63, "6M": 126, "1Y": 252, "5Y": 1260, "ALL": None}
+LOOKBACK_MAP = {**WINDOW_LOOKBACK_MAP, "5Y": 1260, "ALL": None}
 CHART_PALETTE = ["#FFD166", "#00ADB5", "#FF5A36", "#00C176"]
 TREASURY_CHART_COLORS = {
     "UST_2Y_LEVEL": "#B22222",

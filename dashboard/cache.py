@@ -43,13 +43,13 @@ def cached_latest_feature_values(cache_key: str, feature_names: tuple[str, ...],
     return _macro_feature_store.get_latest_feature_values(list(feature_names)).copy()
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
-def cached_precomputed_analytics_snapshot(cache_key: str, ticker: str, _analytics_service):
+@st.cache_data(show_spinner=False)
+def cached_precomputed_analytics_snapshot(cache_key: str, ticker: str, price_as_of: str, _analytics_service):
     snapshot = _analytics_service.get_latest_snapshot(ticker)
     return None if snapshot is None else snapshot.to_record()
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(show_spinner=False)
 def cached_live_analytics_snapshot(
     cache_key: str,
     ticker: str,

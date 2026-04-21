@@ -71,6 +71,7 @@ def _cached_screener_rows(
             candidate_security,
             start_date=pd.Timestamp(rv_start_date),
             end_date=pd.Timestamp(rv_end_date),
+            prices=candidate_merged,
         )
         screener_rows.append(
             {

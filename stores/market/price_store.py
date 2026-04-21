@@ -2,7 +2,7 @@ import pandas as pd
 from sqlalchemy import text
 
 from db.sql import pandas_to_sql_kwargs, qualified_table
-from stores.query_utils import index_history_frame, latest_dates_map
+from stores.query_utils import index_history_frame, latest_dates_map, sql_in_clause_params
 
 
 def _existing_tickers(_engine, tickers: tuple[str, ...] | None) -> set[str]:
@@ -10,9 +10,8 @@ def _existing_tickers(_engine, tickers: tuple[str, ...] | None) -> set[str]:
     params = {}
 
     if tickers:
-        placeholders = ", ".join(f":ticker_{idx}" for idx in range(len(tickers)))
+        placeholders, params = sql_in_clause_params("ticker", tickers)
         query += f" WHERE ticker IN ({placeholders})"
-        params = {f"ticker_{idx}": ticker for idx, ticker in enumerate(tickers)}
 
     with _engine.connect() as conn:
         df = pd.read_sql(text(query), conn, params=params)
@@ -28,9 +27,8 @@ def _latest_stored_dates(_engine, tickers: tuple[str, ...] | None) -> dict[str, 
     params = {}
 
     if tickers:
-        placeholders = ", ".join(f":ticker_{idx}" for idx in range(len(tickers)))
+        placeholders, params = sql_in_clause_params("ticker", tickers)
         query += f" WHERE ticker IN ({placeholders})"
-        params = {f"ticker_{idx}": ticker for idx, ticker in enumerate(tickers)}
 
     query += " GROUP BY ticker"
 
@@ -68,13 +66,12 @@ def _multi_ticker_history(_engine, tickers: tuple[str, ...], start_date=None, en
     if not tickers:
         return pd.DataFrame(columns=["ticker", "date", "open", "high", "low", "close", "adj_close", "volume"])
 
-    placeholders = ", ".join(f":ticker_{idx}" for idx in range(len(tickers)))
+    placeholders, params = sql_in_clause_params("ticker", tickers)
     query = f"""
     SELECT ticker, date, open, high, low, close, adj_close, volume
     FROM {qualified_table(_engine, 'price_history')}
     WHERE ticker IN ({placeholders})
     """
-    params = {f"ticker_{idx}": ticker for idx, ticker in enumerate(tickers)}
 
     if start_date is not None:
         query += " AND date >= :start_date"

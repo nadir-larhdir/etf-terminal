@@ -55,42 +55,45 @@ class FixedIncomeAnalyticsService:
         latest_price = security.last_price()
         start_date = None if returns.empty else (returns.index.max() - pd.Timedelta(days=260)).date().isoformat()
         rate_changes_bps = treasury_rate_changes_bps(self.macro_store, start_date=start_date) if start_date else pd.DataFrame()
-        if start_date and hasattr(self.price_store, "get_multi_ticker_price_history"):
-            benchmark_history = self.price_store.get_multi_ticker_price_history(list(BENCHMARK_POOL), start_date=start_date)
-        elif start_date:
-            benchmark_history = {
-                ticker: self.price_store.get_ticker_price_history(ticker, start_date=start_date) for ticker in BENCHMARK_POOL
-            }
-        else:
-            benchmark_history = {}
+        aligned = returns.rename("etf_return").to_frame().join(rate_changes_bps, how="inner")
+        curve_60d = regress_duration(aligned.tail(60), 60, list(RATE_SERIES)) if not aligned.empty else None
+        curve_120d = regress_duration(aligned.tail(120), 120, list(RATE_SERIES)) if not aligned.empty else None
+        rough_duration = self._blended_metrics(curve_120d, curve_60d)["estimated_duration"]
+        selection = self.duration_selector.select_for_security(security, rough_duration=rough_duration)
+
         benchmark_returns_map: dict[str, pd.Series] = {}
-        for benchmark_ticker, history in benchmark_history.items():
-            if history.empty:
-                continue
-            benchmark_security = Security(benchmark_ticker, history=history)
-            series = benchmark_security.log_returns()
-            if not series.empty:
+        benchmark_duration_map: dict[str, float | None] = {}
+        if start_date and selection.duration_model_type == "treasury_etf_benchmark_regression":
+            benchmark_symbols = [selection.treasury_benchmark_symbol] if selection.treasury_benchmark_symbol else list(BENCHMARK_POOL)
+            if hasattr(self.price_store, "get_multi_ticker_price_history"):
+                benchmark_history = self.price_store.get_multi_ticker_price_history(benchmark_symbols, start_date=start_date)
+            else:
+                benchmark_history = {
+                    ticker: self.price_store.get_ticker_price_history(ticker, start_date=start_date) for ticker in benchmark_symbols
+                }
+            for benchmark_ticker, history in benchmark_history.items():
+                if history.empty:
+                    continue
+                series = Security(benchmark_ticker, history=history).log_returns()
+                if series.empty:
+                    continue
                 benchmark_returns_map[benchmark_ticker] = series.rename("benchmark_return")
+                benchmark_duration_map[benchmark_ticker] = self._regressed_benchmark_duration(series, rate_changes_bps)
 
         spread_series_map: dict[str, pd.Series] = {}
-        for series_id in sorted({series for series in SPREAD_PROXY_BY_BUCKET.values() if series}):
-            spread_series = spread_changes_bps(self.macro_store, series_id, start_date=start_date) if start_date else pd.Series(dtype=float)
+        if start_date and selection.spread_proxy_series_id:
+            spread_series = spread_changes_bps(self.macro_store, selection.spread_proxy_series_id, start_date=start_date)
             if not spread_series.empty:
-                spread_series_map[series_id] = spread_series
-
-        benchmark_duration_map = {
-            benchmark_ticker: self._regressed_benchmark_duration(
-                benchmark_returns_map.get(benchmark_ticker, pd.Series(dtype=float)),
-                rate_changes_bps,
-            )
-            for benchmark_ticker in BENCHMARK_POOL
-        }
+                spread_series_map[selection.spread_proxy_series_id] = spread_series
 
         return {
             "returns": returns.rename("etf_return"),
             "latest_price": latest_price,
             "start_date": start_date,
             "rate_changes_bps": rate_changes_bps,
+            "curve_60d": curve_60d,
+            "curve_120d": curve_120d,
+            "selection": selection,
             "benchmark_returns": benchmark_returns_map,
             "benchmark_durations": benchmark_duration_map,
             "spread_series": spread_series_map,
@@ -115,10 +118,12 @@ class FixedIncomeAnalyticsService:
         if len(aligned) < 20:
             return self._empty_snapshot(security, "Not enough overlapping ETF and Treasury observations.")
 
-        curve_60d = regress_duration(aligned.tail(60), 60, list(RATE_SERIES))
-        curve_120d = regress_duration(aligned.tail(120), 120, list(RATE_SERIES))
-        rough_duration = ewma_blend([curve_120d["estimated_duration"], curve_60d["estimated_duration"]])
-        selection = self.duration_selector.select_for_security(security, rough_duration=rough_duration)
+        curve_60d = factor_bundle.get("curve_60d") or regress_duration(aligned.tail(60), 60, list(RATE_SERIES))
+        curve_120d = factor_bundle.get("curve_120d") or regress_duration(aligned.tail(120), 120, list(RATE_SERIES))
+        selection = factor_bundle.get("selection") or self.duration_selector.select_for_security(
+            security,
+            rough_duration=self._blended_metrics(curve_120d, curve_60d)["estimated_duration"],
+        )
 
         headline_60d = curve_60d
         headline_120d = curve_120d
@@ -139,11 +144,12 @@ class FixedIncomeAnalyticsService:
                     if len(benchmark_frame) >= 20 and "spread_change_bps" in benchmark_frame.columns:
                         headline_60d = regress_credit_benchmark_duration(benchmark_frame.tail(60), 60, benchmark_duration)
                         headline_120d = regress_credit_benchmark_duration(benchmark_frame.tail(120), 120, benchmark_duration)
-                        spread_beta = ewma_blend([headline_120d["credit_beta"], headline_60d["credit_beta"]])
+                        blended_spread = self._blended_metrics(headline_120d, headline_60d, credit_key="credit_beta")
+                        spread_beta = blended_spread["credit_beta"]
                         spread_estimate = SpreadRiskEstimate(
                             beta_per_bp=spread_beta,
                             dv01_proxy_per_share=None if spread_beta is None else abs(spread_beta) * latest_price,
-                            regression_r2=ewma_blend([headline_120d["regression_r2"], headline_60d["regression_r2"]]),
+                            regression_r2=blended_spread["regression_r2"],
                             proxy_used=selection.spread_proxy_series_id,
                         )
                     if headline_60d["estimated_duration"] is None or headline_120d["estimated_duration"] is None:
@@ -159,16 +165,18 @@ class FixedIncomeAnalyticsService:
                 if len(spread_frame) >= 20:
                     spread_60d = regress_duration(spread_frame.tail(60), 60, [*RATE_SERIES, "spread_change_bps"])
                     spread_120d = regress_duration(spread_frame.tail(120), 120, [*RATE_SERIES, "spread_change_bps"])
-                    spread_beta = ewma_blend([spread_120d["credit_beta"], spread_60d["credit_beta"]])
+                    blended_spread = self._blended_metrics(spread_120d, spread_60d, credit_key="credit_beta")
+                    spread_beta = blended_spread["credit_beta"]
                     spread_estimate = SpreadRiskEstimate(
                         beta_per_bp=spread_beta,
                         dv01_proxy_per_share=None if spread_beta is None else abs(spread_beta) * latest_price,
-                        regression_r2=ewma_blend([spread_120d["regression_r2"], spread_60d["regression_r2"]]),
+                        regression_r2=blended_spread["regression_r2"],
                         proxy_used=selection.spread_proxy_series_id,
                     )
 
-        estimated_duration = ewma_blend([headline_120d["estimated_duration"], headline_60d["estimated_duration"]])
-        rate_model_r2 = ewma_blend([headline_120d["regression_r2"], headline_60d["regression_r2"]])
+        blended_headline = self._blended_metrics(headline_120d, headline_60d)
+        estimated_duration = blended_headline["estimated_duration"]
+        rate_model_r2 = blended_headline["regression_r2"]
         reason = (headline_120d["reason"] or headline_60d["reason"] or "").strip() or None
         if selection.asset_bucket == "High Yield":
             extra = "High-yield duration is model-based and more sensitive to benchmark and spread specification than Treasury and IG estimates."
@@ -206,6 +214,15 @@ class FixedIncomeAnalyticsService:
         benchmark_duration_map: dict[str, float | None],
     ) -> float | None:
         return benchmark_duration_map.get(benchmark_ticker)
+
+    def _blended_metrics(self, primary: dict | None, secondary: dict | None, *, credit_key: str = "credit_beta") -> dict[str, float | None]:
+        primary = primary or {}
+        secondary = secondary or {}
+        return {
+            "estimated_duration": ewma_blend([primary.get("estimated_duration"), secondary.get("estimated_duration")]),
+            "regression_r2": ewma_blend([primary.get("regression_r2"), secondary.get("regression_r2")]),
+            credit_key: ewma_blend([primary.get(credit_key), secondary.get(credit_key)]),
+        }
 
     def _regressed_benchmark_duration(
         self,
