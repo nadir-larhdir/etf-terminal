@@ -7,7 +7,7 @@ import requests
 
 
 class FMPClient:
-    """Fetch daily ETF pricing and basic profile data from Financial Modeling Prep."""
+    """Fetch ETF pricing, profile data, and holdings from Financial Modeling Prep."""
 
     def __init__(self, api_key: str, base_url: str):
         self.api_key = api_key
@@ -98,6 +98,24 @@ class FMPClient:
 
     def get_etf_info(self, symbol: str) -> dict:
         return self._extract_record(self._request_json("etf/info", {"symbol": symbol}))
+
+    def get_etf_holdings(self, symbol: str) -> list[dict]:
+        """Return live ETF holdings rows for a symbol when FMP exposes them."""
+
+        rows = self._extract_rows(self._request_json(f"etf-holder/{symbol}", {}))
+        if not rows:
+            return []
+
+        frame = pd.DataFrame(rows)
+        if frame.empty:
+            return []
+
+        # Normalize a few common weight fields so notebooks can sort reliably.
+        for column in ["weightPercentage", "weight", "sharesNumber", "marketValue"]:
+            if column in frame.columns:
+                frame[column] = pd.to_numeric(frame[column], errors="ignore")
+
+        return frame.to_dict(orient="records")
 
     def _period_cutoff(self, period: str) -> str | None:
         today = datetime.utcnow().date()

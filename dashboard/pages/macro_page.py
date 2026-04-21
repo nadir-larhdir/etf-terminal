@@ -11,16 +11,16 @@ from dashboard.perf import timed_block
 
 
 CARD_CONFIG = [
-    ("10Y yield", "UST_10Y_LEVEL", "UST_10Y_CHANGE_20D", "UST_10Y_CHANGE_20D", "Rates"),
-    ("2s10s", "UST_2S10S", "UST_2S10S_Z20", "UST_2S10S_Z20", "Curve"),
-    ("5s30s", "UST_5S30S", "UST_5S30S_Z20", "UST_5S30S_Z20", "Curve"),
-    ("5Y breakeven", "BEI_5Y", "BEI_5Y_CHANGE_20D", "BEI_5Y_Z20", "Inflation"),
-    ("IG OAS", "IG_OAS_LEVEL", "IG_OAS_CHANGE_20D", "IG_OAS_Z20", "Credit"),
-    ("HY OAS", "HY_OAS_LEVEL", "HY_OAS_CHANGE_20D", "HY_OAS_Z20", "Credit"),
-    ("HY-IG spread", "HY_MINUS_IG_OAS", "HY_OAS_CHANGE_20D", "HY_MINUS_IG_OAS_Z20", "Credit"),
-    ("CPI YoY", "CPI_YOY", "CPI_3M_ANN", None, "Inflation"),
-    ("Fed Funds", "FEDFUNDS_LEVEL", "FEDFUNDS_CHANGE_3M", None, "Policy"),
-    ("Unemployment rate", "UNRATE_LEVEL", "UNRATE_3M_CHANGE", None, "Growth"),
+    ("10Y yield", "UST_10Y_LEVEL", "UST_10Y_Z20", "Rates"),
+    ("2s10s", "UST_2S10S", "UST_2S10S_Z20", "Curve"),
+    ("5s30s", "UST_5S30S", "UST_5S30S_Z20", "Curve"),
+    ("5Y breakeven", "BEI_5Y", "BEI_5Y_Z20", "Inflation"),
+    ("IG OAS", "IG_OAS_LEVEL", "IG_OAS_Z20", "Credit"),
+    ("HY OAS", "HY_OAS_LEVEL", "HY_OAS_Z20", "Credit"),
+    ("HY-IG spread", "HY_MINUS_IG_OAS", "HY_MINUS_IG_OAS_Z20", "Credit"),
+    ("CPI YoY", "CPI_YOY", None, "Inflation"),
+    ("Fed Funds", "FEDFUNDS_LEVEL", None, "Policy"),
+    ("Unemployment rate", "UNRATE_LEVEL", None, "Growth"),
 ]
 
 CHART_CONFIG = [
@@ -76,8 +76,59 @@ OAS_FEATURES = {
     "SINGLE_B_MINUS_HY_OAS",
 }
 
+PERCENT_LEVEL_FEATURES = {
+    "UST_10Y_LEVEL",
+    "UST_2S10S",
+    "UST_5S30S",
+    "BEI_5Y",
+    "CPI_YOY",
+    "FEDFUNDS_LEVEL",
+    "UNRATE_LEVEL",
+}
+
+Z_SCORE_FEATURES = {
+    "UST_10Y_Z20",
+    "UST_2S10S_Z20",
+    "UST_2S10S_Z60",
+    "UST_5S30S_Z20",
+    "BEI_5Y_Z20",
+    "IG_OAS_Z20",
+    "HY_OAS_Z20",
+    "HY_MINUS_IG_OAS_Z20",
+}
+
 LOOKBACK_MAP = {"30D": 30, "3M": 63, "6M": 126, "1Y": 252, "5Y": 1260, "ALL": None}
 CHART_PALETTE = ["#FFD166", "#00ADB5", "#FF5A36", "#00C176"]
+TREASURY_CHART_COLORS = {
+    "UST_2Y_LEVEL": "#B22222",
+    "UST_10Y_LEVEL": "#163A70",
+    "UST_30Y_LEVEL": "#00A86B",
+}
+MACRO_CHART_COLORS = {
+    "UST_2S10S": "#0E7490",
+    "UST_5S30S": "#0E7490",
+    "CPI_YOY": "#D4A017",
+    "BEI_5Y": "#D4A017",
+    "REAL_RATE_PROXY": "#B8860B",
+    "FEDFUNDS_LEVEL": "#5B7DB1",
+    "UNRATE_LEVEL": "#7FB069",
+    "IG_OAS_LEVEL": "#5DA9E9",
+    "BBB_OAS_LEVEL": "#E67E22",
+    "HY_OAS_LEVEL": "#D35400",
+    "HY_MINUS_IG_OAS": "#E67E22",
+}
+PERCENT_CHART_FEATURES = {
+    "UST_2Y_LEVEL",
+    "UST_10Y_LEVEL",
+    "UST_30Y_LEVEL",
+    "UST_2S10S",
+    "UST_5S30S",
+    "CPI_YOY",
+    "BEI_5Y",
+    "REAL_RATE_PROXY",
+    "FEDFUNDS_LEVEL",
+    "UNRATE_LEVEL",
+}
 
 
 class MacroPage:
@@ -104,8 +155,21 @@ class MacroPage:
                 return "n/a"
             number = value * 100.0
             return f"{number:+.0f} bps" if signed else f"{number:,.0f} bps"
+        if feature_name in PERCENT_LEVEL_FEATURES:
+            if value is None or pd.isna(value):
+                return "n/a"
+            return f"{value:+.2f}%" if signed else f"{value:,.2f}%"
         formatter = self._format_delta if signed else self._format_value
         return formatter(value)
+
+    def _format_delta_value(self, feature_name: str, value: float | None) -> str:
+        if value is None or pd.isna(value):
+            return "n/a"
+        if feature_name in Z_SCORE_FEATURES:
+            return f"z {value:+.2f}"
+        if feature_name in OAS_FEATURES or feature_name in PERCENT_LEVEL_FEATURES:
+            return f"{value * 100:+.0f} bps"
+        return self._format_feature_value(feature_name, value, signed=True)
 
     def _badge_html(self, label: str, tone: str) -> str:
         color_map = {
@@ -135,6 +199,24 @@ class MacroPage:
         if value is None or pd.isna(value):
             return default
         return float(value)
+
+    def _delta_html(self, label: str, text: str, value: float | None) -> str:
+        tone = self._metric_tone(value)
+        tone_class = {
+            "positive": "bb-macro-card-delta--positive",
+            "negative": "bb-macro-card-delta--negative",
+            "neutral": "bb-macro-card-delta--neutral",
+        }[tone]
+        arrow = {"positive": "↑", "negative": "↓", "neutral": "→"}[tone]
+        return f"<div class='bb-macro-card-delta {tone_class}'>{label}: {arrow} {text}</div>"
+
+    def _latest_change(self, matrix: pd.DataFrame, feature_name: str) -> float | None:
+        if feature_name not in matrix.columns:
+            return None
+        series = matrix[feature_name].dropna()
+        if len(series) < 2:
+            return None
+        return float(series.iloc[-1] - series.iloc[-2])
 
     def _rule_based_regimes(self, matrix: pd.DataFrame) -> dict[str, tuple[str, str]]:
         latest = {column: self._latest_value(matrix, column) for column in matrix.columns}
@@ -207,11 +289,29 @@ class MacroPage:
     def _display_series(self, feature_name: str, series: pd.Series) -> pd.Series:
         return series * 100.0 if feature_name in OAS_FEATURES else series
 
+    def _zscore(self, series: pd.Series, window: int) -> pd.Series:
+        rolling_mean = series.rolling(window).mean()
+        rolling_std = series.rolling(window).std(ddof=0)
+        return (series - rolling_mean) / rolling_std.replace(0, np.nan)
+
+    def _change(self, series: pd.Series, periods: int) -> pd.Series:
+        return series - series.shift(periods)
+
+    def _ensure_display_features(self, matrix: pd.DataFrame) -> pd.DataFrame:
+        if matrix.empty:
+            return matrix
+
+        enriched = matrix.copy()
+
+        if "UST_10Y_Z20" not in enriched.columns and "UST_10Y_LEVEL" in enriched.columns:
+            enriched["UST_10Y_Z20"] = self._zscore(enriched["UST_10Y_LEVEL"], 20)
+
+        return enriched
+
     def _feature_names(self) -> list[str]:
         """Build one stable feature list for cards, charts, and the yield curve."""
         feature_names = [item[1] for item in CARD_CONFIG]
         feature_names += [item[2] for item in CARD_CONFIG if item[2] is not None]
-        feature_names += [item[3] for item in CARD_CONFIG if item[3] is not None]
         for _, names in CHART_CONFIG:
             feature_names.extend(names)
         feature_names.extend(feature_name for _, _, feature_name in YIELD_CURVE_CONFIG)
@@ -219,7 +319,7 @@ class MacroPage:
         return sorted(dict.fromkeys(feature_names))
 
     def _selected_lookback(self) -> int | None:
-        window_col, _ = st.columns([0.45, 0.55])
+        window_col, _ = st.columns([0.9, 1.1])
         with window_col:
             selected_window = self.controls.render_select(
                 "Macro Window",
@@ -316,25 +416,25 @@ class MacroPage:
 
     def _render_cards(self, matrix: pd.DataFrame) -> None:
         cards: list[str] = []
-        for label, feature_name, delta_feature, badge_feature, badge_label in CARD_CONFIG:
+        for label, feature_name, badge_feature, badge_label in CARD_CONFIG:
             value = self._latest_value(matrix, feature_name)
-            delta_value = self._latest_value(matrix, delta_feature)
+            delta_value = self._latest_change(matrix, feature_name)
             badge_value = self._latest_value(matrix, badge_feature) if badge_feature else None
-            delta_text = self._format_feature_value(delta_feature, delta_value, signed=True)
+            delta_text = self._format_delta_value(feature_name, delta_value)
             if badge_feature:
                 footer_html = self._badge_html(
                     f"{badge_label} z {self._format_value(badge_value)}",
                     self._metric_tone(badge_value),
                 )
             else:
-                footer_html = f"<div class='bb-macro-card-delta'>Recent change: {self._format_delta(delta_value)}</div>"
+                footer_html = ""
 
             cards.append(
                 (
                     "<div class='bb-macro-card'>"
                     f"<div class='bb-macro-card-label'>{label.upper()}</div>"
                     f"<div class='bb-macro-card-value'>{self._format_feature_value(feature_name, value)}</div>"
-                    f"<div class='bb-macro-card-delta'>{delta_text}</div>"
+                    f"{self._delta_html('Latest change', delta_text, delta_value)}"
                     f"{footer_html}"
                     "</div>"
                 )
@@ -378,12 +478,13 @@ class MacroPage:
         curve_df = pd.DataFrame(curve_rows).sort_values("maturity_years").reset_index(drop=True)
         maturities = curve_df["maturity_years"].to_numpy(dtype=float)
         yields = curve_df["value"].to_numpy(dtype=float)
+        tenor_positions = np.arange(len(curve_df), dtype=float)
         fitted_params = self._fit_nelson_siegel(maturities, yields)
 
         fig = go.Figure()
         fig.add_trace(
             go.Scatter(
-                x=curve_df["maturity_years"],
+                x=tenor_positions,
                 y=curve_df["value"],
                 mode="markers",
                 name="Observed",
@@ -395,7 +496,7 @@ class MacroPage:
         )
         fig.add_trace(
             go.Scatter(
-                x=curve_df["maturity_years"],
+                x=tenor_positions,
                 y=curve_df["value"],
                 mode="lines",
                 name="Observed segments",
@@ -404,33 +505,34 @@ class MacroPage:
             )
         )
         if fitted_params is not None:
-            smooth_maturities = np.geomspace(maturities.min(), maturities.max(), 200)
+            smooth_positions = np.linspace(tenor_positions.min(), tenor_positions.max(), 200)
+            smooth_maturities = np.interp(smooth_positions, tenor_positions, maturities)
             smooth_curve = self._nelson_siegel_curve(smooth_maturities, *fitted_params)
             fig.add_trace(
                 go.Scatter(
-                    x=smooth_maturities,
+                    x=smooth_positions,
                     y=smooth_curve,
                     mode="lines",
                     name="Nelson-Siegel fit",
-                    line=dict(color="#FFD166", width=4),
-                    hovertemplate="%{x:.2f}Y<br>%{y:.2f}%<extra></extra>",
+                    line=dict(color="#F5F5F5", width=4),
+                    customdata=smooth_maturities,
+                    hovertemplate="%{customdata:.2f}Y<br>%{y:.2f}%<extra></extra>",
                 )
             )
         fig.update_layout(
             **self._chart_layout(
-                "Latest treasury yield curve",
-                height=360,
+                "Yield Curve",
+                height=540,
                 yaxis_title="Yield (%)",
-                margin=dict(l=40, r=40, t=92, b=52),
+                margin=dict(l=48, r=48, t=96, b=60),
                 xaxis=dict(
-                    title="Maturity (Years)",
-                    type="log",
+                    title="Tenor",
                     showgrid=True,
                     gridcolor="#2A2A2A",
                     automargin=True,
                     title_standoff=16,
                     tickmode="array",
-                    tickvals=curve_df["maturity_years"].tolist(),
+                    tickvals=tenor_positions.tolist(),
                     ticktext=curve_df["tenor"].tolist(),
                 ),
                 legend=dict(
@@ -450,12 +552,14 @@ class MacroPage:
             if isinstance(date, pd.Timestamp):
                 curve_dates.append(date)
         curve_date = max(curve_dates) if curve_dates else None
-        st.plotly_chart(fig, use_container_width=True)
-        if curve_date is not None:
-            caption = f"Latest available yield-curve snapshot as of {pd.Timestamp(curve_date).strftime('%Y-%m-%d')}."
-            if fitted_params is not None:
-                caption += " Curve overlay uses a smooth Nelson-Siegel fit rather than linear interpolation."
-            st.caption(caption)
+        _, chart_col, _ = st.columns([0.10, 0.80, 0.10])
+        with chart_col:
+            st.plotly_chart(fig, use_container_width=True)
+            if curve_date is not None:
+                caption = f"Latest available yield-curve snapshot as of {pd.Timestamp(curve_date).strftime('%Y-%m-%d')}."
+                if fitted_params is not None:
+                    caption += " Curve overlay uses a smooth Nelson-Siegel fit rather than linear interpolation."
+                st.caption(caption)
 
     def _render_chart(self, matrix: pd.DataFrame, title: str, feature_names: list[str], start_date, end_date) -> None:
         filtered = matrix.loc[(matrix.index >= start_date) & (matrix.index <= end_date), feature_names].copy()
@@ -471,13 +575,16 @@ class MacroPage:
             series = filtered[feature_name].dropna()
             if series.empty:
                 continue
+            line_color = TREASURY_CHART_COLORS.get(feature_name) or MACRO_CHART_COLORS.get(feature_name)
+            if line_color is None:
+                line_color = CHART_PALETTE[idx % len(CHART_PALETTE)]
             fig.add_trace(
                 go.Scatter(
                     x=series.index,
                     y=self._display_series(feature_name, series),
                     mode="lines",
                     name=FEATURE_LABELS.get(feature_name, feature_name.replace("_", " ")),
-                    line=dict(color=CHART_PALETTE[idx % len(CHART_PALETTE)], width=2),
+                    line=dict(color=line_color, width=2),
                     connectgaps=False,
                     hovertemplate="%{x|%Y-%m-%d}<br>%{y:.0f} bps<extra></extra>"
                     if feature_name in OAS_FEATURES
@@ -490,10 +597,16 @@ class MacroPage:
             st.info(f"No data available for {title.lower()} in the selected window.")
             return
 
+        yaxis_title = None
+        if any(name in OAS_FEATURES for name in feature_names):
+            yaxis_title = "bps"
+        elif any(name in PERCENT_CHART_FEATURES for name in feature_names):
+            yaxis_title = "%"
+
         fig.update_layout(
             **self._chart_layout(
                 title,
-                yaxis_title="bps" if any(name in OAS_FEATURES for name in feature_names) else None,
+                yaxis_title=yaxis_title,
                 margin=dict(l=24, r=24, t=82, b=42),
             )
         )
@@ -516,7 +629,7 @@ class MacroPage:
         if matrix.empty:
             st.warning("No macro features found. Run scripts.macro.build_macro_features first.")
             return
-        filtered_matrix = self._windowed_matrix(matrix, lookback)
+        filtered_matrix = self._ensure_display_features(self._windowed_matrix(matrix, lookback))
 
         if filtered_matrix.empty:
             st.warning("No macro features available for the selected window.")
