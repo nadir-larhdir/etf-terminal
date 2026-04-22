@@ -38,6 +38,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=7,
         help="For incremental mode, refetch this many days before the latest stored date.",
     )
+    parser.add_argument(
+        "--backend",
+        choices=["local", "supabase"],
+        help="Override the configured data backend for this run.",
+    )
+    parser.add_argument(
+        "--app-env",
+        choices=["uat", "prod"],
+        help="Override the configured app environment for local runs.",
+    )
     return parser
 
 
@@ -52,7 +62,7 @@ if __name__ == "__main__":
     args = build_parser().parse_args()
     series_ids = parse_series_ids(args.series)
 
-    engine = get_engine()
+    engine = get_engine(data_backend=args.backend, app_env=args.app_env)
     macro_store = MacroStore(engine)
     client = FredClient(api_key=FRED_API_KEY, base_url=FRED_BASE_URL)
     service = MacroDataService(client, macro_store)

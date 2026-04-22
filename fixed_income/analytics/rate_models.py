@@ -44,6 +44,7 @@ def empty_model(reason: str, observations_used: int | None = None, lookback_days
         "regression_r2": None,
         "lookback_days_used": lookback_days_used,
         "observations_used": observations_used,
+        "benchmark_beta": None,
         "credit_beta": None,
         "reason": reason,
     }
@@ -70,6 +71,7 @@ def regress_duration(frame: pd.DataFrame, lookback_days: int, factor_columns: li
         "regression_r2": r2,
         "lookback_days_used": lookback_days,
         "observations_used": len(filtered),
+        "benchmark_beta": None,
         "credit_beta": None,
         "reason": None,
     }
@@ -94,6 +96,7 @@ def regress_benchmark_duration(frame: pd.DataFrame, lookback_days: int, benchmar
         "regression_r2": r2,
         "lookback_days_used": lookback_days,
         "observations_used": len(filtered),
+        "benchmark_beta": float(coeffs[1]),
         "credit_beta": None,
         "reason": None,
     }

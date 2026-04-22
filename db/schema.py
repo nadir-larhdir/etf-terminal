@@ -46,6 +46,7 @@ TABLE_DEFINITIONS = {
             long_name TEXT,
             description TEXT,
             issuer TEXT,
+            duration REAL,
             benchmark_index TEXT,
             category TEXT,
             duration_bucket TEXT,
@@ -95,6 +96,7 @@ TABLE_DEFINITIONS = {
             spread_proxy_used TEXT,
             estimated_duration REAL,
             rate_dv01_per_share REAL,
+            benchmark_beta REAL,
             cs01_proxy_per_share REAL,
             spread_beta_per_bp REAL,
             equity_beta REAL,
@@ -154,8 +156,31 @@ def create_tables(engine):
             conn.execute(text(_qualify_ddl(engine, table_name, ddl)))
         for ddl in INDEX_DEFINITIONS.values():
             conn.execute(text(_qualify_index_ddl(engine, ddl)))
+        ensure_security_metadata_schema(conn)
         ensure_macro_data_schema(conn)
         ensure_analytics_snapshot_schema(conn)
+
+
+def ensure_security_metadata_schema(conn):
+    engine = conn.engine
+    inspector = inspect(conn)
+    schema = active_schema_name(engine)
+    if "security_metadata" not in set(inspector.get_table_names(schema=schema)):
+        return
+
+    existing_columns = {row["name"] for row in inspector.get_columns("security_metadata", schema=schema)}
+    missing_columns = {
+        "duration": "REAL",
+    }
+    for column_name, column_type in missing_columns.items():
+        if column_name in existing_columns:
+            continue
+        conn.execute(
+            text(
+                f"ALTER TABLE {qualified_table(engine, 'security_metadata')} "
+                f"ADD COLUMN {column_name} {column_type}"
+            )
+        )
 
 
 def ensure_macro_data_schema(conn):
@@ -233,6 +258,7 @@ def ensure_analytics_snapshot_schema(conn):
         "computed_from_start_date": "DATE",
         "computed_from_end_date": "DATE",
         "spread_beta_per_bp": "REAL",
+        "benchmark_beta": "REAL",
     }
     for column_name, column_type in missing_columns.items():
         if column_name in existing_columns:

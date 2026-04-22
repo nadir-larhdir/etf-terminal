@@ -55,14 +55,53 @@ def _synthetic_environment() -> tuple[FakePriceStore, FakeMacroStore]:
     periods = 220
     index = pd.bdate_range("2024-01-02", periods=periods)
 
+    dgs3mo = rng.normal(0.0, 4.5, periods)
+    dgs6mo = rng.normal(0.0, 4.2, periods)
+    dgs1 = rng.normal(0.0, 4.1, periods)
     dgs2 = rng.normal(0.0, 4.0, periods)
+    dgs3 = rng.normal(0.0, 3.8, periods)
     dgs5 = rng.normal(0.0, 3.0, periods)
+    dgs7 = rng.normal(0.0, 2.8, periods)
     dgs10 = rng.normal(0.0, 2.5, periods)
+    dgs20 = rng.normal(0.0, 2.2, periods)
     dgs30 = rng.normal(0.0, 2.0, periods)
 
-    shy_returns = -(1.8 / 10000.0) * (0.60 * dgs2 + 0.25 * dgs5 + 0.10 * dgs10 + 0.05 * dgs30)
-    ief_returns = -(7.5 / 10000.0) * (0.20 * dgs2 + 0.30 * dgs5 + 0.30 * dgs10 + 0.20 * dgs30)
-    tlt_returns = -(16.0 / 10000.0) * (0.05 * dgs2 + 0.10 * dgs5 + 0.25 * dgs10 + 0.60 * dgs30)
+    shy_returns = -(1.8 / 10000.0) * (
+        0.20 * dgs3mo
+        + 0.15 * dgs6mo
+        + 0.15 * dgs1
+        + 0.25 * dgs2
+        + 0.10 * dgs3
+        + 0.07 * dgs5
+        + 0.04 * dgs7
+        + 0.02 * dgs10
+        + 0.01 * dgs20
+        + 0.01 * dgs30
+    )
+    ief_returns = -(7.5 / 10000.0) * (
+        0.03 * dgs3mo
+        + 0.04 * dgs6mo
+        + 0.05 * dgs1
+        + 0.10 * dgs2
+        + 0.10 * dgs3
+        + 0.18 * dgs5
+        + 0.15 * dgs7
+        + 0.18 * dgs10
+        + 0.10 * dgs20
+        + 0.07 * dgs30
+    )
+    tlt_returns = -(16.0 / 10000.0) * (
+        0.01 * dgs3mo
+        + 0.01 * dgs6mo
+        + 0.02 * dgs1
+        + 0.03 * dgs2
+        + 0.04 * dgs3
+        + 0.08 * dgs5
+        + 0.10 * dgs7
+        + 0.18 * dgs10
+        + 0.23 * dgs20
+        + 0.30 * dgs30
+    )
 
     ig_spread_bps = rng.normal(0.0, 1.0, periods)
     hy_spread_bps = rng.normal(0.0, 1.2, periods)
@@ -72,9 +111,15 @@ def _synthetic_environment() -> tuple[FakePriceStore, FakeMacroStore]:
 
     macro_matrix = pd.DataFrame(
         {
+            "DGS3MO": 4.60 + np.cumsum(dgs3mo) / 100.0,
+            "DGS6MO": 4.50 + np.cumsum(dgs6mo) / 100.0,
+            "DGS1": 4.45 + np.cumsum(dgs1) / 100.0,
             "DGS2": 4.40 + np.cumsum(dgs2) / 100.0,
+            "DGS3": 4.25 + np.cumsum(dgs3) / 100.0,
             "DGS5": 4.10 + np.cumsum(dgs5) / 100.0,
+            "DGS7": 4.05 + np.cumsum(dgs7) / 100.0,
             "DGS10": 4.00 + np.cumsum(dgs10) / 100.0,
+            "DGS20": 4.10 + np.cumsum(dgs20) / 100.0,
             "DGS30": 4.20 + np.cumsum(dgs30) / 100.0,
             "BAMLC0A0CM": 1.20 + np.cumsum(ig_spread_bps) / 100.0,
             "BAMLH0A0HYM2": 3.90 + np.cumsum(hy_spread_bps) / 100.0,
@@ -122,3 +167,21 @@ def test_fixed_income_analytics_service_smoke_estimates() -> None:
     assert hyg_result.spread_proxy_used == "BAMLH0A0HYM2"
     assert 2.0 < (hyg_result.estimated_duration or 0.0) < 5.0
     assert (hyg_result.spread_beta_per_bp or 0.0) < 0.0
+
+
+def test_fixed_income_analytics_service_prefers_metadata_duration() -> None:
+    price_store, macro_store = _synthetic_environment()
+    service = FixedIncomeAnalyticsService(price_store, macro_store, DurationModelSelector())
+
+    lqd = Security(
+        "LQD",
+        name="Investment Grade Bond ETF",
+        asset_class="IG Credit",
+        history=price_store.get_ticker_price_history("LQD"),
+        metadata={"duration": 8.0},
+    )
+
+    result = service.analyze_security(lqd)
+
+    assert result.estimated_duration == 8.0
+    assert result.dv01_per_share is not None

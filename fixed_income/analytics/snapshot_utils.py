@@ -19,11 +19,23 @@ def snapshot_age_hours(snapshot, now=None) -> float | None:
     return max((current_time - reference_time).total_seconds() / 3600.0, 0.0)
 
 
-def is_snapshot_stale(snapshot, now=None, ttl_hours: int = 24, required_as_of_date: str | None = None) -> bool:
+def is_snapshot_stale(
+    snapshot,
+    now=None,
+    ttl_hours: int = 24,
+    required_as_of_date: str | None = None,
+    required_estimated_duration: float | None = None,
+) -> bool:
     if snapshot is None:
         return True
     if required_as_of_date is not None and str(getattr(snapshot, "as_of_date", None) or "") != str(required_as_of_date):
         return True
+    if required_estimated_duration is not None:
+        snapshot_duration = getattr(snapshot, "estimated_duration", None)
+        if snapshot_duration is None:
+            return True
+        if abs(float(snapshot_duration) - float(required_estimated_duration)) > 1e-9:
+            return True
     age = snapshot_age_hours(snapshot, now=now)
     if age is None:
         return True
