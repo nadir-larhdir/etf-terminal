@@ -88,6 +88,8 @@ logger = logging.getLogger(__name__)
 if __name__ == "__main__":
     configure_logging()
     parser = argparse.ArgumentParser(description="Seed static ETF metadata into the local database.")
+    parser.add_argument("--backend", choices=["local", "supabase"], default=None, help="Target data backend.")
+    parser.add_argument("--app-env", choices=["prod", "uat"], default=None, help="Local DB environment when using --backend local.")
     parser.add_argument(
         "--mode",
         choices=["upsert", "missing-only"],
@@ -98,7 +100,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     selected_tickers = set(parse_ticker_list(args.tickers))
-    engine = get_engine()
+    engine = get_engine(data_backend=args.backend, app_env=args.app_env)
     metadata_store = MetadataStore(engine)
     rows = [row for row in DEFAULT_METADATA if row["ticker"] in selected_tickers]
 

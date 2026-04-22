@@ -2,7 +2,7 @@ import pandas as pd
 from sqlalchemy import text
 
 from db.sql import qualified_table
-from stores.query_utils import index_history_frame, pivot_time_series, sql_in_clause_params
+from stores.query_utils import pivot_time_series, sql_in_clause_params
 
 
 def _feature_matrix(
@@ -104,33 +104,23 @@ class MacroFeatureStore:
             for start in range(0, len(records), chunk_size):
                 conn.execute(text(statement), records[start : start + chunk_size])
 
-    def get_feature_history(
+    def delete_features(
         self,
-        feature_name: str,
+        *,
         start_date: str | None = None,
         end_date: str | None = None,
-    ) -> pd.DataFrame:
-        query = f"""
-        SELECT date, value, category, sub_category, source, last_updated_at
-        FROM {qualified_table(self.engine, 'macro_features')}
-        WHERE feature_name = :feature_name
-        """
-        params = {"feature_name": feature_name}
-
+    ) -> None:
+        query = f"DELETE FROM {qualified_table(self.engine, 'macro_features')} WHERE 1 = 1"
+        params: dict[str, str] = {}
         if start_date is not None:
             query += " AND date >= :start_date"
             params["start_date"] = str(start_date)
-
         if end_date is not None:
             query += " AND date <= :end_date"
             params["end_date"] = str(end_date)
 
-        query += " ORDER BY date"
-
-        with self.engine.connect() as conn:
-            df = pd.read_sql(text(query), conn, params=params)
-
-        return index_history_frame(df)
+        with self.engine.begin() as conn:
+            conn.execute(text(query), params)
 
     def get_feature_matrix(
         self,

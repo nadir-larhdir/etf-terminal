@@ -1,13 +1,14 @@
 import argparse
 import logging
 
-from config import FMP_API_KEY, FMP_BASE_URL, FRED_API_KEY, FRED_BASE_URL
+from config import DEFAULT_TICKERS, FRED_API_KEY, FRED_BASE_URL
 from db.connection import get_engine
 from scripts.analytics.precompute_analytics import run_precompute_analytics
 from scripts.logging_utils import configure_logging
 from scripts.market.enrich_metadata_from_fmp import build_metadata_row
 from services.macro import DEFAULT_MACRO_SERIES, FredClient, MacroDataService, MacroFeatureService
 from services.market import MarketDataService
+from services.market.duration_estimator import SecurityDurationEstimator
 from stores.macro import MacroFeatureStore, MacroStore
 from stores.market import MetadataStore, PriceStore, SecurityStore
 
@@ -17,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the end-of-day ETF Terminal refresh workflow.")
+    parser.add_argument("--backend", choices=["local", "supabase"], default=None, help="Target data backend.")
+    parser.add_argument("--app-env", choices=["prod", "uat"], default=None, help="Local DB environment when using --backend local.")
     parser.add_argument(
         "--price-period",
         default="3y",
@@ -40,6 +43,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip ETF metadata refresh from FMP.",
     )
     parser.add_argument(
+        "--skip-analytics",
+        action="store_true",
+        help="Skip analytics snapshot refresh.",
+    )
+    parser.add_argument(
         "--feature-rebuild-days",
         type=int,
         default=MacroFeatureService.DEFAULT_INCREMENTAL_REBUILD_DAYS,
@@ -52,20 +60,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Extra raw history window used to support rolling feature calculations.",
     )
     parser.add_argument(
-        "--with-analytics",
-        action="store_true",
-        help="Run incremental analytics precompute after prices, macro data, and features refresh.",
-    )
-    parser.add_argument(
         "--analytics-ttl-hours",
         type=int,
         default=24,
-        help="Snapshot freshness threshold used when analytics precompute is enabled.",
+        help="Snapshot freshness threshold used when analytics precompute runs.",
     )
     parser.add_argument(
         "--force-analytics",
         action="store_true",
-        help="Force analytics recomputation for all symbols when analytics precompute is enabled.",
+        help="Force analytics recomputation for all symbols.",
     )
     return parser
 
@@ -88,19 +91,36 @@ def _latest_feature_date(feature_store: MacroFeatureStore, feature_name: str = "
 
 
 def _refresh_metadata(metadata_store: MetadataStore, tickers: list[str]) -> int:
+    duration_estimator = SecurityDurationEstimator(metadata_store.engine)
     rows = []
     for ticker in tickers:
         existing = metadata_store.get_ticker_metadata(ticker)
-        rows.append(build_metadata_row(ticker, existing_row=existing))
+        rows.append(
+            build_metadata_row(
+                ticker,
+                existing_row=existing,
+                duration_estimator=duration_estimator,
+            )
+        )
     metadata_store.upsert_metadata(rows)
+    return len(rows)
+
+
+def _refresh_universe(security_store: SecurityStore) -> int:
+    rows = [
+        {"ticker": ticker, "name": meta["name"], "asset_class": meta["asset_class"], "active": 1}
+        for ticker, meta in DEFAULT_TICKERS.items()
+    ]
+    security_store.upsert_securities(rows, update_existing=True)
     return len(rows)
 
 
 def main() -> None:
     configure_logging()
     args = build_parser().parse_args()
+    run_analytics = not args.skip_analytics
 
-    engine = get_engine()
+    engine = get_engine(data_backend=args.backend, app_env=args.app_env)
     security_store = SecurityStore(engine)
     price_store = PriceStore(engine)
     metadata_store = MetadataStore(engine)
@@ -116,9 +136,14 @@ def main() -> None:
     macro_data_service = MacroDataService(fred_client, macro_store)
     macro_feature_service = MacroFeatureService(macro_store, macro_feature_store)
 
-    total_steps = 5 if args.with_analytics else 4
+    total_steps = 6 if run_analytics else 5
 
-    logger.info("Step 1/%s: refreshing ETF prices...", total_steps)
+    logger.info("Step 1/%s: syncing configured securities universe...", total_steps)
+    universe_rows = _refresh_universe(security_store)
+    active = security_store.list_active_securities()
+    tickers = active["ticker"].astype(str).tolist() if not active.empty else []
+
+    logger.info("Step 2/%s: refreshing ETF prices...", total_steps)
     price_statuses = market_service.sync_incremental_updates(
         tickers,
         period_for_new=args.price_period,
@@ -126,7 +151,7 @@ def main() -> None:
     )
     logger.info("Price refresh complete for %s ticker(s).", len(price_statuses))
 
-    logger.info("Step 2/%s: refreshing FRED macro series...", total_steps)
+    logger.info("Step 3/%s: refreshing FRED macro series...", total_steps)
     macro_statuses = macro_data_service.sync_incremental_updates(
         series_ids,
         overlap_days=args.macro_overlap_days,
@@ -134,7 +159,7 @@ def main() -> None:
     )
     logger.info("Macro refresh complete for %s series.", len(macro_statuses))
 
-    logger.info("Step 3/%s: rebuilding macro features...", total_steps)
+    logger.info("Step 4/%s: rebuilding macro features...", total_steps)
     feature_rows = macro_feature_service.persist_features(
         incremental=True,
         rebuild_days=args.feature_rebuild_days,
@@ -144,16 +169,16 @@ def main() -> None:
 
     if args.skip_metadata:
         refreshed_metadata = 0
-        logger.info("Step 4/%s: skipping ETF metadata refresh.", total_steps)
+        logger.info("Step 5/%s: skipping ETF metadata refresh.", total_steps)
     else:
-        logger.info("Step 4/%s: refreshing ETF metadata...", total_steps)
+        logger.info("Step 5/%s: refreshing ETF metadata...", total_steps)
         refreshed_metadata = _refresh_metadata(metadata_store, tickers)
         logger.info("Metadata refresh complete for %s ticker(s).", refreshed_metadata)
 
     analytics_persisted = 0
     analytics_skipped = 0
-    if args.with_analytics:
-        logger.info("Step 5/%s: precomputing analytics snapshots...", total_steps)
+    if run_analytics:
+        logger.info("Step 6/%s: precomputing analytics snapshots...", total_steps)
         analytics_persisted, analytics_skipped = run_precompute_analytics(
             engine=engine,
             force=args.force_analytics,
@@ -161,11 +186,12 @@ def main() -> None:
         )
 
     logger.info("Refresh summary")
+    logger.info(" - securities universe rows synced: %s", universe_rows)
     logger.info(" - latest ETF price date: %s", _latest_price_date(price_store, tickers))
     logger.info(" - latest macro date: %s", _latest_macro_date(macro_store, series_ids))
     logger.info(" - latest feature date: %s", _latest_feature_date(macro_feature_store))
     logger.info(" - metadata rows refreshed: %s", refreshed_metadata)
-    if args.with_analytics:
+    if run_analytics:
         logger.info(" - analytics snapshots persisted: %s", analytics_persisted)
         logger.info(" - analytics snapshots skipped: %s", analytics_skipped)
 

@@ -29,13 +29,23 @@ def build_parser() -> argparse.ArgumentParser:
         default=MacroFeatureService.DEFAULT_WARMUP_DAYS,
         help="How many extra calendar days of source history to load for rolling calculations.",
     )
+    parser.add_argument(
+        "--backend",
+        choices=["local", "supabase"],
+        help="Override the configured data backend for this run.",
+    )
+    parser.add_argument(
+        "--app-env",
+        choices=["uat", "prod"],
+        help="Override the configured app environment for local runs.",
+    )
     return parser
 
 
 def main() -> None:
     configure_logging()
     args = build_parser().parse_args()
-    engine = get_engine()
+    engine = get_engine(data_backend=args.backend, app_env=args.app_env)
     macro_store = MacroStore(engine)
     feature_store = MacroFeatureStore(engine)
     service = MacroFeatureService(macro_store, feature_store)

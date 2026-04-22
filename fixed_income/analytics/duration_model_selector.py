@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from fixed_income.analytics.result_models import DurationModelSelection
-from fixed_income.config.benchmark_rules import FALLBACK_OVERRIDES, benchmark_for_bucket
 from fixed_income.config.bucket_rules import classify_bucket
 from fixed_income.config.spread_proxy_rules import spread_proxy_for_bucket
 
@@ -9,12 +8,7 @@ from fixed_income.config.spread_proxy_rules import spread_proxy_for_bucket
 class DurationModelSelector:
     """Route fixed-income instruments into benchmark and spread models."""
 
-    def select_for_security(self, security, rough_duration: float | None = None) -> DurationModelSelection:
-        if security.ticker in FALLBACK_OVERRIDES:
-            override = FALLBACK_OVERRIDES[security.ticker].copy()
-            override["spread_proxy_series_id"] = spread_proxy_for_bucket(override["asset_bucket"], security)
-            return DurationModelSelection(**override)
-
+    def select_for_security(self, security) -> DurationModelSelection:
         bucket = classify_bucket(security)
         benchmark = None
         model_type = "treasury_curve_regression"
@@ -25,20 +19,40 @@ class DurationModelSelector:
         if bucket in {"Treasury", "Inflation-Linked"}:
             notes = "Rates estimated directly from Treasury curve factors."
             confidence = "high"
-        elif bucket == "Floating Rate":
+        elif bucket in {"Short Duration / Cash-like", "Floating Rate"}:
             model_type = "low_duration_assumption_with_validation"
             benchmark = "SHY"
-            notes = "Floating-rate funds are validated against a short-duration benchmark."
-        else:
+            notes = "Short-duration funds are validated against a short Treasury benchmark."
+            confidence = "high"
+        elif bucket == "Investment Grade Credit":
+            benchmark = "IEF"
             model_type = "treasury_etf_benchmark_regression"
-            benchmark = benchmark_for_bucket(bucket, rough_duration, security)
-            confidence = "high" if bucket != "Unknown" else "low"
-            notes = (
-                "Unknown bucket fell back to a rule-based Treasury ETF benchmark."
-                if bucket == "Unknown"
-                else f"{bucket} routed to Treasury ETF benchmark regression."
-            )
-            used_fallback = bucket == "Unknown"
+            confidence = "high"
+            notes = "Investment Grade Credit routed to Treasury ETF benchmark regression."
+        elif bucket == "High Yield":
+            benchmark = "SHY"
+            model_type = "treasury_etf_benchmark_regression"
+            confidence = "high"
+            notes = "High Yield routed to Treasury ETF benchmark regression."
+        elif bucket == "Muni":
+            benchmark = "IEF"
+            model_type = "treasury_etf_benchmark_regression"
+            confidence = "high"
+            notes = "Muni routed to Treasury ETF benchmark regression."
+        elif bucket == "Mortgage / Securitized":
+            benchmark = "VGIT"
+            model_type = "treasury_etf_benchmark_regression"
+            confidence = "high"
+            notes = "Mortgage / Securitized routed to Treasury ETF benchmark regression."
+        elif bucket == "Preferred / Hybrid":
+            benchmark = "IEF"
+            model_type = "treasury_etf_benchmark_regression"
+            confidence = "high"
+            notes = "Preferred / Hybrid routed to Treasury ETF benchmark regression."
+        else:
+            notes = "Unknown bucket fell back to Treasury curve regression."
+            confidence = "low"
+            used_fallback = True
 
         description = (
             "Treasury curve regression using DGS2, DGS5, DGS10, and DGS30."

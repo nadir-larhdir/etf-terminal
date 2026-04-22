@@ -24,19 +24,6 @@ class InputStore:
         ])
         df.to_sql("security_inputs", self.engine, if_exists="append", index=False, **pandas_to_sql_kwargs(self.engine))
 
-    def get_latest_inputs(self, ticker: str):
-        query = text("""
-            SELECT *
-            FROM {inputs_table}
-            WHERE ticker = :ticker
-            ORDER BY date DESC
-            LIMIT 1
-        """.format(inputs_table=qualified_table(self.engine, "security_inputs")))
-        with self.engine.connect() as conn:
-            df = pd.read_sql(query, conn, params={"ticker": ticker})
-
-        return df.iloc[0].to_dict() if not df.empty else None
-
     def delete_ticker(self, ticker: str):
         with self.engine.begin() as conn:
             conn.execute(

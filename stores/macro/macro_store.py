@@ -40,11 +40,25 @@ class MacroStore:
     def __init__(self, engine):
         self.engine = engine
 
+    @staticmethod
+    def _normalize_frame_for_write(df: pd.DataFrame) -> pd.DataFrame:
+        normalized = df.copy()
+
+        if "date" in normalized.columns:
+            series = pd.to_datetime(normalized["date"], errors="coerce")
+            normalized["date"] = series.dt.date.where(series.notna(), None)
+
+        if "last_updated_at" in normalized.columns:
+            series = pd.to_datetime(normalized["last_updated_at"], errors="coerce")
+            normalized["last_updated_at"] = series.where(series.notna(), None)
+
+        return normalized
+
     def upsert_series(self, df: pd.DataFrame):
         if df.empty:
             return
 
-        records = df.to_dict(orient="records")
+        records = self._normalize_frame_for_write(df).to_dict(orient="records")
         statement = """
         INSERT INTO {macro_table} (
             series_id,
@@ -84,6 +98,7 @@ class MacroStore:
         """.format(macro_table=qualified_table(self.engine, "macro_data"))
         with self.engine.begin() as conn:
             conn.execute(text(statement), records)
+
     def replace_series(self, series_id: str, df: pd.DataFrame):
         with self.engine.begin() as conn:
             conn.execute(
@@ -91,7 +106,14 @@ class MacroStore:
                 {"series_id": series_id},
             )
             if not df.empty:
-                df.to_sql("macro_data", conn, if_exists="append", index=False, **pandas_to_sql_kwargs(self.engine))
+                normalized = self._normalize_frame_for_write(df)
+                normalized.to_sql(
+                    "macro_data",
+                    conn,
+                    if_exists="append",
+                    index=False,
+                    **pandas_to_sql_kwargs(self.engine),
+                )
 
     def get_latest_stored_dates(self, series_ids: list[str] | None = None) -> dict[str, str]:
         query = f"""

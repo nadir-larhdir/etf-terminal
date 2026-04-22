@@ -7,16 +7,102 @@ from config import DEFAULT_TICKERS, FMP_API_KEY, FMP_BASE_URL, normalize_asset_c
 from db.connection import get_engine
 from scripts.logging_utils import configure_logging
 from scripts.script_helpers import add_ticker_argument, parse_ticker_list
+from services.market.duration_estimator import SecurityDurationEstimator, issuer_from_long_name
 from services.market.fmp_client import FMPClient
 from stores.market import MetadataStore
 
 
 # Internal overrides for known fixed-income ETF metadata fields.
 INTERNAL_METADATA = {
+    "BND": {
+        "benchmark_index": "Bloomberg U.S. Aggregate Float Adjusted Index",
+    },
+    "BSV": {
+        "benchmark_index": "Bloomberg U.S. 1-5 Year Government/Credit Float Adjusted Index",
+    },
+    "EDV": {
+        "benchmark_index": "Bloomberg U.S. Treasury STRIPS 20-30 Year Equal Par Bond Index",
+    },
+    "EMB": {
+        "benchmark_index": "JPMorgan EMBI Global Core Index",
+    },
+    "FLOT": {
+        "benchmark_index": "Bloomberg U.S. Floating Rate Note < 5 Years Index",
+    },
+    "FLRN": {
+        "benchmark_index": "Bloomberg U.S. Dollar Floating Rate Note < 5 Years Index",
+    },
+    "GOVT": {
+        "benchmark_index": "ICE U.S. Treasury Core Bond Index",
+    },
+    "HYD": {
+        "benchmark_index": "Bloomberg Municipal High Yield Index",
+    },
+    "IEI": {
+        "benchmark_index": "ICE U.S. Treasury 3-7 Year Bond Index",
+    },
+    "IGSB": {
+        "benchmark_index": "ICE BofA 1-5 Year US Corporate Index",
+    },
+    "IUSB": {
+        "benchmark_index": "Bloomberg U.S. Universal Float Adjusted Index",
+    },
+    "JNK": {
+        "benchmark_index": "Bloomberg High Yield Very Liquid Index",
+    },
     "LQD": {
         "benchmark_index": "Markit iBoxx USD Liquid Investment Grade Index",
         "duration_bucket": "Intermediate / Long Duration",
         "category": "IG Credit",
+    },
+    "MBB": {
+        "benchmark_index": "Bloomberg U.S. MBS Float Adjusted Index",
+    },
+    "MUB": {
+        "benchmark_index": "ICE AMT-Free US National Municipal Index",
+    },
+    "PCY": {
+        "benchmark_index": "DB Emerging Market USD Liquid Balanced Index",
+    },
+    "SHY": {
+        "benchmark_index": "ICE U.S. Treasury 1-3 Year Bond Index",
+    },
+    "SHYG": {
+        "benchmark_index": "Markit iBoxx USD Liquid High Yield 0-5 Index",
+    },
+    "SLQD": {
+        "benchmark_index": "Markit iBoxx USD Liquid Investment Grade 0-5 Index",
+        "category": "IG Credit",
+    },
+    "SJNK": {
+        "benchmark_index": "Bloomberg U.S. High Yield 350mn Cash Pay 0-5 Yr 2% Capped Index",
+    },
+    "SPSB": {
+        "benchmark_index": "Bloomberg U.S. 1-3 Year Corporate Bond Index",
+    },
+    "STIP": {
+        "benchmark_index": "Bloomberg U.S. 0-5 Year TIPS Index",
+    },
+    "TIP": {
+        "benchmark_index": "Bloomberg U.S. TIPS Index",
+    },
+    "VCIT": {
+        "benchmark_index": "Bloomberg U.S. 5-10 Year Corporate Bond Index",
+    },
+    "VCSH": {
+        "benchmark_index": "Bloomberg U.S. 1-5 Year Corporate Bond Index",
+    },
+    "VGSH": {
+        "benchmark_index": "Bloomberg U.S. Treasury 1-3 Year Bond Index",
+    },
+    "VMBS": {
+        "benchmark_index": "Bloomberg U.S. MBS Float Adjusted Index",
+    },
+    "VTEB": {
+        "benchmark_index": "S&P National AMT-Free Municipal Bond Index",
+    },
+    "VWOB": {
+        "benchmark_index": "Bloomberg USD Emerging Markets Government RIC Capped Index",
     },
     "HYG": {
         "benchmark_index": "Markit iBoxx USD Liquid High Yield Index",
@@ -164,7 +250,12 @@ def derive_duration_bucket(search_values: list[str]) -> str:
     return "Broad Market"
 
 
-def build_metadata_row(ticker: str, existing_row: dict | None = None) -> dict:
+def build_metadata_row(
+    ticker: str,
+    existing_row: dict | None = None,
+    *,
+    duration_estimator: SecurityDurationEstimator | None = None,
+) -> dict:
     base = DEFAULT_TICKERS.get(ticker, {})
     internal = INTERNAL_METADATA.get(ticker, {})
     fmp_meta = get_etf_description(ticker)
@@ -184,14 +275,25 @@ def build_metadata_row(ticker: str, existing_row: dict | None = None) -> dict:
     ]
     derived_category = normalize_asset_class(derive_asset_class(search_values))
     derived_duration = derive_duration_bucket(search_values)
+    long_name = _choose_preferred(fmp_meta.get("long_name"), existing.get("long_name"), base.get("name"), ticker)
+    issuer = _choose_preferred(
+        issuer_from_long_name(long_name),
+        existing.get("issuer"),
+        fmp_meta.get("issuer"),
+        "N/A",
+    )
+    duration = None
+    if duration_estimator is not None:
+        duration = duration_estimator.estimate_duration(ticker)
 
     return {
         "ticker": ticker,
         "conid": _choose_preferred(existing.get("conid"), None),
-        "long_name": _choose_preferred(fmp_meta.get("long_name"), existing.get("long_name"), base.get("name"), ticker),
+        "long_name": long_name,
         "description": _choose_longer_text(existing.get("description"), fmp_meta.get("description"))
         or f"Fixed income ETF in the {derived_category} bucket.",
-        "issuer": _choose_preferred(fmp_meta.get("issuer"), existing.get("issuer"), "N/A"),
+        "issuer": issuer,
+        "duration": _choose_preferred(duration, existing.get("duration")),
         "benchmark_index": _choose_preferred(
             internal.get("benchmark_index"),
             existing.get("benchmark_index"),
@@ -224,6 +326,8 @@ def build_metadata_row(ticker: str, existing_row: dict | None = None) -> dict:
 if __name__ == "__main__":
     configure_logging()
     parser = argparse.ArgumentParser(description="Enrich ETF metadata from Financial Modeling Prep.")
+    parser.add_argument("--backend", choices=["local", "supabase"], default=None, help="Target data backend.")
+    parser.add_argument("--app-env", choices=["prod", "uat"], default=None, help="Local DB environment when using --backend local.")
     parser.add_argument(
         "--mode",
         choices=["upsert", "missing-only"],
@@ -233,8 +337,9 @@ if __name__ == "__main__":
     add_ticker_argument(parser)
     args = parser.parse_args()
 
-    engine = get_engine()
+    engine = get_engine(data_backend=args.backend, app_env=args.app_env)
     metadata_store = MetadataStore(engine)
+    duration_estimator = SecurityDurationEstimator(engine)
     tickers = parse_ticker_list(args.tickers)
 
     if args.mode == "missing-only":
@@ -245,7 +350,11 @@ if __name__ == "__main__":
     for ticker in tickers:
         try:
             existing_row = metadata_store.get_ticker_metadata(ticker)
-            row = build_metadata_row(ticker, existing_row=existing_row)
+            row = build_metadata_row(
+                ticker,
+                existing_row=existing_row,
+                duration_estimator=duration_estimator,
+            )
             rows.append(row)
             logger.info("Enriched metadata for %s", ticker)
         except Exception as exc:

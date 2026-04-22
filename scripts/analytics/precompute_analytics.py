@@ -14,6 +14,16 @@ from stores.market import MetadataStore, PriceStore, SecurityStore
 logger = logging.getLogger(__name__)
 
 
+def _metadata_duration(metadata: dict) -> float | None:
+    raw_value = metadata.get("duration")
+    if raw_value in (None, "", "N/A"):
+        return None
+    try:
+        return float(raw_value)
+    except (TypeError, ValueError):
+        return None
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Precompute fixed-income analytics snapshots.")
     parser.add_argument("--force", action="store_true", help="Recompute all symbols even when a fresh snapshot exists.")
@@ -54,10 +64,17 @@ def run_precompute_analytics(*, engine=None, force: bool = False, ttl_hours: int
     for _, row in securities.iterrows():
         ticker = str(row["ticker"])
         latest_price_date = latest_price_dates.get(ticker)
+        metadata = metadata_store.get_ticker_metadata(ticker) or {}
+        metadata_duration = _metadata_duration(metadata)
         snapshot = None
         if ticker in latest_snapshot_map:
             snapshot = SecurityAnalyticsSnapshot.from_record(latest_snapshot_map[ticker])
-        if not force and not is_snapshot_stale(snapshot, ttl_hours=ttl_hours, required_as_of_date=latest_price_date):
+        if not force and not is_snapshot_stale(
+            snapshot,
+            ttl_hours=ttl_hours,
+            required_as_of_date=latest_price_date,
+            required_estimated_duration=metadata_duration,
+        ):
             logger.info(
                 "Skipping %s: fresh snapshot hit (age_hours=%.2f).",
                 ticker,
@@ -71,7 +88,6 @@ def run_precompute_analytics(*, engine=None, force: bool = False, ttl_hours: int
         if history.empty:
             logger.warning("Skipping %s: no price history.", ticker)
             continue
-        metadata = metadata_store.get_ticker_metadata(ticker) or {}
         security = Security(
             ticker=ticker,
             name=row.get("name"),

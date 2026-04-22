@@ -37,6 +37,37 @@ def regress_credit_benchmark_duration(
         "regression_r2": r2,
         "lookback_days_used": lookback_days,
         "observations_used": len(filtered),
+        "benchmark_beta": float(coeffs[1]),
+        "credit_beta": float(coeffs[2]),
+        "reason": None,
+    }
+
+
+def regress_credit_rate_tenor_duration(
+    frame: pd.DataFrame,
+    lookback_days: int,
+    rate_series_id: str,
+) -> dict[str, Any]:
+    minimum = max(20, lookback_days // 3)
+    if len(frame) < minimum:
+        return empty_model("Not enough observations for rate-tenor and spread regression.", len(frame), lookback_days)
+
+    filtered = filter_outliers(frame)
+    if len(filtered) < minimum:
+        return empty_model("Not enough observations after outlier filtering.", len(filtered), len(filtered))
+
+    y = filtered["etf_return"].to_numpy(dtype=float)
+    x = filtered.loc[:, [rate_series_id, "spread_change_bps"]].to_numpy(dtype=float)
+    weights = ewma_weights(len(filtered), lookback_days)
+    design = np.column_stack([np.ones(len(filtered)), x])
+    coeffs, r2 = weighted_fit(design, y, weights)
+    rate_beta = float(coeffs[1])
+    return {
+        "estimated_duration": float(-(rate_beta * 10000.0)),
+        "regression_r2": r2,
+        "lookback_days_used": lookback_days,
+        "observations_used": len(filtered),
+        "benchmark_beta": rate_beta,
         "credit_beta": float(coeffs[2]),
         "reason": None,
     }

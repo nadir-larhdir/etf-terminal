@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Seed the securities universe into the local database.")
+    parser.add_argument("--backend", choices=["local", "supabase"], default=None, help="Target data backend.")
+    parser.add_argument("--app-env", choices=["prod", "uat"], default=None, help="Local DB environment when using --backend local.")
     parser.add_argument(
         "--mode",
         choices=["full-replace", "upsert", "missing-only"],
@@ -28,7 +30,7 @@ if __name__ == "__main__":
     args = build_parser().parse_args()
     tickers = parse_ticker_list(args.tickers)
 
-    engine = get_engine()
+    engine = get_engine(data_backend=args.backend, app_env=args.app_env)
     security_store = SecurityStore(engine)
     rows = [
         {"ticker": ticker, "name": meta["name"], "asset_class": meta["asset_class"], "active": 1}

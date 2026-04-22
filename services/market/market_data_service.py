@@ -13,6 +13,15 @@ class MarketDataService:
         self.price_store = price_store
         self.fmp_client = FMPClient(api_key=FMP_API_KEY, base_url=FMP_BASE_URL)
 
+    def _persist_price_frame(self, ticker: str, frame: pd.DataFrame, *, replace_existing: bool) -> bool:
+        if frame.empty:
+            return False
+        if replace_existing:
+            self.price_store.replace_ticker_prices(ticker, frame)
+        else:
+            self.price_store.upsert_prices(frame)
+        return True
+
     def _fetch_history(
         self,
         tickers: list[str],
@@ -71,13 +80,7 @@ class MarketDataService:
 
         for ticker in tickers:
             frame = self._build_price_frame(raw, ticker)
-            if frame.empty:
-                continue
-
-            if replace_existing:
-                self.price_store.replace_ticker_prices(ticker, frame)
-            else:
-                self.price_store.upsert_prices(frame)
+            self._persist_price_frame(ticker, frame, replace_existing=replace_existing)
 
     def sync_price_gaps(self, tickers: list[str], period: str = "1y") -> None:
         self.sync_price_history(tickers=tickers, period=period, replace_existing=False)
@@ -120,11 +123,9 @@ class MarketDataService:
 
         for ticker in existing_tickers:
             frame = self._build_price_frame(raw, ticker)
-            if frame.empty:
+            if not self._persist_price_frame(ticker, frame, replace_existing=False):
                 statuses[ticker] = "no_new_rows"
                 continue
-
-            self.price_store.upsert_prices(frame)
             statuses[ticker] = f"updated_from_{start_dates[ticker]}"
 
         return statuses

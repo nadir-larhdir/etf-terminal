@@ -50,6 +50,9 @@ class TickerManagerService:
         self.market_data_service = market_data_service
         self.fmp_client = FMPClient(api_key=FMP_API_KEY, base_url=FMP_BASE_URL)
 
+    def _search_blob(self, values: list[str]) -> str:
+        return " ".join(value.lower() for value in values if value)
+
     def inspect_ticker(self, ticker: str, asset_class_override: str | None = None) -> TickerProfile:
         from scripts.market.enrich_metadata_from_fmp import build_metadata_row
 
@@ -62,11 +65,7 @@ class TickerManagerService:
         summary = info.get("description") or ""
         fund_family = info.get("fundFamily") or ""
 
-        search_blob = " ".join(
-            value.lower()
-            for value in [long_name, category, summary, fund_family]
-            if value
-        )
+        search_blob = self._search_blob([long_name, category, summary, fund_family])
         matched_keywords = [
             keyword for keyword in FIXED_INCOME_KEYWORDS if keyword in search_blob
         ]
@@ -137,7 +136,7 @@ class TickerManagerService:
         long_name = str(metadata_row.get("long_name") or "")
         description = str(metadata_row.get("description") or "")
 
-        search_blob = " ".join([category, benchmark, long_name, description]).lower()
+        search_blob = self._search_blob([category, benchmark, long_name, description])
 
         if "treasury" in search_blob:
             if "1-3" in search_blob or "short" in search_blob:

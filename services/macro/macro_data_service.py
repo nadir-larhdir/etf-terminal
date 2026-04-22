@@ -7,19 +7,6 @@ from config import MACRO_SERIES_REGISTRY
 # Default FRED series used by the terminal's macro layer.
 DEFAULT_MACRO_SERIES = MACRO_SERIES_REGISTRY
 
-TREASURY_CURVE_SERIES = {
-    "DGS3MO": "3M",
-    "DGS6MO": "6M",
-    "DGS1": "1Y",
-    "DGS2": "2Y",
-    "DGS3": "3Y",
-    "DGS5": "5Y",
-    "DGS7": "7Y",
-    "DGS10": "10Y",
-    "DGS20": "20Y",
-    "DGS30": "30Y",
-}
-
 
 class MacroDataService:
     """Provide grouped macro datasets used by the terminal's market-context layer."""
@@ -42,15 +29,9 @@ class MacroDataService:
         self.fred = fred_client
         self.macro_store = macro_store
 
-    def get_treasury_curve(self):
-        return {
-            label: self.fred.get_series(series_id)
-            for series_id, label in TREASURY_CURVE_SERIES.items()
-            if series_id in MACRO_SERIES_REGISTRY
-        }
-
-    def get_inflation(self):
-        return self.fred.get_series("CPIAUCSL")
+    def _require_store(self) -> None:
+        if self.macro_store is None:
+            raise ValueError("Macro store is required for sync operations.")
 
     def _resolve_series_details(self, series_id: str) -> dict[str, str]:
         registry = MACRO_SERIES_REGISTRY.get(series_id, {})
@@ -83,6 +64,24 @@ class MacroDataService:
         frame["last_updated_at"] = datetime.utcnow().isoformat()
         return frame[self.BASE_COLUMNS]
 
+    def _fetch_series_frame(
+        self,
+        series_id: str,
+        *,
+        start: str | None = None,
+        end: str | None = None,
+    ) -> pd.DataFrame:
+        raw = self.fred.get_series(series_id, start=start, end=end)
+        return self._build_series_frame(raw, series_id)
+
+    def _write_series_frame(self, series_id: str, frame: pd.DataFrame, *, replace_existing: bool) -> None:
+        if frame.empty:
+            return
+        if replace_existing:
+            self.macro_store.replace_series(series_id, frame)
+            return
+        self.macro_store.upsert_series(frame)
+
     def sync_series_history(
         self,
         series_ids: list[str],
@@ -90,19 +89,11 @@ class MacroDataService:
         end: str | None = None,
         replace_existing: bool = True,
     ):
-        if self.macro_store is None:
-            raise ValueError("Macro store is required for sync operations.")
+        self._require_store()
 
         for series_id in series_ids:
-            raw = self.fred.get_series(series_id, start=start, end=end)
-            frame = self._build_series_frame(raw, series_id)
-            if frame.empty:
-                continue
-
-            if replace_existing:
-                self.macro_store.replace_series(series_id, frame)
-            else:
-                self.macro_store.upsert_series(frame)
+            frame = self._fetch_series_frame(series_id, start=start, end=end)
+            self._write_series_frame(series_id, frame, replace_existing=replace_existing)
 
     def sync_incremental_updates(
         self,
@@ -111,8 +102,7 @@ class MacroDataService:
         default_start: str | None = "2000-01-01",
         end: str | None = None,
     ) -> dict[str, str]:
-        if self.macro_store is None:
-            raise ValueError("Macro store is required for sync operations.")
+        self._require_store()
 
         latest_dates = self.macro_store.get_latest_stored_dates(series_ids)
         statuses: dict[str, str] = {}
@@ -121,26 +111,24 @@ class MacroDataService:
         for series_id in series_ids:
             latest_date = latest_dates.get(series_id)
             if latest_date is None:
-                raw = self.fred.get_series(series_id, start=default_start, end=effective_end)
-                frame = self._build_series_frame(raw, series_id)
+                frame = self._fetch_series_frame(series_id, start=default_start, end=effective_end)
                 if frame.empty:
                     statuses[series_id] = "no_rows_returned"
                     continue
-                self.macro_store.upsert_series(frame)
+                self._write_series_frame(series_id, frame, replace_existing=False)
                 statuses[series_id] = f"initialized_from_{default_start}"
                 continue
 
             start_date = (
                 pd.to_datetime(latest_date).date() - timedelta(days=max(overlap_days, 0))
             ).isoformat()
-            raw = self.fred.get_series(series_id, start=start_date, end=effective_end)
-            frame = self._build_series_frame(raw, series_id)
+            frame = self._fetch_series_frame(series_id, start=start_date, end=effective_end)
 
             if frame.empty:
                 statuses[series_id] = "no_new_rows"
                 continue
 
-            self.macro_store.upsert_series(frame)
+            self._write_series_frame(series_id, frame, replace_existing=False)
             statuses[series_id] = f"updated_from_{start_date}"
 
         return statuses
