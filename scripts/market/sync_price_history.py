@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Load ETF price history into the local database.")
+    parser.add_argument("--backend", choices=["local", "supabase"], default=None, help="Target data backend.")
+    parser.add_argument("--app-env", choices=["prod", "uat"], default=None, help="Local DB environment when using --backend local.")
     parser.add_argument(
         "--mode",
         choices=["full", "gap-fill", "incremental", "missing-only"],
@@ -38,7 +40,7 @@ if __name__ == "__main__":
     configure_logging()
     args = build_parser().parse_args()
 
-    engine = get_engine()
+    engine = get_engine(data_backend=args.backend, app_env=args.app_env)
     security_store = SecurityStore(engine)
     active_securities = security_store.list_active_securities()
     db_tickers = active_securities["ticker"].astype(str).tolist() if not active_securities.empty else []

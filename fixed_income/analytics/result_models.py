@@ -24,6 +24,7 @@ class RateRiskEstimate:
     estimated_duration: float | None
     dv01_per_share: float | None
     regression_r2: float | None
+    benchmark_beta: float | None
     benchmark_used: str | None
     rate_proxy_used: str
     lookback_days_used: int | None
@@ -36,6 +37,7 @@ class SpreadRiskEstimate:
     dv01_proxy_per_share: float | None
     regression_r2: float | None
     proxy_used: str | None
+
 
 @dataclass(frozen=True)
 class SecurityAnalyticsSnapshot:
@@ -75,20 +77,27 @@ class SecurityAnalyticsSnapshot:
         return self.rate_risk.regression_r2
 
     @property
+    def treasury_beta(self) -> float | None:
+        return self.rate_risk.benchmark_beta
+
+    def _spread_value(self, field_name: str):
+        return None if self.spread_risk is None else getattr(self.spread_risk, field_name)
+
+    @property
     def spread_beta_per_bp(self) -> float | None:
-        return None if self.spread_risk is None else self.spread_risk.beta_per_bp
+        return self._spread_value("beta_per_bp")
 
     @property
     def spread_model_r2(self) -> float | None:
-        return None if self.spread_risk is None else self.spread_risk.regression_r2
+        return self._spread_value("regression_r2")
 
     @property
     def spread_proxy_used(self) -> str | None:
-        return None if self.spread_risk is None else self.spread_risk.proxy_used
+        return self._spread_value("proxy_used")
 
     @property
     def spread_dv01_proxy_per_share(self) -> float | None:
-        return None if self.spread_risk is None else self.spread_risk.dv01_proxy_per_share
+        return self._spread_value("dv01_proxy_per_share")
 
     @property
     def observations_used(self) -> int | None:
@@ -103,6 +112,7 @@ class SecurityAnalyticsSnapshot:
             "spread_proxy_used": self.spread_proxy_used,
             "estimated_duration": self.estimated_duration,
             "rate_dv01_per_share": self.dv01_per_share,
+            "benchmark_beta": self.treasury_beta,
             "cs01_proxy_per_share": self.spread_dv01_proxy_per_share,
             "spread_beta_per_bp": self.spread_beta_per_bp,
             "equity_beta": self.equity_beta,
@@ -134,6 +144,7 @@ class SecurityAnalyticsSnapshot:
                 estimated_duration=row.get("estimated_duration"),
                 dv01_per_share=row.get("rate_dv01_per_share"),
                 regression_r2=row.get("rate_model_r2"),
+                benchmark_beta=row.get("benchmark_beta"),
                 benchmark_used=row.get("benchmark_used"),
                 rate_proxy_used=str(row.get("rate_proxy_used") or ""),
                 lookback_days_used=row.get("lookback_days_used"),

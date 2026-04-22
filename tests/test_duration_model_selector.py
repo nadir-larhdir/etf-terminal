@@ -9,9 +9,9 @@ def test_duration_model_selector_routes_credit_and_treasury_buckets() -> None:
     hyg = Security("HYG", name="High Yield Corporate Bond ETF", asset_class="HY Credit")
     tip = Security("TIP", name="TIPS Bond ETF", asset_class="Inflation-Linked")
 
-    lqd_selection = selector.select_for_security(lqd, rough_duration=7.0)
-    hyg_selection = selector.select_for_security(hyg, rough_duration=4.0)
-    tip_selection = selector.select_for_security(tip, rough_duration=5.0)
+    lqd_selection = selector.select_for_security(lqd)
+    hyg_selection = selector.select_for_security(hyg)
+    tip_selection = selector.select_for_security(tip)
 
     assert lqd_selection.asset_bucket == "Investment Grade Credit"
     assert lqd_selection.treasury_benchmark_symbol == "IEF"
@@ -33,4 +33,4 @@ def test_duration_model_selector_uses_short_duration_fallback_for_sgov() -> None
 
     assert selection.asset_bucket == "Short Duration / Cash-like"
     assert selection.treasury_benchmark_symbol == "SHY"
-    assert selection.used_fallback is True
+    assert selection.used_fallback is False

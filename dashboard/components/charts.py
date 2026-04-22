@@ -3,6 +3,7 @@ from pandas import DatetimeIndex
 import plotly.graph_objects as go
 import streamlit as st
 
+from dashboard.components.controls import WINDOW_LOOKBACK_MAP
 from dashboard.mobile import responsive_chart_layout
 
 
@@ -10,14 +11,7 @@ TERMINAL_FONT = '"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "
 
 
 def _filter_by_period(hist: pd.DataFrame, period_label: str) -> pd.DataFrame:
-    lookback_map = {
-        "5D": 5,
-        "30D": 30,
-        "3M": 63,
-        "6M": 126,
-        "1Y": 252,
-    }
-    lookback = lookback_map.get(period_label, len(hist))
+    lookback = WINDOW_LOOKBACK_MAP.get(period_label, len(hist))
     return hist.tail(min(lookback, len(hist))).copy()
 
 

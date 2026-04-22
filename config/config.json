@@ -84,6 +84,10 @@
       "name": "iShares 0-5 Year High Yield Corporate Bond ETF",
       "asset_class": "HY Credit"
     },
+    "SLQD": {
+      "name": "iShares 0-5 Year Investment Grade Corporate Bond ETF",
+      "asset_class": "IG Credit"
+    },
     "SJNK": {
       "name": "SPDR Bloomberg Short Term High Yield Bond ETF",
       "asset_class": "HY Credit"
@@ -265,6 +269,13 @@
       "sub_category": "single_b_oas",
       "frequency": "Daily",
       "units": "Percent"
+    },
+    "NASDAQOMRXMUNI": {
+      "name": "OMRX Municipal Bond Index",
+      "category": "Municipal",
+      "sub_category": "muni_benchmark",
+      "frequency": "Daily",
+      "units": "Index"
     }
   },
 

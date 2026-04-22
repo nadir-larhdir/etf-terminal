@@ -140,6 +140,26 @@ DATA_BACKEND=supabase APP_ENV=uat streamlit run main.py
 
 These are the commands you are most likely to use regularly.
 
+Run the full daily refresh in one command:
+
+```bash
+python -m scripts.daily.refresh_all --backend supabase --app-env uat
+```
+
+That workflow now does all of the following in order:
+- sync the configured securities universe
+- refresh ETF prices from FMP
+- refresh FRED macro series
+- rebuild macro features
+- refresh ETF metadata, including issuer and duration
+- recompute analytics snapshots when price dates or metadata durations changed
+
+If you want to force all analytics snapshots to refresh:
+
+```bash
+python -m scripts.daily.refresh_all --backend supabase --app-env uat --force-analytics
+```
+
 Update ETF prices to the latest available FMP end-of-day data:
 
 ```bash

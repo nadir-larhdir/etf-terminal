@@ -7,6 +7,7 @@ from sqlalchemy import text
 
 from db.sql import qualified_table
 from fixed_income.analytics.result_models import SecurityAnalyticsSnapshot
+from stores.query_utils import sql_in_clause_params
 
 
 class AnalyticsSnapshotStore:
@@ -28,6 +29,7 @@ class AnalyticsSnapshotStore:
             spread_proxy_used,
             estimated_duration,
             rate_dv01_per_share,
+            benchmark_beta,
             cs01_proxy_per_share,
             spread_beta_per_bp,
             equity_beta,
@@ -52,6 +54,7 @@ class AnalyticsSnapshotStore:
             :spread_proxy_used,
             :estimated_duration,
             :rate_dv01_per_share,
+            :benchmark_beta,
             :cs01_proxy_per_share,
             :spread_beta_per_bp,
             :equity_beta,
@@ -75,6 +78,7 @@ class AnalyticsSnapshotStore:
             spread_proxy_used = excluded.spread_proxy_used,
             estimated_duration = excluded.estimated_duration,
             rate_dv01_per_share = excluded.rate_dv01_per_share,
+            benchmark_beta = excluded.benchmark_beta,
             cs01_proxy_per_share = excluded.cs01_proxy_per_share,
             spread_beta_per_bp = excluded.spread_beta_per_bp,
             equity_beta = excluded.equity_beta,
@@ -114,7 +118,7 @@ class AnalyticsSnapshotStore:
     def get_latest_snapshots(self, symbols: list[str]) -> pd.DataFrame:
         if not symbols:
             return pd.DataFrame()
-        placeholders = ", ".join(f":symbol_{idx}" for idx in range(len(symbols)))
+        placeholders, params = sql_in_clause_params("symbol", symbols)
         query = text(
             f"""
             WITH ranked AS (
@@ -129,6 +133,5 @@ class AnalyticsSnapshotStore:
             ORDER BY symbol
             """
         )
-        params = {f"symbol_{idx}": symbol for idx, symbol in enumerate(symbols)}
         with self.engine.connect() as conn:
             return pd.read_sql(query, conn, params=params)

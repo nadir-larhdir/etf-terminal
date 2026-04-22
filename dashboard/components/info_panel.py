@@ -39,9 +39,15 @@ class InfoPanel:
             )
 
         shadow = "box-shadow:inset 0 0 0 1px rgba(255,255,255,0.01);" if box_shadow else ""
+        pattern = (
+            "background-image:"
+            "radial-gradient(rgba(255,255,255,0.03) 0.6px, transparent 0.6px),"
+            "linear-gradient(to bottom, rgba(255,255,255,0.02), rgba(255,255,255,0));"
+            "background-size:12px 12px, 100% 100%;"
+        )
         return (
-            f"<div style='border:1px solid {border_color};background-color:{background_color};"
-            f"padding:{padding};border-radius:2px;margin-top:{margin_top};margin-bottom:{margin_bottom};{shadow}'>"
+            f"<div style='border:1px solid {border_color};border-left:3px solid {accent_color};background-color:{background_color};"
+            f"{pattern}padding:{padding};border-radius:2px;margin-top:{margin_top};margin-bottom:{margin_bottom};{shadow}'>"
             f"<div style='color:{accent_color};font-size:{title_font_size};text-transform:uppercase;"
             f"letter-spacing:0.45px;margin-bottom:0.18rem;font-weight:700;'>{title}</div>"
             f"{headline_block}"

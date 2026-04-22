@@ -4,17 +4,19 @@ from datetime import timedelta
 import pandas as pd
 import streamlit as st
 
+WINDOW_LOOKBACK_MAP = {
+    "5D": 5,
+    "30D": 30,
+    "3M": 63,
+    "6M": 126,
+    "1Y": 252,
+}
+
 
 class DashboardControls:
     """Provide shared Streamlit selectors and date controls for the dashboard."""
 
-    WINDOW_DAY_MAP = {
-        "5D": 5,
-        "30D": 30,
-        "3M": 63,
-        "6M": 126,
-        "1Y": 252,
-    }
+    WINDOW_DAY_MAP = WINDOW_LOOKBACK_MAP
 
     def render_security_select(
         self,

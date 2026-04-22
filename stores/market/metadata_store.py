@@ -28,6 +28,25 @@ def _ticker_metadata(_engine, ticker: str):
 class MetadataStore:
     """Read and write descriptive ETF metadata rows."""
 
+    BASE_COLUMNS = [
+        "ticker",
+        "conid",
+        "long_name",
+        "description",
+        "issuer",
+        "duration",
+        "benchmark_index",
+        "category",
+        "duration_bucket",
+        "currency",
+        "exchange",
+        "expense_ratio",
+        "total_assets",
+        "quote_type",
+        "source",
+        "updated_at",
+    ]
+
     def __init__(self, engine):
         self.engine = engine
 
@@ -38,6 +57,10 @@ class MetadataStore:
         df = pd.DataFrame(rows)
         if "updated_at" not in df.columns:
             df["updated_at"] = datetime.utcnow().isoformat()
+        for column in self.BASE_COLUMNS:
+            if column not in df.columns:
+                df[column] = None
+        df = df[self.BASE_COLUMNS]
 
         records = df.to_dict(orient="records")
         statement = """
@@ -47,6 +70,7 @@ class MetadataStore:
             long_name,
             description,
             issuer,
+            duration,
             benchmark_index,
             category,
             duration_bucket,
@@ -63,6 +87,7 @@ class MetadataStore:
             :long_name,
             :description,
             :issuer,
+            :duration,
             :benchmark_index,
             :category,
             :duration_bucket,
@@ -79,6 +104,7 @@ class MetadataStore:
             long_name = excluded.long_name,
             description = excluded.description,
             issuer = excluded.issuer,
+            duration = excluded.duration,
             benchmark_index = excluded.benchmark_index,
             category = excluded.category,
             duration_bucket = excluded.duration_bucket,
