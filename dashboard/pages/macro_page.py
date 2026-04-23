@@ -99,24 +99,24 @@ Z_SCORE_FEATURES = {
 }
 
 LOOKBACK_MAP = {**WINDOW_LOOKBACK_MAP, "5Y": 1260, "ALL": None}
-CHART_PALETTE = ["#FFD166", "#00ADB5", "#FF5A36", "#00C176"]
+CHART_PALETTE = ["#6F7B46", "#5F8D84", "#A55C45", "#4E7B52"]
 TREASURY_CHART_COLORS = {
-    "UST_2Y_LEVEL": "#B22222",
-    "UST_10Y_LEVEL": "#163A70",
-    "UST_30Y_LEVEL": "#00A86B",
+    "UST_2Y_LEVEL": "#8E5A43",
+    "UST_10Y_LEVEL": "#4E6C8C",
+    "UST_30Y_LEVEL": "#4E7B52",
 }
 MACRO_CHART_COLORS = {
-    "UST_2S10S": "#0E7490",
-    "UST_5S30S": "#0E7490",
-    "CPI_YOY": "#D4A017",
-    "BEI_5Y": "#D4A017",
-    "REAL_RATE_PROXY": "#B8860B",
-    "FEDFUNDS_LEVEL": "#5B7DB1",
-    "UNRATE_LEVEL": "#7FB069",
-    "IG_OAS_LEVEL": "#5DA9E9",
-    "BBB_OAS_LEVEL": "#E67E22",
-    "HY_OAS_LEVEL": "#D35400",
-    "HY_MINUS_IG_OAS": "#E67E22",
+    "UST_2S10S": "#5F8D84",
+    "UST_5S30S": "#5F8D84",
+    "CPI_YOY": "#B08A3C",
+    "BEI_5Y": "#B08A3C",
+    "REAL_RATE_PROXY": "#8E7443",
+    "FEDFUNDS_LEVEL": "#6A7FA0",
+    "UNRATE_LEVEL": "#6C8E59",
+    "IG_OAS_LEVEL": "#6F8FA7",
+    "BBB_OAS_LEVEL": "#B07A4A",
+    "HY_OAS_LEVEL": "#A55C45",
+    "HY_MINUS_IG_OAS": "#B07A4A",
 }
 PERCENT_CHART_FEATURES = {
     "UST_2Y_LEVEL",
@@ -392,12 +392,12 @@ class MacroPage:
         st.subheader("Macro Regime")
         regimes = self._rule_based_regimes(matrix)
         left_cards = [
-            ("Duration Regime", "duration_regime", "#FFD166"),
-            ("Inflation Regime", "inflation_regime", "#FF5A36"),
+            ("Duration Regime", "duration_regime", "#6F7B46"),
+            ("Inflation Regime", "inflation_regime", "#A55C45"),
         ]
         right_cards = [
-            ("Curve Regime", "curve_regime", "#00ADB5"),
-            ("Growth Regime", "growth_regime", "#00C176"),
+            ("Curve Regime", "curve_regime", "#5F8D84"),
+            ("Growth Regime", "growth_regime", "#4E7B52"),
         ]
         col1, col2 = st.columns(2)
         for column, cards in ((col1, left_cards), (col2, right_cards)):
@@ -489,8 +489,8 @@ class MacroPage:
                 y=curve_df["value"],
                 mode="markers",
                 name="Observed",
-                line=dict(color="#FFD166", width=0),
-                marker=dict(size=8, color="#00ADB5"),
+                line=dict(color="#6F7B46", width=0),
+                marker=dict(size=8, color="#5F8D84"),
                 hovertemplate="%{text}<br>%{y:.2f}%<extra></extra>",
                 text=curve_df["tenor"],
             )
@@ -501,7 +501,7 @@ class MacroPage:
                 y=curve_df["value"],
                 mode="lines",
                 name="Observed segments",
-                line=dict(color="#00ADB5", width=1, dash="dot"),
+                line=dict(color="#5F8D84", width=1, dash="dot"),
                 hoverinfo="skip",
             )
         )
@@ -515,7 +515,7 @@ class MacroPage:
                     y=smooth_curve,
                     mode="lines",
                     name="Nelson-Siegel fit",
-                    line=dict(color="#F5F5F5", width=4),
+                    line=dict(color="#1F271C", width=3),
                     customdata=smooth_maturities,
                     hovertemplate="%{customdata:.2f}Y<br>%{y:.2f}%<extra></extra>",
                 )
@@ -529,7 +529,7 @@ class MacroPage:
                 xaxis=dict(
                     title="Tenor",
                     showgrid=True,
-                    gridcolor="#2A2A2A",
+                    gridcolor="#D8D4C7",
                     automargin=True,
                     title_standoff=16,
                     tickmode="array",

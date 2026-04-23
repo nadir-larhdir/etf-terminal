@@ -41,8 +41,8 @@ class InfoPanel:
         shadow = "box-shadow:inset 0 0 0 1px rgba(255,255,255,0.01);" if box_shadow else ""
         pattern = (
             "background-image:"
-            "radial-gradient(rgba(255,255,255,0.03) 0.6px, transparent 0.6px),"
-            "linear-gradient(to bottom, rgba(255,255,255,0.02), rgba(255,255,255,0));"
+            "radial-gradient(rgba(31,39,28,0.04) 0.6px, transparent 0.6px),"
+            "linear-gradient(to bottom, rgba(111,123,70,0.03), rgba(255,255,255,0));"
             "background-size:12px 12px, 100% 100%;"
         )
         return (
@@ -62,11 +62,11 @@ class InfoPanel:
         body: str,
         *,
         footer: str | None = None,
-        accent_color: str = "#FF9F1A",
-        headline_color: str = "#F3F0E8",
-        body_color: str = "#B8B1A3",
-        background_color: str = "#050505",
-        border_color: str = "#2A2A2A",
+        accent_color: str = "#6F7B46",
+        headline_color: str = "#1F271C",
+        body_color: str = "#4F5A49",
+        background_color: str = "#FBF8F1",
+        border_color: str = "#D8D4C7",
         margin_top: str = "0.35rem",
         margin_bottom: str = "0.50rem",
     ) -> None:
@@ -94,10 +94,10 @@ class InfoPanel:
         title: str,
         body: str,
         *,
-        accent_color: str = "#00ADB5",
-        body_color: str = "#B8B1A3",
-        background_color: str = "#050505",
-        border_color: str = "#2A2A2A",
+        accent_color: str = "#5F8D84",
+        body_color: str = "#4F5A49",
+        background_color: str = "#FBF8F1",
+        border_color: str = "#D8D4C7",
         margin_top: str = "0.20rem",
         margin_bottom: str = "0.40rem",
     ) -> None:

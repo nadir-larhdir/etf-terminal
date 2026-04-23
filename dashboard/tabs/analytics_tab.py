@@ -1,5 +1,6 @@
 import logging
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 from dashboard.cache import (
@@ -57,39 +58,39 @@ class AnalyticsTab:
                 footer=dv01_footer,
             )
         with a3:
-            self._render_metric_card("Duration Method", duration_method, "#F3F0E8", "#5E6472")
+            self._render_metric_card("Duration Method", duration_method, "#1F271C", "#8D8779")
         with a4:
-            self._render_metric_card("Duration Source", duration_source, "#F3F0E8", "#5E6472")
+            self._render_metric_card("Duration Source", duration_source, "#1F271C", "#8D8779")
 
         st.markdown(
-            "<div style='height:1px;margin:1.2rem 0 1.4rem 0;background:linear-gradient(90deg, rgba(93,169,233,0.0), rgba(93,169,233,0.55), rgba(233,196,106,0.45), rgba(233,196,106,0.0));'></div>",
+            "<div style='height:1px;margin:1.2rem 0 1.4rem 0;background:linear-gradient(90deg, rgba(95,141,132,0.0), rgba(95,141,132,0.45), rgba(111,123,70,0.35), rgba(111,123,70,0.0));'></div>",
             unsafe_allow_html=True,
         )
 
         if has_credit_spread:
             s1, s2, s3, s4 = st.columns(4)
             with s1:
-                self._render_metric_card("OAS Proxy Used", format_oas_proxy_label(analytics.spread_proxy_used), "#F3F0E8", "#E9C46A")
+                self._render_metric_card("OAS Proxy Used", format_oas_proxy_label(analytics.spread_proxy_used), "#1F271C", "#6F7B46")
             with s2:
                 self._render_metric_card(
                     "CS Beta",
                     self._format_spread_beta_bps(analytics.spread_beta_per_bp),
                     self._cs_beta_risk_color(analytics.spread_beta_per_bp),
-                    "#E9C46A",
+                    "#6F7B46",
                 )
             with s3:
                 self._render_metric_card(
                     "Proxy CS01 / $1MM",
                     self._format_dollar_per_million(analytics.spread_dv01_proxy_per_share),
                     self._cs01_risk_color(analytics.spread_dv01_proxy_per_share),
-                    "#E9C46A",
+                    "#6F7B46",
                 )
             with s4:
                 self._render_metric_card(
                     "Credit Spread R²",
                     self._format_number(analytics.spread_model_r2),
-                    "#F3F0E8",
-                    "#E9C46A",
+                    "#1F271C",
+                    "#6F7B46",
                     show_bottom_border=False,
                     footer=(
                         f"{self._r2_gauge(analytics.spread_model_r2)}"
@@ -112,7 +113,7 @@ class AnalyticsTab:
                 title="Current Read",
                 headline=self._current_read_headline(security, metadata),
                 body=self._current_read_body(security, metadata, snapshot, analytics, duration_method, duration_source),
-                accent_color="#5DA9E9",
+                accent_color="#5F8D84",
                 margin_top="0.50rem",
                 margin_bottom="0.30rem",
             )
@@ -125,7 +126,7 @@ class AnalyticsTab:
                         f"{self._oas_move_explanation(analytics)} Proxy CS01: {self._format_dollar_per_million(analytics.spread_dv01_proxy_per_share)}/$1MM "
                         f"(R²: {self._format_number(analytics.spread_model_r2)})."
                     ),
-                    accent_color="#E9C46A",
+                    accent_color="#6F7B46",
                     margin_top="0.50rem",
                     margin_bottom="0.30rem",
                 )
@@ -134,7 +135,7 @@ class AnalyticsTab:
                 title="Trading Activity",
                 headline=liquidity_regime,
                 body=f"Current volume is running at {self._volume_multiple(snapshot):.2f}x the 30-day average.",
-                accent_color="#2A9D8F",
+                accent_color="#5F8D84",
                 margin_top="0.50rem",
                 margin_bottom="0.12rem",
             )
@@ -274,12 +275,12 @@ class AnalyticsTab:
     ) -> None:
         footer_block = ""
         if footer:
-            footer_block = f"<div style='margin-top:0.45rem;color:#8D8779;font-size:0.72rem;line-height:1.3;'>{footer}</div>"
+            footer_block = f"<div style='margin-top:0.45rem;color:#707A68;font-size:0.72rem;line-height:1.3;'>{footer}</div>"
         bottom_border = f"border-bottom:2px solid {border_color};" if show_bottom_border else ""
         st.markdown(
             (
                 "<div class='bb-highlight-metric' style='padding:0.25rem 0 0.85rem 0;{bottom_border}min-height:7.4rem;'>"
-                "<div class='bb-highlight-metric-label' style='font-size:0.68rem;letter-spacing:0.8px;text-transform:uppercase;color:#8D8779;font-weight:600;'>{label}</div>"
+                "<div class='bb-highlight-metric-label' style='font-size:0.68rem;letter-spacing:0.8px;text-transform:uppercase;color:#707A68;font-weight:600;'>{label}</div>"
                 "<div class='bb-highlight-metric-value' style='color:{color};font-size:3.35rem;font-weight:800;line-height:1.02;margin-top:0.18rem;'>{value}</div>"
                 "{footer_block}"
                 "</div>"
@@ -304,7 +305,32 @@ class AnalyticsTab:
         if ratio.empty:
             return
         st.caption("Volume vs 30D average")
-        st.bar_chart(ratio.rename("Vol / 30D"), height=120, use_container_width=True)
+        fig = go.Figure(
+            data=[
+                go.Bar(
+                    x=ratio.index,
+                    y=ratio.values,
+                    marker_color="#5F8D84",
+                    hovertemplate="%{x|%b %d, %Y}<br>Vol / 30D: %{y:.2f}x<extra></extra>",
+                )
+            ]
+        )
+        fig.update_layout(
+            template="plotly_white",
+            paper_bgcolor="#FBF8F1",
+            plot_bgcolor="#FBF8F1",
+            margin=dict(l=8, r=8, t=8, b=8),
+            height=150,
+            font=dict(
+                family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                color="#1F271C",
+                size=11,
+            ),
+            xaxis=dict(showgrid=False, tickfont=dict(color="#4F5A49")),
+            yaxis=dict(showgrid=True, gridcolor="#D8D4C7", zeroline=False, tickfont=dict(color="#4F5A49")),
+            showlegend=False,
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
     def _volume_multiple(self, snapshot: dict[str, float | None]) -> float:
         current_volume = snapshot["current_volume"]
@@ -324,50 +350,50 @@ class AnalyticsTab:
 
     def _duration_risk_color(self, value: float | None) -> str:
         if value is None:
-            return "#F3F0E8"
+            return "#1F271C"
         if value <= 3.0:
-            return "#2A9D8F"
+            return "#5F8D84"
         if value <= 7.0:
-            return "#E9C46A"
-        return "#C94F4F"
+            return "#C9A64B"
+        return "#A55C45"
 
     def _dv01_risk_color(self, value: float | None) -> str:
         if value is None:
-            return "#F3F0E8"
+            return "#1F271C"
         per_million = abs(value * 10000)
         if per_million <= 150:
-            return "#2A9D8F"
+            return "#5F8D84"
         if per_million <= 500:
-            return "#E9C46A"
-        return "#C94F4F"
+            return "#C9A64B"
+        return "#A55C45"
 
     def _cs_beta_risk_color(self, value: float | None) -> str:
         if value is None:
-            return "#F3F0E8"
+            return "#1F271C"
         beta_bps = abs(value * 10000)
         if beta_bps <= 1.0:
-            return "#2A9D8F"
+            return "#5F8D84"
         if beta_bps <= 3.0:
-            return "#E9C46A"
-        return "#C94F4F"
+            return "#C9A64B"
+        return "#A55C45"
 
     def _cs01_risk_color(self, value: float | None) -> str:
         if value is None:
-            return "#F3F0E8"
+            return "#1F271C"
         per_million = abs(value * 10000)
         if per_million <= 100:
-            return "#2A9D8F"
+            return "#5F8D84"
         if per_million <= 400:
-            return "#E9C46A"
-        return "#C94F4F"
+            return "#C9A64B"
+        return "#A55C45"
 
     def _r2_gauge(self, value: float | None) -> str:
         if value is None:
             return ""
         pct = max(0.0, min(value, 1.0)) * 100.0
         return (
-            f"<div style='margin-top:0.35rem;height:6px;background:rgba(255,255,255,0.10);border-radius:999px;'>"
-            f"<div style='width:{pct:.1f}%;height:100%;border-radius:999px;background:linear-gradient(90deg, #E9C46A, #F4A261);'></div>"
+            f"<div style='margin-top:0.35rem;height:6px;background:rgba(111,123,70,0.12);border-radius:999px;'>"
+            f"<div style='width:{pct:.1f}%;height:100%;border-radius:999px;background:linear-gradient(90deg, #5F8D84, #6F7B46);'></div>"
             "</div>"
         )
 
@@ -393,8 +419,8 @@ class AnalyticsTab:
         return (
             "<div style='display:flex;align-items:center;gap:0.45rem;'>"
             "<span>0Y</span>"
-            f"<div style='position:relative;flex:1;height:4px;background:rgba(255,255,255,0.12);border-radius:999px;'>"
-            f"<div style='position:absolute;left:calc({pct:.1f}% - 5px);top:-3px;width:10px;height:10px;border-radius:50%;background:#5DA9E9;'></div>"
+            f"<div style='position:relative;flex:1;height:4px;background:rgba(111,123,70,0.12);border-radius:999px;'>"
+            f"<div style='position:absolute;left:calc({pct:.1f}% - 5px);top:-3px;width:10px;height:10px;border-radius:50%;background:#5F8D84;'></div>"
             "</div>"
             "<span>30Y</span>"
             "</div>"

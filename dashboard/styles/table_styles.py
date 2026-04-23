@@ -12,7 +12,7 @@ class DashboardTable:
         def style_value(value, column_name: str) -> str:
             is_text_col = column_name.upper() in {"DATE", "PAIR", "REGIME", "CROSS"}
             text_align = "left" if is_text_col else "right"
-            base_style = f"color:#FFFFFF; text-align:{text_align};"
+            base_style = f"color:#1F271C; text-align:{text_align};"
 
             try:
                 numeric_value = float(str(value).replace(",", ""))
@@ -22,16 +22,16 @@ class DashboardTable:
                     alpha = 0.18 + 0.30 * intensity
                     if numeric_value > 0:
                         bar_color = f"rgba(0, 193, 118, {alpha:.2f})"
-                        text_color = "#00C176"
+                        text_color = "#4E7B52"
                     elif numeric_value < 0:
-                        bar_color = f"rgba(255, 90, 54, {alpha:.2f})"
-                        text_color = "#FF5A36"
+                        bar_color = f"rgba(165, 92, 69, {alpha:.2f})"
+                        text_color = "#A55C45"
                     else:
                         bar_color = "rgba(255,255,255,0.00)"
-                        text_color = "#FFFFFF"
+                        text_color = "#1F271C"
 
                     weight = "700" if abs(numeric_value) >= 2 else "400"
-                    edge = "#FFD166" if abs(numeric_value) >= 2 else "transparent"
+                    edge = "#6F7B46" if abs(numeric_value) >= 2 else "transparent"
                     return (
                         f"color:{text_color};"
                         f"font-weight:{weight};"
@@ -42,20 +42,20 @@ class DashboardTable:
 
                 if "CORR" in column_name.upper() or "STABILITY" in column_name.upper():
                     if numeric_value >= 0.8:
-                        return f"color:#00C176; font-weight:700; text-align:{text_align};"
+                        return f"color:#4E7B52; font-weight:700; text-align:{text_align};"
                     if numeric_value <= 0.3:
-                        return f"color:#FFD166; text-align:{text_align};"
+                        return f"color:#6F7B46; text-align:{text_align};"
                     return base_style
 
                 return base_style
             except Exception:
                 regime_text = str(value).upper()
                 if regime_text in {"RICH / EXTREME", "RICH"}:
-                    return f"color:#FF5A36; font-weight:700; text-align:{text_align};"
+                    return f"color:#A55C45; font-weight:700; text-align:{text_align};"
                 if regime_text in {"CHEAP / EXTREME", "CHEAP"}:
-                    return f"color:#00C176; font-weight:700; text-align:{text_align};"
+                    return f"color:#4E7B52; font-weight:700; text-align:{text_align};"
                 if regime_text == "NEUTRAL":
-                    return f"color:#FFFFFF; text-align:{text_align};"
+                    return f"color:#1F271C; text-align:{text_align};"
                 return base_style
 
         def style_frame(frame: pd.DataFrame) -> pd.DataFrame:
@@ -66,21 +66,21 @@ class DashboardTable:
 
         styled = styled.apply(style_frame, axis=None)
 
-        styled = styled.set_table_attributes('class="bbg-core-table"')
+        styled = styled.set_table_attributes('class="core-table"')
         styled = styled.set_table_styles(
             [
                 {
                     "selector": "th",
                     "props": [
-                        ("background-color", "#111317"),
-                        ("color", "#D4CCBD"),
+                        ("background-color", "#F1EDE3"),
+                        ("color", "#1F271C"),
                         ("font-weight", "700"),
                         ("text-transform", "uppercase"),
                         ("letter-spacing", "0.30px"),
                         ("font-size", "0.68rem"),
                         ("padding", "0.22rem 0.40rem"),
-                        ("border-bottom", "1px solid #25292F"),
-                        ("border-right", "1px solid #1A1E24"),
+                        ("border-bottom", "1px solid #D8D4C7"),
+                        ("border-right", "1px solid #D8D4C7"),
                         ("text-align", "left"),
                         ("white-space", "nowrap"),
                     ],
@@ -88,11 +88,11 @@ class DashboardTable:
                 {
                     "selector": "td",
                     "props": [
-                        ("background-color", "#060708"),
+                        ("background-color", "#FBF8F1"),
                         ("padding", "0.18rem 0.40rem"),
                         ("font-size", "0.74rem"),
-                        ("border-bottom", "1px solid #1A1E24"),
-                        ("border-right", "1px solid #14181D"),
+                        ("border-bottom", "1px solid #E0DCCF"),
+                        ("border-right", "1px solid #E0DCCF"),
                         ("white-space", "nowrap"),
                     ],
                 },
@@ -125,7 +125,7 @@ class DashboardTable:
         return display_df
 
     def render(self, df: pd.DataFrame, *, hide_index: bool = True, height: int | None = None) -> None:
-        table_id = f"bbg-table-{uuid.uuid4().hex[:8]}"
+        table_id = f"core-table-{uuid.uuid4().hex[:8]}"
         display_df = self._prepare_display_dataframe(df)
 
         if hide_index:
@@ -139,10 +139,10 @@ class DashboardTable:
         html = f"""
 <style>
 .{table_id}-wrap {{
-    border: 1px solid #1A1E24;
+    border: 1px solid #D8D4C7;
     border-radius: 0;
-    background-color: #050607;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+    background-color: #FBF8F1;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
     width: 100%;
     overflow-x: auto;
     {container_style}
@@ -151,8 +151,8 @@ class DashboardTable:
 .{table_id}-wrap table {{
     width: 100%;
     border-collapse: collapse;
-    background-color: #050607;
-    color: #FFFFFF;
+    background-color: #FBF8F1;
+    color: #1F271C;
     font-size: 0.76rem;
     table-layout: auto;
 }}
@@ -164,11 +164,11 @@ class DashboardTable:
 }}
 
 .{table_id}-wrap tbody tr:hover td {{
-    background-color: #0E1114 !important;
+    background-color: #F1EDE3 !important;
 }}
 
 .{table_id}-wrap tbody tr:nth-child(even) td {{
-    background-color: #080A0C !important;
+    background-color: #F7F3EA !important;
 }}
 
 .{table_id}-wrap thead th:last-child,

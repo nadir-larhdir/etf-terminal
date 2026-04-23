@@ -339,7 +339,9 @@ class HomePage:
                     </div>
                     <a class="home-inline-link" href="?view=dashboard" target="_self">Open dashboard →</a>
                 </div>
-                <div class="home-hero-canvas" style="background-image:url('{hero_src}');"></div>
+                <div class="home-hero-canvas">
+                    <img class="home-hero-image" src="{hero_src}" alt="" />
+                </div>
             </div>
             """
         ).strip()
