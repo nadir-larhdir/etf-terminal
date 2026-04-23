@@ -72,14 +72,15 @@ class DashboardTable:
                 {
                     "selector": "th",
                     "props": [
-                        ("background-color", "#3A3A3A"),
-                        ("color", "#00ADB5"),
+                        ("background-color", "#111317"),
+                        ("color", "#D4CCBD"),
                         ("font-weight", "700"),
                         ("text-transform", "uppercase"),
-                        ("letter-spacing", "0.40px"),
-                        ("padding", "0.42rem 0.62rem"),
-                        ("border-bottom", "1px solid #4A4F59"),
-                        ("border-right", "1px solid #4A4F59"),
+                        ("letter-spacing", "0.30px"),
+                        ("font-size", "0.68rem"),
+                        ("padding", "0.22rem 0.40rem"),
+                        ("border-bottom", "1px solid #25292F"),
+                        ("border-right", "1px solid #1A1E24"),
                         ("text-align", "left"),
                         ("white-space", "nowrap"),
                     ],
@@ -87,10 +88,11 @@ class DashboardTable:
                 {
                     "selector": "td",
                     "props": [
-                        ("background-color", "#000000"),
-                        ("padding", "0.34rem 0.62rem"),
-                        ("border-bottom", "1px solid #2A2F38"),
-                        ("border-right", "1px solid #2A2F38"),
+                        ("background-color", "#060708"),
+                        ("padding", "0.18rem 0.40rem"),
+                        ("font-size", "0.74rem"),
+                        ("border-bottom", "1px solid #1A1E24"),
+                        ("border-right", "1px solid #14181D"),
                         ("white-space", "nowrap"),
                     ],
                 },
@@ -137,10 +139,10 @@ class DashboardTable:
         html = f"""
 <style>
 .{table_id}-wrap {{
-    border: 1px solid #20252E;
-    border-radius: 2px;
-    background-color: #000000;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+    border: 1px solid #1A1E24;
+    border-radius: 0;
+    background-color: #050607;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
     width: 100%;
     overflow-x: auto;
     {container_style}
@@ -149,9 +151,9 @@ class DashboardTable:
 .{table_id}-wrap table {{
     width: 100%;
     border-collapse: collapse;
-    background-color: #000000;
+    background-color: #050607;
     color: #FFFFFF;
-    font-size: 0.80rem;
+    font-size: 0.76rem;
     table-layout: auto;
 }}
 
@@ -162,7 +164,11 @@ class DashboardTable:
 }}
 
 .{table_id}-wrap tbody tr:hover td {{
-    background-color: #10151D !important;
+    background-color: #0E1114 !important;
+}}
+
+.{table_id}-wrap tbody tr:nth-child(even) td {{
+    background-color: #080A0C !important;
 }}
 
 .{table_id}-wrap thead th:last-child,
