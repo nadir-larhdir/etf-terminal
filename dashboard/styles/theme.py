@@ -189,6 +189,34 @@ def apply_dashboard_theme():
             border-radius: 1px !important;
         }
 
+        [data-testid="stPlotlyChart"] {
+            background: rgba(251,248,241,0.92);
+            border: 1px solid var(--etf-border);
+            border-radius: 0;
+            box-shadow: 0 1px 2px rgba(31,39,28,0.03);
+            padding: 0.2rem 0.25rem 0.05rem 0.25rem;
+            margin-bottom: 0.55rem;
+            overflow: hidden;
+        }
+
+        [data-testid="stPlotlyChart"] > div,
+        [data-testid="stPlotlyChart"] .js-plotly-plot,
+        [data-testid="stPlotlyChart"] .plot-container,
+        [data-testid="stPlotlyChart"] .svg-container {
+            background: transparent !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
+        }
+
+        [data-testid="stPlotlyChart"] .modebar,
+        [data-testid="stPlotlyChart"] .modebar-container {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+
         .bb-panel {
             border: 1px solid var(--etf-border);
             background-color: var(--etf-bg-panel);
@@ -274,53 +302,68 @@ def apply_dashboard_theme():
         }
 
         .bb-metric-group-spacer {
-            height: 0.45rem;
+            height: 0.7rem;
         }
 
         .bb-regime-badge {
             display: inline-block;
-            padding: 0.16rem 0.42rem;
-            font-size: 0.72rem;
+            padding: 0.11rem 0.42rem;
+            font-size: 0.58rem;
             text-transform: uppercase;
             max-width: 100%;
             white-space: normal;
-            line-height: 1.25;
+            line-height: 1.18;
+            border-radius: 999px;
+            font-weight: 700;
+            letter-spacing: 0.18px;
         }
 
         .bb-macro-card-grid {
             display: grid;
             grid-template-columns: repeat(5, minmax(0, 1fr));
-            gap: 0.55rem;
-            margin-bottom: 0.75rem;
+            gap: 0.62rem;
+            margin-bottom: 0.85rem;
+        }
+
+        .bb-macro-card-grid--compact {
+            margin-top: 1.0rem;
         }
 
         .bb-macro-card {
             border: 1px solid var(--etf-border);
-            background: var(--etf-bg-panel);
-            padding: 0.55rem 0.65rem 0.6rem 0.65rem;
-            min-height: 132px;
+            background: linear-gradient(180deg, rgba(250,247,240,0.96), rgba(244,240,230,0.96));
+            padding: 0.54rem 0.62rem 0.60rem 0.62rem;
+            min-height: 138px;
+            border-radius: 8px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), 0 1px 2px rgba(31,39,28,0.03);
         }
 
         .bb-macro-card-label {
-            color: var(--etf-ink);
-            font-size: 0.82rem;
+            color: var(--etf-ink-muted);
+            font-size: 0.62rem;
             text-transform: uppercase;
             line-height: 1.2;
-            margin-bottom: 0.3rem;
+            letter-spacing: 0.28px;
+            margin-bottom: 0.26rem;
+            font-weight: 700;
+            font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         }
 
         .bb-macro-card-value {
             color: var(--etf-ink);
-            font-size: 1.85rem;
+            font-size: 1.34rem;
             font-weight: 700;
             line-height: 1.05;
-            margin-bottom: 0.4rem;
+            margin-bottom: 0.24rem;
+            font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         }
 
         .bb-macro-card-delta {
             color: var(--etf-ink-muted);
-            font-size: 0.92rem;
-            margin-bottom: 0.2rem;
+            font-size: 0.72rem;
+            margin-bottom: 0.26rem;
+            line-height: 1.24;
+            font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         }
 
         .bb-macro-card-delta--positive {
@@ -333,6 +376,200 @@ def apply_dashboard_theme():
 
         .bb-macro-card-delta--neutral {
             color: var(--etf-ink-muted);
+        }
+
+        .bb-macro-page-title {
+            color: var(--etf-accent-strong);
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: 0.28px;
+            text-transform: uppercase;
+            margin: 0.08rem 0 0.18rem 0;
+            font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        .bb-macro-page-subtitle {
+            color: var(--etf-ink-soft);
+            font-size: 0.9rem;
+            line-height: 1.45;
+            max-width: 52rem;
+            margin-bottom: 0.2rem;
+            font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            text-align: justify;
+            text-justify: inter-word;
+        }
+
+        .bb-macro-control-label {
+            color: var(--etf-ink-muted);
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.35px;
+            margin: 0.32rem 0 0.18rem 0;
+            font-weight: 700;
+        }
+
+        .bb-macro-header-divider {
+            height: 1px;
+            background: linear-gradient(90deg, rgba(111,123,70,0.30), rgba(111,123,70,0.06));
+            margin: 0.55rem 0 0.95rem 0;
+        }
+
+        .bb-macro-section-title {
+            color: var(--etf-accent-strong);
+            font-size: 0.98rem;
+            font-weight: 700;
+            letter-spacing: 0.18px;
+            text-transform: uppercase;
+            margin: 0.3rem 0 0.55rem 0;
+            font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        .bb-macro-section-header {
+            margin: 0.2rem 0 0.7rem 0;
+        }
+
+        .bb-macro-section-subtitle {
+            color: var(--etf-ink-muted);
+            font-size: 0.8rem;
+            line-height: 1.45;
+            margin-top: -0.18rem;
+            font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            text-align: justify;
+            text-justify: inter-word;
+        }
+
+        .bb-macro-panel-marker {
+            display: none;
+        }
+
+        div[data-testid="column"]:has(.bb-macro-panel-marker) > div[data-testid="stVerticalBlock"] {
+            background: linear-gradient(180deg, rgba(250,247,240,0.96), rgba(244,240,230,0.96));
+            border: 1px solid var(--etf-border);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
+            border-radius: 8px;
+            padding: 0.82rem 0.92rem 0.56rem 0.92rem;
+            min-height: 100%;
+            margin-bottom: 1.15rem;
+        }
+
+        div[data-testid="column"]:has(.bb-macro-panel-marker--summary) > div[data-testid="stVerticalBlock"] {
+            padding-top: 1.28rem;
+            padding-bottom: 0.85rem;
+        }
+
+        .bb-macro-featured-header {
+            margin-bottom: 0.25rem;
+        }
+
+        .bb-macro-featured-kicker {
+            color: var(--etf-accent);
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.42px;
+            margin-bottom: 0.16rem;
+            font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        .bb-macro-featured-title,
+        .bb-macro-snapshot-title {
+            color: var(--etf-ink);
+            font-size: 1.02rem;
+            font-weight: 700;
+            letter-spacing: 0.12px;
+            margin-bottom: 0.16rem;
+            font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        .bb-macro-featured-subtitle,
+        .bb-macro-snapshot-subtitle {
+            color: var(--etf-ink-muted);
+            font-size: 0.8rem;
+            line-height: 1.42;
+            margin-bottom: 0.3rem;
+            font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            text-align: justify;
+            text-justify: inter-word;
+        }
+
+        .bb-macro-featured-caption {
+            color: var(--etf-ink-muted);
+            font-size: 0.78rem;
+            line-height: 1.42;
+            margin-top: 0.3rem;
+            padding: 0.1rem 0.12rem 0 0.08rem;
+            font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            text-align: justify;
+            text-justify: inter-word;
+        }
+
+        .bb-macro-snapshot-panel {
+            min-height: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .bb-macro-snapshot-header {
+            margin-bottom: 0.08rem;
+        }
+
+        .bb-macro-snapshot-body {
+            flex: 1;
+            display: flex;
+            align-items: center;
+        }
+
+        .bb-macro-card-grid--compact {
+            width: 100%;
+            margin-top: 0;
+            margin-bottom: 0;
+            align-content: center;
+        }
+
+        .bb-macro-regime-card {
+            min-height: 136px;
+            height: 136px;
+            border: 1px solid var(--etf-border);
+            border-left: 3px solid var(--etf-accent);
+            background:
+                radial-gradient(rgba(31,39,28,0.04) 0.6px, transparent 0.6px),
+                linear-gradient(180deg, rgba(250,247,240,0.96), rgba(244,240,230,0.96));
+            background-size: 12px 12px, 100% 100%;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
+            border-radius: 2px;
+            padding: 0.60rem 0.75rem;
+            margin-top: 0.35rem;
+            margin-bottom: 0.35rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .bb-macro-regime-kicker {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.45px;
+            margin-bottom: 0.18rem;
+            font-weight: 700;
+            font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        .bb-macro-regime-headline {
+            color: #1F271C;
+            font-size: 0.96rem;
+            font-weight: 700;
+            margin-bottom: 0.22rem;
+            line-height: 1.35;
+            font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        .bb-macro-regime-body {
+            color: #4F5A49;
+            font-size: 0.84rem;
+            line-height: 1.48;
+            font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            text-align: justify;
+            text-justify: inter-word;
         }
 
         .bb-highlight-metric {
@@ -512,6 +749,8 @@ def apply_dashboard_theme():
             line-height: 1.45;
             max-width: 390px;
             font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            text-align: justify;
+            text-justify: inter-word;
         }
 
         .home-decision-strip {
@@ -614,6 +853,8 @@ def apply_dashboard_theme():
             line-height: 1.42;
             font-size: 0.82rem;
             font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            text-align: justify;
+            text-justify: inter-word;
         }
 
         .home-regime-scale {
@@ -751,6 +992,8 @@ def apply_dashboard_theme():
             line-height: 1.34;
             font-size: 0.76rem;
             font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            text-align: justify;
+            text-justify: inter-word;
         }
 
         .home-pulse-tag {
@@ -804,6 +1047,8 @@ def apply_dashboard_theme():
             line-height: 1.48;
             font-size: 0.78rem;
             font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            text-align: justify;
+            text-justify: inter-word;
         }
 
         .home-wide-card {
@@ -938,6 +1183,10 @@ def apply_dashboard_theme():
                 grid-template-columns: repeat(3, minmax(0, 1fr));
             }
 
+            .bb-macro-card-grid--compact {
+                margin-top: 0.55rem;
+            }
+
             .home-market-strip {
                 grid-template-columns: repeat(4, minmax(0, 1fr));
             }
@@ -1040,7 +1289,7 @@ def apply_dashboard_theme():
             }
 
             .bb-metric-group-spacer {
-                height: 0.65rem;
+                height: 0.9rem;
             }
 
             .bb-macro-card-grid {
@@ -1049,23 +1298,27 @@ def apply_dashboard_theme():
                 margin-bottom: 0.95rem;
             }
 
+            .bb-macro-card-grid--compact {
+                margin-top: 0.55rem;
+            }
+
             .bb-macro-card {
                 min-height: auto;
-                padding: 0.58rem 0.65rem 0.65rem 0.65rem;
+                padding: 0.58rem 0.68rem 0.65rem 0.68rem;
             }
 
             .bb-macro-card-label {
-                font-size: 0.8rem;
+                font-size: 0.66rem;
                 margin-bottom: 0.32rem;
             }
 
             .bb-macro-card-value {
-                font-size: 1.65rem;
+                font-size: 1.52rem;
                 margin-bottom: 0.46rem;
             }
 
             .bb-macro-card-delta {
-                font-size: 0.9rem;
+                font-size: 0.8rem;
                 margin-bottom: 0.28rem;
             }
 

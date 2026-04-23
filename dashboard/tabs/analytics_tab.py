@@ -12,6 +12,7 @@ from dashboard.cache import (
     snapshot_age_hours,
 )
 from dashboard.components.info_panel import InfoPanel
+from dashboard.mobile import PLOTLY_CHART_CONFIG
 from dashboard.perf import timed_block
 from fixed_income.analytics import format_oas_proxy_label
 from fixed_income.instruments.security import Security
@@ -324,13 +325,13 @@ class AnalyticsTab:
             font=dict(
                 family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                 color="#1F271C",
-                size=11,
+                size=10,
             ),
             xaxis=dict(showgrid=False, tickfont=dict(color="#4F5A49")),
             yaxis=dict(showgrid=True, gridcolor="#D8D4C7", zeroline=False, tickfont=dict(color="#4F5A49")),
             showlegend=False,
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
 
     def _volume_multiple(self, snapshot: dict[str, float | None]) -> float:
         current_volume = snapshot["current_volume"]

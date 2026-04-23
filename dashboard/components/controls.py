@@ -86,11 +86,19 @@ class DashboardControls:
         *,
         index: int = 0,
         key: str,
+        label_visibility: Literal["visible", "hidden", "collapsed"] = "visible",
         width: int | Literal["stretch"] = "stretch",
     ) -> str:
         if not options:
             return ""
-        selected = st.selectbox(label, options, index=index, key=key, width=width)
+        selected = st.selectbox(
+            label,
+            options,
+            index=index,
+            key=key,
+            width=width,
+            label_visibility=label_visibility,
+        )
         return str(selected) if selected is not None else ""
 
     def render_date_range(
