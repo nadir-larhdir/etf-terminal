@@ -47,18 +47,18 @@ class NewsPage:
             """
             <style>
             .bb-news-link {
-                color: #F3F0E8 !important;
+                color: #1F271C !important;
                 text-decoration: none !important;
                 transition: color 0.18s ease;
             }
             .bb-news-link--rates:hover {
-                color: #5DA9E9 !important;
+                color: #5F8D84 !important;
             }
             .bb-news-link--credit:hover {
-                color: #FF9F1A !important;
+                color: #6F7B46 !important;
             }
             .bb-news-link--macro:hover {
-                color: #FF5A36 !important;
+                color: #A55C45 !important;
             }
             </style>
             """,
@@ -67,7 +67,7 @@ class NewsPage:
 
     def _news_link_style(self, *, font_size: str, weight: int = 700, line_height: str = "1.4") -> str:
         return (
-            f"color:#F3F0E8;text-decoration:none;font-weight:{weight};font-size:{font_size};line-height:{line_height};"
+            f"color:#1F271C;text-decoration:none;font-weight:{weight};font-size:{font_size};line-height:{line_height};"
             "transition:color 0.18s ease;"
         )
 
@@ -170,11 +170,11 @@ class NewsPage:
             with column:
                 st.markdown(
                     (
-                        "<div style='border:1px solid #20252E;background:#050505;padding:0.40rem 0.55rem;"
+                        "<div style='border:1px solid #D8D4C7;background:#FBF8F1;padding:0.40rem 0.55rem;"
                         "border-radius:2px;margin-bottom:0.45rem;'>"
-                        f"<div style='color:#8D877B;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.45px;'>{label}</div>"
-                        f"<div style='color:#F3F0E8;font-size:0.96rem;font-weight:700;margin-top:0.12rem;'>{item['value'] if item else 'n/a'}</div>"
-                        f"<div style='color:#6F6A61;font-size:0.72rem;margin-top:0.08rem;'>{item['date'] if item else ''}</div>"
+                        f"<div style='color:#707A68;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.45px;'>{label}</div>"
+                        f"<div style='color:#1F271C;font-size:0.96rem;font-weight:700;margin-top:0.12rem;'>{item['value'] if item else 'n/a'}</div>"
+                        f"<div style='color:#707A68;font-size:0.72rem;margin-top:0.08rem;'>{item['date'] if item else ''}</div>"
                         "</div>"
                     ),
                     unsafe_allow_html=True,
@@ -186,10 +186,10 @@ class NewsPage:
             with column:
                 st.markdown(
                     (
-                        "<div style='border:1px solid #20252E;background:#050505;padding:0.38rem 0.55rem;"
+                        "<div style='border:1px solid #D8D4C7;background:#FBF8F1;padding:0.38rem 0.55rem;"
                         "border-radius:2px;margin-bottom:0.55rem;'>"
-                        f"<div style='color:#8D877B;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.45px;'>{label}</div>"
-                        f"<div style='color:#B8B1A3;font-size:0.82rem;margin-top:0.10rem;'>{body}</div>"
+                        f"<div style='color:#707A68;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.45px;'>{label}</div>"
+                        f"<div style='color:#4F5A49;font-size:0.82rem;margin-top:0.10rem;'>{body}</div>"
                         "</div>"
                     ),
                     unsafe_allow_html=True,
@@ -213,7 +213,7 @@ class NewsPage:
             f"style='{self._news_link_style(font_size='0.95rem')}' "
             f" rel='noopener noreferrer'>"
             f"{featured['title']}</a><br><br>"
-            f"<span style='color:#B8B1A3;font-size:0.78rem;'>"
+            f"<span style='color:#707A68;font-size:0.78rem;'>"
             f"{featured['source']} | {self._format_timestamp(featured.get('published_at'))}</span>"
         )
 
@@ -234,21 +234,21 @@ class NewsPage:
         for item in items[1:max_items + 1]:
             tag = self._headline_tag(item["title"], bucket)
             rows.append(
-                f"<div style='padding:0.38rem 0;border-bottom:1px solid #1A1A1A;'>"
+                f"<div style='padding:0.38rem 0;border-bottom:1px solid #D8D4C7;'>"
                 f"<span style='display:inline-block;padding:0.10rem 0.28rem;border:1px solid {accent_color};"
                 f"color:{accent_color};font-size:0.64rem;text-transform:uppercase;margin-bottom:0.25rem;'>{tag}</span><br>"
                 f"<a href='{item['link']}' target='_blank' class='{self._news_link_class(bucket)}' style='{self._news_link_style(font_size='0.92rem', weight=500)}' "
                 f" rel='noopener noreferrer'>"
                 f"{item['title']}</a><br>"
-                f"<span style='color:#8D877B;font-size:0.75rem;'>{item['source']} | {self._format_timestamp(item.get('published_at'))}</span>"
+                f"<span style='color:#707A68;font-size:0.75rem;'>{item['source']} | {self._format_timestamp(item.get('published_at'))}</span>"
                 f"</div>"
             )
 
         st.markdown(
             (
-                "<div style='border:1px solid #20252E;background:#050505;padding:0.15rem 0.60rem 0.35rem 0.60rem;"
+                "<div style='border:1px solid #D8D4C7;background:#FBF8F1;padding:0.15rem 0.60rem 0.35rem 0.60rem;"
                 "border-radius:2px;margin-top:0.15rem;margin-bottom:0.55rem;'>"
-                "<div style='color:#B8B1A3;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.45px;"
+                "<div style='color:#1F271C;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.45px;"
                 "margin:0.30rem 0 0.20rem 0;font-weight:700;'>More Headlines</div>"
                 f"{''.join(rows)}"
                 "</div>"
@@ -268,7 +268,7 @@ class NewsPage:
         top_story_bucket, top_story = self._pick_top_story(deduped_feed_data)
 
         st.markdown(
-            "<div style='color:#8D877B;font-size:1.15rem;font-weight:700;text-transform:uppercase;"
+            "<div style='color:#1F271C;font-size:1.15rem;font-weight:700;text-transform:uppercase;"
             "letter-spacing:0.6px;margin-bottom:0.35rem;'>Market Brief</div>",
             unsafe_allow_html=True,
         )
@@ -284,9 +284,9 @@ class NewsPage:
             st.caption(f"Live feed fetch failed: {feed_error}")
         elif top_story is not None:
             accent_map = {
-                "rates": "#5DA9E9",
-                "credit": "#FF9F1A",
-                "macro": "#FF5A36",
+                "rates": "#5F8D84",
+                "credit": "#6F7B46",
+                "macro": "#A55C45",
             }
             section_label = {
                 "rates": "Top Story | Rates",
@@ -301,24 +301,24 @@ class NewsPage:
                     f"style='{self._news_link_style(font_size='1.08rem', line_height='1.45')}' "
                     f" rel='noopener noreferrer'>"
                     f"{top_story['title']}</a><br><br>"
-                    f"<span style='color:#B8B1A3;font-size:0.80rem;'>"
+                    f"<span style='color:#707A68;font-size:0.80rem;'>"
                     f"{top_story['source']} | {self._format_timestamp(top_story.get('published_at'))}</span>"
                 ),
-                accent_color=accent_map.get(top_story_bucket or "", "#FF9F1A"),
+                accent_color=accent_map.get(top_story_bucket or "", "#6F7B46"),
                 margin_top="0.10rem",
                 margin_bottom="0.35rem",
             )
 
         col1, col2, col3 = st.columns(3, vertical_alignment="top")
         with col1:
-            self._render_featured_headline("Rates", rates_items, accent_color="#5DA9E9", bucket="rates")
-            self._render_headline_list(rates_items, bucket="rates", accent_color="#5DA9E9")
+            self._render_featured_headline("Rates", rates_items, accent_color="#5F8D84", bucket="rates")
+            self._render_headline_list(rates_items, bucket="rates", accent_color="#5F8D84")
         with col2:
-            self._render_featured_headline("Credit And ETFs", credit_items, accent_color="#FF9F1A", bucket="credit")
-            self._render_headline_list(credit_items, bucket="credit", accent_color="#FF9F1A")
+            self._render_featured_headline("Credit And ETFs", credit_items, accent_color="#6F7B46", bucket="credit")
+            self._render_headline_list(credit_items, bucket="credit", accent_color="#6F7B46")
         with col3:
-            self._render_featured_headline("Macro", macro_items, accent_color="#FF5A36", bucket="macro")
-            self._render_headline_list(macro_items, bucket="macro", accent_color="#FF5A36")
+            self._render_featured_headline("Macro", macro_items, accent_color="#A55C45", bucket="macro")
+            self._render_headline_list(macro_items, bucket="macro", accent_color="#A55C45")
 
         st.markdown("### Coverage Map")
         coverage_col1, coverage_col2, coverage_col3 = st.columns(3)
@@ -329,7 +329,7 @@ class NewsPage:
                 body="This section tracks front-end, belly, and long-end rate moves, Treasury supply, and Fed-sensitive market pricing.",
                 margin_top="0.10rem",
                 margin_bottom="0.20rem",
-                accent_color="#5DA9E9",
+                accent_color="#5F8D84",
             )
         with coverage_col2:
             self.info_panel.render(
@@ -338,7 +338,7 @@ class NewsPage:
                 body="This section combines IG and HY spread tone with bond ETF flows, liquidity, creation-redemption activity, and allocator positioning.",
                 margin_top="0.10rem",
                 margin_bottom="0.20rem",
-                accent_color="#FF9F1A",
+                accent_color="#6F7B46",
             )
         with coverage_col3:
             self.info_panel.render(
@@ -347,5 +347,5 @@ class NewsPage:
                 body="This section focuses on inflation prints, labor data, central-bank communication, and the broader macro narrative shaping fixed income.",
                 margin_top="0.10rem",
                 margin_bottom="0.20rem",
-                accent_color="#FF5A36",
+                accent_color="#A55C45",
             )

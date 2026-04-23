@@ -68,7 +68,7 @@ class OverviewTab:
                 f"{observations} observations | Latest close {latest_close:.2f} | "
                 f"Average volume {average_volume:,.0f}"
             ),
-            accent_color="#5DA9E9",
+            accent_color="#5F8D84",
             margin_top="0.15rem",
             margin_bottom="0.50rem",
         )
@@ -76,14 +76,14 @@ class OverviewTab:
         self._render_section_label(
             "Price Action",
             "Spot price versus recent mean and one-standard-deviation range.",
-            accent_color="#FF9F1A",
+            accent_color="#6F7B46",
         )
         render_price_chart(hist, selected_security, start_date, end_date)
 
         self._render_section_label(
             "Participation",
             "Observed trading volume with the selected-window average for context.",
-            accent_color="#00ADB5",
+            accent_color="#5F8D84",
         )
         render_volume_chart(hist, selected_security, start_date, end_date)
 
