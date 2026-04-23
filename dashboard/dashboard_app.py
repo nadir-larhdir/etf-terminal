@@ -52,15 +52,13 @@ class DashboardApp:
         self.metadata_store = metadata_store
         self.macro_store = macro_store
         self.macro_feature_store = macro_feature_store
-        self.home_page = HomePage(price_store)
+        self.home_page = HomePage(price_store, macro_feature_store)
         self.news_page = NewsPage(macro_feature_store)
         self.dashboard_page = DashboardPage(price_store, metadata_store, analytics_service)
         self.macro_page = MacroPage(macro_feature_store)
 
     def run(self):
         apply_dashboard_theme()
-        st.title("ETF Terminal")
-        st.caption("Fixed income ETF analytics terminal for market structure, liquidity, and relative value monitoring.")
 
         cache_key = app_cache_key(self.security_store.engine)
         with timed_block("dashboard.load_active_securities"):
@@ -72,7 +70,11 @@ class DashboardApp:
         if "active_view" not in st.session_state:
             st.session_state["active_view"] = "Home"
 
-        self._render_navigation()
+        requested_view = str(st.query_params.get("view", "")).strip().title()
+        if requested_view in NAVIGATION_VIEWS and requested_view != st.session_state["active_view"]:
+            st.session_state["active_view"] = requested_view
+
+        self._render_shell(securities)
 
         if st.session_state["active_view"] == "Home":
             self._render_tab_safe("Home", self.home_page.render, securities)
@@ -88,18 +90,27 @@ class DashboardApp:
 
         self._render_tab_safe("Dashboard", self.dashboard_page.render, securities, self._render_tab_safe)
 
-    def _render_navigation(self) -> None:
-        nav_columns = st.columns([1, 1, 1, 1, 3], vertical_alignment="center")
-        for column, view_name in zip(nav_columns[:4], NAVIGATION_VIEWS, strict=False):
-            with column:
-                if st.button(view_name, key=f"nav_{view_name.lower()}", use_container_width=True):
-                    st.session_state["active_view"] = view_name
-                    st.rerun()
+    def _render_shell(self, securities) -> None:
+        st.markdown(
+            """
+            <div class="app-shell-brand">
+                <div class="app-shell-title"><span>ETF</span> TERMINAL</div>
+                <div class="app-shell-subtitle">Fixed income ETF analytics</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        self._render_navigation(securities)
 
-        with nav_columns[4]:
-            st.caption(
-                f"Current View: {st.session_state['active_view']} | Environment: {APP_ENV.upper()} | Backend: {DATA_BACKEND.upper()}"
-            )
+    def _render_navigation(self, securities) -> None:
+        nav_columns = st.columns([2.2, 0.9, 1.0, 0.9, 0.9, 2.2], vertical_alignment="center")
+        for column, view_name in zip(nav_columns[1:5], NAVIGATION_VIEWS, strict=False):
+            with column:
+                button_type = "primary" if st.session_state["active_view"] == view_name else "secondary"
+                if st.button(view_name, key=f"nav_{view_name.lower()}", use_container_width=True, type=button_type):
+                    st.session_state["active_view"] = view_name
+                    st.query_params["view"] = view_name.lower()
+                    st.rerun()
 
     def _render_tab_safe(self, tab_name: str, render_fn, *args) -> None:
         try:

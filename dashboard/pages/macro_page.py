@@ -7,7 +7,7 @@ import streamlit as st
 from dashboard.cache import app_cache_key, cached_feature_matrix
 from dashboard.components import DashboardControls, InfoPanel
 from dashboard.components.controls import WINDOW_LOOKBACK_MAP
-from dashboard.mobile import responsive_chart_layout
+from dashboard.mobile import PLOTLY_CHART_CONFIG, responsive_chart_layout
 from dashboard.perf import timed_block
 
 
@@ -99,24 +99,24 @@ Z_SCORE_FEATURES = {
 }
 
 LOOKBACK_MAP = {**WINDOW_LOOKBACK_MAP, "5Y": 1260, "ALL": None}
-CHART_PALETTE = ["#FFD166", "#00ADB5", "#FF5A36", "#00C176"]
+CHART_PALETTE = ["#6F7B46", "#5F8D84", "#A55C45", "#4E7B52"]
 TREASURY_CHART_COLORS = {
-    "UST_2Y_LEVEL": "#B22222",
-    "UST_10Y_LEVEL": "#163A70",
-    "UST_30Y_LEVEL": "#00A86B",
+    "UST_2Y_LEVEL": "#8E5A43",
+    "UST_10Y_LEVEL": "#4E6C8C",
+    "UST_30Y_LEVEL": "#4E7B52",
 }
 MACRO_CHART_COLORS = {
-    "UST_2S10S": "#0E7490",
-    "UST_5S30S": "#0E7490",
-    "CPI_YOY": "#D4A017",
-    "BEI_5Y": "#D4A017",
-    "REAL_RATE_PROXY": "#B8860B",
-    "FEDFUNDS_LEVEL": "#5B7DB1",
-    "UNRATE_LEVEL": "#7FB069",
-    "IG_OAS_LEVEL": "#5DA9E9",
-    "BBB_OAS_LEVEL": "#E67E22",
-    "HY_OAS_LEVEL": "#D35400",
-    "HY_MINUS_IG_OAS": "#E67E22",
+    "UST_2S10S": "#5F8D84",
+    "UST_5S30S": "#5F8D84",
+    "CPI_YOY": "#B08A3C",
+    "BEI_5Y": "#B08A3C",
+    "REAL_RATE_PROXY": "#8E7443",
+    "FEDFUNDS_LEVEL": "#6A7FA0",
+    "UNRATE_LEVEL": "#6C8E59",
+    "IG_OAS_LEVEL": "#6F8FA7",
+    "BBB_OAS_LEVEL": "#B07A4A",
+    "HY_OAS_LEVEL": "#A55C45",
+    "HY_MINUS_IG_OAS": "#B07A4A",
 }
 PERCENT_CHART_FEATURES = {
     "UST_2Y_LEVEL",
@@ -130,6 +130,7 @@ PERCENT_CHART_FEATURES = {
     "FEDFUNDS_LEVEL",
     "UNRATE_LEVEL",
 }
+SPARSE_BAR_FEATURES = {"CPI_YOY", "FEDFUNDS_LEVEL", "UNRATE_LEVEL"}
 
 
 class MacroPage:
@@ -174,9 +175,9 @@ class MacroPage:
 
     def _badge_html(self, label: str, tone: str) -> str:
         color_map = {
-            "positive": ("rgba(0, 193, 118, 0.12)", "#00C176"),
-            "negative": ("rgba(255, 90, 54, 0.12)", "#FF5A36"),
-            "neutral": ("rgba(255, 209, 102, 0.12)", "#FFD166"),
+            "positive": ("rgba(78, 123, 82, 0.10)", "#4E7B52"),
+            "negative": ("rgba(165, 92, 69, 0.10)", "#A55C45"),
+            "neutral": ("rgba(111, 123, 70, 0.10)", "#6F7B46"),
         }
         background, text = color_map.get(tone, color_map["neutral"])
         return (
@@ -320,15 +321,35 @@ class MacroPage:
         return sorted(dict.fromkeys(feature_names))
 
     def _selected_lookback(self) -> int | None:
-        window_col, _ = st.columns([0.9, 1.1])
-        with window_col:
-            selected_window = self.controls.render_select(
-                "Macro Window",
-                list(LOOKBACK_MAP),
-                index=3,
-                key="macro_window",
-            )
+        selected_window = self.controls.render_select(
+            "Macro Window",
+            list(LOOKBACK_MAP),
+            index=3,
+            key="macro_window",
+            label_visibility="collapsed",
+            width=220,
+        )
         return LOOKBACK_MAP.get(selected_window)
+
+    def _render_header(self) -> int | None:
+        title_col, control_col = st.columns([1.55, 0.55], vertical_alignment="bottom")
+        with title_col:
+            st.markdown(
+                """
+                <div class="bb-macro-header">
+                    <div class="bb-macro-page-title">Macro</div>
+                    <div class="bb-macro-page-subtitle">
+                        Rates, inflation, credit, and growth context for fixed-income ETF positioning.
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with control_col:
+            st.markdown("<div class='bb-macro-control-label'>Macro Window</div>", unsafe_allow_html=True)
+            lookback = self._selected_lookback()
+        st.markdown("<div class='bb-macro-header-divider'></div>", unsafe_allow_html=True)
+        return lookback
 
     def _matrix_start_date(self, lookback: int | None) -> str | None:
         if lookback is None:
@@ -366,6 +387,7 @@ class MacroPage:
         margin: dict | None = None,
         xaxis: dict | None = None,
         legend: dict | None = None,
+        font_size: int = 11,
     ) -> dict:
         return responsive_chart_layout(
             title,
@@ -375,42 +397,62 @@ class MacroPage:
             xaxis=xaxis,
             legend=legend,
             font_family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+            font_size=font_size,
         )
 
     def _render_chart_grid(self, matrix: pd.DataFrame, start_date, end_date) -> None:
-        chart_pairs = [(CHART_CONFIG[i], CHART_CONFIG[i + 1]) for i in range(0, len(CHART_CONFIG), 2)]
-        for (left_title, left_features), (right_title, right_features) in chart_pairs:
-            col1, col2 = st.columns(2)
-            with col1:
-                self._render_chart(matrix, left_title, left_features, start_date, end_date)
-            with col2:
-                self._render_chart(matrix, right_title, right_features, start_date, end_date)
+        st.markdown(
+            """
+            <div class="bb-macro-section-header">
+                <div class="bb-macro-section-title">Macro Drivers</div>
+                <div class="bb-macro-section-subtitle">
+                    Cross-market trends shaping rate sensitivity, inflation expectations, credit tone, and growth context.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        chart_rows = [CHART_CONFIG[i : i + 5] for i in range(0, len(CHART_CONFIG), 5)]
+        for row in chart_rows:
+            columns = st.columns(len(row))
+            for column, (title, feature_names) in zip(columns, row):
+                with column:
+                    self._render_chart(matrix, title, feature_names, start_date, end_date)
             st.markdown("<div class='bb-metric-group-spacer'></div>", unsafe_allow_html=True)
 
     def _render_regimes(self, matrix: pd.DataFrame) -> None:
-        st.markdown("---")
-        st.subheader("Macro Regime")
+        st.markdown(
+            """
+            <div class="bb-macro-section-header">
+                <div class="bb-macro-section-title">Macro Regime</div>
+                <div class="bb-macro-section-subtitle">
+                    Simple decision-layer signals for duration, curve shape, inflation tone, and growth stability.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         regimes = self._rule_based_regimes(matrix)
-        left_cards = [
-            ("Duration Regime", "duration_regime", "#FFD166"),
-            ("Inflation Regime", "inflation_regime", "#FF5A36"),
+        cards = [
+            ("Duration Regime", "duration_regime", "#B08A3C"),
+            ("Curve Regime", "curve_regime", "#5F8D84"),
+            ("Inflation Regime", "inflation_regime", "#A55C45"),
+            ("Growth Regime", "growth_regime", "#4E7B52"),
         ]
-        right_cards = [
-            ("Curve Regime", "curve_regime", "#00ADB5"),
-            ("Growth Regime", "growth_regime", "#00C176"),
-        ]
-        col1, col2 = st.columns(2)
-        for column, cards in ((col1, left_cards), (col2, right_cards)):
+        columns = st.columns(len(cards))
+        for column, (title, key, accent) in zip(columns, cards):
             with column:
-                for title, key, accent in cards:
-                    headline, body = regimes[key]
-                    self.info_panel.render(
-                        title=title,
-                        headline=headline,
-                        body=body,
-                        accent_color=accent,
-                        margin_bottom="0.35rem",
-                    )
+                headline, body = regimes[key]
+                st.markdown(
+                    f"""
+                    <div class="bb-macro-regime-card" style="border-left-color:{accent};">
+                        <div class="bb-macro-regime-kicker" style="color:{accent};">{title}</div>
+                        <div class="bb-macro-regime-headline">{headline}</div>
+                        <div class="bb-macro-regime-body">{body}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
         st.caption(
             "Rules are deliberately simple: duration uses 10Y changes, curve uses 2s10s level, inflation uses CPI and breakevens, and growth uses unemployment changes."
         )
@@ -441,7 +483,20 @@ class MacroPage:
                 )
             )
 
-        st.markdown(f"<div class='bb-macro-card-grid'>{''.join(cards)}</div>", unsafe_allow_html=True)
+        st.markdown(
+            f"""
+            <div class='bb-macro-snapshot-panel' style='min-height:100%;height:100%;display:flex;flex-direction:column;'>
+                <div class='bb-macro-snapshot-header' style='padding-top:1.18rem;'>
+                    <div class='bb-macro-snapshot-title'>State of Macro</div>
+                    <div class='bb-macro-snapshot-subtitle'>Key levels, latest moves, and context chips for the current window.</div>
+                </div>
+                <div class='bb-macro-snapshot-body' style='flex:1;display:flex;align-items:center;padding-top:7rem;'>
+                    <div class='bb-macro-card-grid bb-macro-card-grid--compact' style='width:100%;margin:0;'>{''.join(cards)}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     def _nelson_siegel_curve(self, maturities: np.ndarray, beta0: float, beta1: float, beta2: float, tau: float) -> np.ndarray:
         safe_tau = max(float(tau), 1e-6)
@@ -489,8 +544,8 @@ class MacroPage:
                 y=curve_df["value"],
                 mode="markers",
                 name="Observed",
-                line=dict(color="#FFD166", width=0),
-                marker=dict(size=8, color="#00ADB5"),
+                line=dict(color="#6F7B46", width=0),
+                marker=dict(size=8, color="#5F8D84"),
                 hovertemplate="%{text}<br>%{y:.2f}%<extra></extra>",
                 text=curve_df["tenor"],
             )
@@ -501,7 +556,7 @@ class MacroPage:
                 y=curve_df["value"],
                 mode="lines",
                 name="Observed segments",
-                line=dict(color="#00ADB5", width=1, dash="dot"),
+                line=dict(color="#5F8D84", width=1, dash="dot"),
                 hoverinfo="skip",
             )
         )
@@ -515,7 +570,7 @@ class MacroPage:
                     y=smooth_curve,
                     mode="lines",
                     name="Nelson-Siegel fit",
-                    line=dict(color="#F5F5F5", width=4),
+                    line=dict(color="#1F271C", width=3),
                     customdata=smooth_maturities,
                     hovertemplate="%{customdata:.2f}Y<br>%{y:.2f}%<extra></extra>",
                 )
@@ -529,21 +584,12 @@ class MacroPage:
                 xaxis=dict(
                     title="Tenor",
                     showgrid=True,
-                    gridcolor="#2A2A2A",
+                    gridcolor="#D8D4C7",
                     automargin=True,
                     title_standoff=16,
                     tickmode="array",
                     tickvals=tenor_positions.tolist(),
                     ticktext=curve_df["tenor"].tolist(),
-                ),
-                legend=dict(
-                    orientation="h",
-                    yanchor="top",
-                    y=1.0,
-                    xanchor="left",
-                    x=0.0,
-                    font=dict(size=9),
-                    bgcolor="rgba(0,0,0,0)",
                 ),
             ),
         )
@@ -553,14 +599,24 @@ class MacroPage:
             if isinstance(date, pd.Timestamp):
                 curve_dates.append(date)
         curve_date = max(curve_dates) if curve_dates else None
-        _, chart_col, _ = st.columns([0.10, 0.80, 0.10])
-        with chart_col:
-            st.plotly_chart(fig, use_container_width=True)
-            if curve_date is not None:
-                caption = f"Latest available yield-curve snapshot as of {pd.Timestamp(curve_date).strftime('%Y-%m-%d')}."
-                if fitted_params is not None:
-                    caption += " Curve overlay uses a smooth Nelson-Siegel fit rather than linear interpolation."
-                st.caption(caption)
+        st.markdown(
+            """
+            <div class="bb-macro-featured-header">
+                <div class="bb-macro-featured-kicker">Featured View</div>
+                <div class="bb-macro-featured-title">Yield Curve</div>
+                <div class="bb-macro-featured-subtitle">
+                    Treasury term structure across the curve, with observed points and a smooth fitted overlay.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
+        if curve_date is not None:
+            caption = f"Latest available yield-curve snapshot as of {pd.Timestamp(curve_date).strftime('%Y-%m-%d')}."
+            if fitted_params is not None:
+                caption += " Curve overlay uses a smooth Nelson-Siegel fit rather than linear interpolation."
+            st.markdown(f"<div class='bb-macro-featured-caption'>{caption}</div>", unsafe_allow_html=True)
 
     def _render_chart(self, matrix: pd.DataFrame, title: str, feature_names: list[str], start_date, end_date) -> None:
         filtered = matrix.loc[(matrix.index >= start_date) & (matrix.index <= end_date), feature_names].copy()
@@ -570,6 +626,7 @@ class MacroPage:
 
         fig = go.Figure()
         traces_added = 0
+        use_sparse_bar = len(feature_names) == 1 and feature_names[0] in SPARSE_BAR_FEATURES
         for idx, feature_name in enumerate(feature_names):
             if feature_name not in filtered.columns:
                 continue
@@ -579,19 +636,32 @@ class MacroPage:
             line_color = TREASURY_CHART_COLORS.get(feature_name) or MACRO_CHART_COLORS.get(feature_name)
             if line_color is None:
                 line_color = CHART_PALETTE[idx % len(CHART_PALETTE)]
-            fig.add_trace(
-                go.Scatter(
-                    x=series.index,
-                    y=self._display_series(feature_name, series),
-                    mode="lines",
-                    name=FEATURE_LABELS.get(feature_name, feature_name.replace("_", " ")),
-                    line=dict(color=line_color, width=2),
-                    connectgaps=False,
-                    hovertemplate="%{x|%Y-%m-%d}<br>%{y:.0f} bps<extra></extra>"
-                    if feature_name in OAS_FEATURES
-                    else None,
+            display_series = self._display_series(feature_name, series)
+            if use_sparse_bar:
+                fig.add_trace(
+                    go.Bar(
+                        x=series.index,
+                        y=display_series,
+                        name=FEATURE_LABELS.get(feature_name, feature_name.replace("_", " ")),
+                        marker=dict(color=line_color, line=dict(color=line_color, width=0)),
+                        opacity=0.82,
+                        hovertemplate="%{x|%Y-%m-%d}<br>%{y:.2f}<extra></extra>",
+                    )
                 )
-            )
+            else:
+                fig.add_trace(
+                    go.Scatter(
+                        x=series.index,
+                        y=display_series,
+                        mode="lines",
+                        name=FEATURE_LABELS.get(feature_name, feature_name.replace("_", " ")),
+                        line=dict(color=line_color, width=2),
+                        connectgaps=False,
+                        hovertemplate="%{x|%Y-%m-%d}<br>%{y:.0f} bps<extra></extra>"
+                        if feature_name in OAS_FEATURES
+                        else None,
+                    )
+                )
             traces_added += 1
 
         if traces_added == 0:
@@ -608,15 +678,17 @@ class MacroPage:
             **self._chart_layout(
                 title,
                 yaxis_title=yaxis_title,
-                margin=dict(l=24, r=24, t=82, b=42),
+                margin=dict(l=24, r=24, t=110, b=42),
+                font_size=10,
             )
         )
-        st.plotly_chart(fig, use_container_width=True)
+        if use_sparse_bar:
+            fig.update_layout(bargap=0.78)
+        st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
 
     def render(self) -> None:
-        st.subheader("Macro")
         feature_names = self._feature_names()
-        lookback = self._selected_lookback()
+        lookback = self._render_header()
         start_date_filter = self._matrix_start_date(lookback)
 
         with timed_block("macro.load_feature_matrix"):
@@ -639,9 +711,14 @@ class MacroPage:
         start_date = filtered_matrix.index.min()
         end_date = filtered_matrix.index.max()
 
-        with timed_block("macro.render_yield_curve"):
-            self._render_yield_curve(filtered_matrix)
-        with timed_block("macro.render_cards"):
-            self._render_cards(filtered_matrix)
+        top_left, top_right = st.columns([1.58, 1.42], vertical_alignment="top")
+        with top_left:
+            st.markdown("<div class='bb-macro-panel-marker bb-macro-panel-marker--featured'></div>", unsafe_allow_html=True)
+            with timed_block("macro.render_yield_curve"):
+                self._render_yield_curve(filtered_matrix)
+        with top_right:
+            st.markdown("<div class='bb-macro-panel-marker bb-macro-panel-marker--summary'></div>", unsafe_allow_html=True)
+            with timed_block("macro.render_cards"):
+                self._render_cards(filtered_matrix)
         self._render_chart_grid(filtered_matrix, start_date, end_date)
         self._render_regimes(filtered_matrix)

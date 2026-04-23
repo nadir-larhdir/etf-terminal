@@ -36,7 +36,7 @@ class SecurityHeader:
         label: str,
         value: str,
         *,
-        color: str = "#F3F0E8",
+        color: str = "#1F271C",
         emphasis: str = "standard",
     ) -> str:
         primary_class = " bb-summary-cell--primary" if emphasis == "primary" else ""
@@ -69,13 +69,13 @@ class SecurityHeader:
         ) if metadata else f"This ETF is currently classified in the dashboard as {asset_class}."
 
         footer = (
-            f"<span style='color:#F3F0E8; font-weight:700;'>Category:</span> {metadata.get('category', asset_class) if metadata else asset_class}"
+            f"<span style='color:#1F271C; font-weight:700;'>Category:</span> {metadata.get('category', asset_class) if metadata else asset_class}"
             f"&nbsp;&nbsp;|&nbsp;&nbsp;"
-            f"<span style='color:#F3F0E8; font-weight:700;'>Benchmark:</span> {metadata.get('benchmark_index', 'N/A') if metadata else 'N/A'}"
+            f"<span style='color:#1F271C; font-weight:700;'>Benchmark:</span> {metadata.get('benchmark_index', 'N/A') if metadata else 'N/A'}"
             f"&nbsp;&nbsp;|&nbsp;&nbsp;"
-            f"<span style='color:#F3F0E8; font-weight:700;'>Duration:</span> {metadata.get('duration_bucket', 'N/A') if metadata else 'N/A'}"
+            f"<span style='color:#1F271C; font-weight:700;'>Duration:</span> {metadata.get('duration_bucket', 'N/A') if metadata else 'N/A'}"
             f"&nbsp;&nbsp;|&nbsp;&nbsp;"
-            f"<span style='color:#F3F0E8; font-weight:700;'>Issuer:</span> {metadata.get('issuer', 'N/A') if metadata else 'N/A'}"
+            f"<span style='color:#1F271C; font-weight:700;'>Issuer:</span> {metadata.get('issuer', 'N/A') if metadata else 'N/A'}"
         )
 
         self.info_panel.render(
@@ -98,7 +98,7 @@ class SecurityHeader:
         vol_30d = float(hist["volume"].tail(30).mean()) if len(hist) >= 1 else float(volume)
         vol_ratio = (volume / vol_30d) if vol_30d else 0.0
 
-        chg_color = "#00C176" if chg >= 0 else "#FF5A36"
+        chg_color = "#4E7B52" if chg >= 0 else "#A55C45"
         header_cells = [
             self._header_cell_html("Security", selected_security, emphasis="primary"),
             self._header_cell_html("PX_LAST", f"{px_last:,.2f}", emphasis="primary"),

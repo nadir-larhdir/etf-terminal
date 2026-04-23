@@ -4,10 +4,19 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from dashboard.components.controls import WINDOW_LOOKBACK_MAP
-from dashboard.mobile import responsive_chart_layout
+from dashboard.mobile import PLOTLY_CHART_CONFIG, responsive_chart_layout
 
 
 TERMINAL_FONT = '"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+CHART_GRID = "#D8D4C7"
+CHART_INK = "#1F271C"
+CHART_MUTED = "#7A7568"
+CHART_OLIVE = "#6F7B46"
+CHART_OLIVE_SOFT = "rgba(111, 123, 70, 0.10)"
+CHART_TEAL = "#5F8D84"
+CHART_UP = "#4E7B52"
+CHART_DOWN = "#A55C45"
+CHART_GOLD = "#C9A64B"
 
 
 def _filter_by_period(hist: pd.DataFrame, period_label: str) -> pd.DataFrame:
@@ -73,7 +82,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             y=close_series,
             mode="lines",
             name="Price",
-            line=dict(color="#B8B1A3", width=1.2),
+            line=dict(color=CHART_MUTED, width=1.2),
             hoverinfo="skip",
             showlegend=False,
         )
@@ -85,7 +94,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             y=[upper_band] * len(filtered),
             mode="lines",
             name="+1σ",
-            line=dict(color="#FFD166", width=1, dash="dot"),
+            line=dict(color=CHART_GOLD, width=1, dash="dot"),
             hovertemplate="+1σ: %{y:,.2f}<extra></extra>",
         )
     )
@@ -95,9 +104,9 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             y=[lower_band] * len(filtered),
             mode="lines",
             name="-1σ",
-            line=dict(color="#FFD166", width=1, dash="dot"),
+            line=dict(color=CHART_GOLD, width=1, dash="dot"),
             fill="tonexty",
-            fillcolor="rgba(255, 209, 102, 0.10)",
+            fillcolor=CHART_OLIVE_SOFT,
             hovertemplate="-1σ: %{y:,.2f}<extra></extra>",
         )
     )
@@ -107,7 +116,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             y=above_mean,
             mode="lines",
             name="Above Mean",
-            line=dict(color="#00C176", width=2.5),
+            line=dict(color=CHART_UP, width=2.5),
             hovertemplate="%{x|%b %d, %Y}<br>PX_LAST: %{y:,.2f}<extra></extra>",
             connectgaps=False,
         )
@@ -118,7 +127,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             y=below_mean,
             mode="lines",
             name="Below Mean",
-            line=dict(color="#FF5A36", width=2.5),
+            line=dict(color=CHART_DOWN, width=2.5),
             hovertemplate="%{x|%b %d, %Y}<br>PX_LAST: %{y:,.2f}<extra></extra>",
             connectgaps=False,
         )
@@ -129,7 +138,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             y=[mean_price] * len(filtered),
             mode="lines",
             name="Mean",
-            line=dict(color="#FF9F1A", width=1.5),
+            line=dict(color=CHART_OLIVE, width=1.5),
             hovertemplate="MEAN: %{y:,.2f}<extra></extra>",
         )
     )
@@ -144,7 +153,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
         xaxis=dict(
             title="Date",
             showgrid=True,
-            gridcolor="#2A2A2A",
+            gridcolor=CHART_GRID,
             zeroline=False,
             range=[filtered.index.min(), filtered.index.max()],
             rangeslider=dict(visible=False),
@@ -154,7 +163,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
         yaxis=dict(
             title="Price",
             showgrid=True,
-            gridcolor="#2A2A2A",
+            gridcolor=CHART_GRID,
             zeroline=False,
             range=[price_min - padding, price_max + padding],
             tickformat=".2f",
@@ -163,7 +172,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
         ),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
 
 
 def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
@@ -171,7 +180,7 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
 
     volume_series = filtered["volume"]
     mean_volume = float(volume_series.mean())
-    bar_colors = ["#00C176" if value >= mean_volume else "#FF5A36" for value in volume_series]
+    bar_colors = [CHART_UP if value >= mean_volume else CHART_DOWN for value in volume_series]
 
     max_volume = float(volume_series.max())
     step = 5_000_000 if max_volume <= 50_000_000 else 10_000_000 if max_volume <= 100_000_000 else 20_000_000
@@ -194,7 +203,7 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             y=[mean_volume] * len(filtered),
             mode="lines",
             name="Mean",
-            line=dict(color="#FF9F1A", width=1.5),
+            line=dict(color=CHART_OLIVE, width=1.5),
             hovertemplate="MEAN: %{y:,.0f}<extra></extra>",
         )
     )
@@ -210,7 +219,7 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
         xaxis=dict(
             title="Date",
             showgrid=True,
-            gridcolor="#2A2A2A",
+            gridcolor=CHART_GRID,
             zeroline=False,
             range=[filtered.index.min(), filtered.index.max()],
             rangeslider=dict(visible=False),
@@ -220,7 +229,7 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
         yaxis=dict(
             title="Volume",
             showgrid=True,
-            gridcolor="#2A2A2A",
+            gridcolor=CHART_GRID,
             zeroline=False,
             tickmode="array",
             tickvals=tick_vals,
@@ -231,7 +240,7 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
         ),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
 
 def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
     fig = go.Figure()
@@ -243,7 +252,7 @@ def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
             y=z_series,
             mode="lines",
             name="Z-Score",
-            line=dict(color="#B8B1A3", width=1.5),
+            line=dict(color=CHART_MUTED, width=1.5),
         )
     )
 
@@ -256,7 +265,7 @@ def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
                 mode="lines",
                 name=label,
                 line=dict(
-                    color="#FF9F1A" if level == 0 else "#FFD166",
+                    color=CHART_OLIVE if level == 0 else CHART_GOLD,
                     width=1,
                     dash="dot" if level != 0 else "solid",
                 ),
@@ -272,7 +281,7 @@ def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
             y=z_series[extreme_mask],
             mode="markers",
             name="Extreme",
-            marker=dict(color="#FF5A36", size=6),
+            marker=dict(color=CHART_DOWN, size=6),
         )
     )
 
@@ -280,14 +289,13 @@ def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
         fig,
         title=f"RV Z-Score: {ticker_a}/{ticker_b}",
         height=420,
-        legend=dict(orientation="h", y=1.02, x=0.5, xanchor="center"),
     )
     fig.update_layout(
-        xaxis=dict(showgrid=True, gridcolor="#2A2A2A", automargin=True),
-        yaxis=dict(showgrid=True, gridcolor="#2A2A2A", automargin=True),
+        xaxis=dict(showgrid=True, gridcolor=CHART_GRID, automargin=True),
+        yaxis=dict(showgrid=True, gridcolor=CHART_GRID, automargin=True),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
 
 
 def render_return_spread_chart(ratio_series: pd.Series, ticker_a: str, ticker_b: str):
@@ -299,17 +307,17 @@ def render_return_spread_chart(ratio_series: pd.Series, ticker_a: str, ticker_b:
             y=ratio_series,
             mode="lines",
             name="Ratio",
-            line=dict(color="#00ADB5", width=1.5),
+            line=dict(color=CHART_TEAL, width=1.5),
         )
     )
 
     _apply_terminal_chart_layout(fig, title=f"Return Spread: {ticker_a}/{ticker_b}", height=420)
     fig.update_layout(
-        xaxis=dict(showgrid=True, gridcolor="#2A2A2A", automargin=True),
-        yaxis=dict(showgrid=True, gridcolor="#2A2A2A", automargin=True),
+        xaxis=dict(showgrid=True, gridcolor=CHART_GRID, automargin=True),
+        yaxis=dict(showgrid=True, gridcolor=CHART_GRID, automargin=True),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
 
 
 def render_beta_adjusted_z_chart(z_series: pd.Series, beta_series: pd.Series, ticker_a: str, ticker_b: str):
@@ -323,7 +331,7 @@ def render_beta_adjusted_z_chart(z_series: pd.Series, beta_series: pd.Series, ti
             y=adj_z,
             mode="lines",
             name="Beta-Adj Z",
-            line=dict(color="#00ADB5", width=1.5),
+            line=dict(color=CHART_TEAL, width=1.5),
         )
     )
 
@@ -333,14 +341,14 @@ def render_beta_adjusted_z_chart(z_series: pd.Series, beta_series: pd.Series, ti
             y=[0] * len(adj_z),
             mode="lines",
             name="Mean",
-            line=dict(color="#FF9F1A", width=1),
+            line=dict(color=CHART_OLIVE, width=1),
         )
     )
 
     _apply_terminal_chart_layout(fig, title=f"Beta-Adjusted Z: {ticker_a}/{ticker_b}", height=420)
     fig.update_layout(
-        xaxis=dict(showgrid=True, gridcolor="#2A2A2A", automargin=True),
-        yaxis=dict(showgrid=True, gridcolor="#2A2A2A", automargin=True),
+        xaxis=dict(showgrid=True, gridcolor=CHART_GRID, automargin=True),
+        yaxis=dict(showgrid=True, gridcolor=CHART_GRID, automargin=True),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
