@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from dashboard.components.controls import WINDOW_LOOKBACK_MAP
-from dashboard.mobile import responsive_chart_layout
+from dashboard.mobile import PLOTLY_CHART_CONFIG, responsive_chart_layout
 
 
 TERMINAL_FONT = '"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
@@ -172,7 +172,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
         ),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
 
 
 def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
@@ -240,7 +240,7 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
         ),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
 
 def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
     fig = go.Figure()
@@ -289,14 +289,13 @@ def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
         fig,
         title=f"RV Z-Score: {ticker_a}/{ticker_b}",
         height=420,
-        legend=dict(orientation="h", y=1.02, x=0.5, xanchor="center"),
     )
     fig.update_layout(
         xaxis=dict(showgrid=True, gridcolor=CHART_GRID, automargin=True),
         yaxis=dict(showgrid=True, gridcolor=CHART_GRID, automargin=True),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
 
 
 def render_return_spread_chart(ratio_series: pd.Series, ticker_a: str, ticker_b: str):
@@ -318,7 +317,7 @@ def render_return_spread_chart(ratio_series: pd.Series, ticker_a: str, ticker_b:
         yaxis=dict(showgrid=True, gridcolor=CHART_GRID, automargin=True),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
 
 
 def render_beta_adjusted_z_chart(z_series: pd.Series, beta_series: pd.Series, ticker_a: str, ticker_b: str):
@@ -352,4 +351,4 @@ def render_beta_adjusted_z_chart(z_series: pd.Series, beta_series: pd.Series, ti
         yaxis=dict(showgrid=True, gridcolor=CHART_GRID, automargin=True),
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
