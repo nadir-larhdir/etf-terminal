@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="ETF">
+  <rect width="512" height="512" rx="54" fill="#F4F0E6"/>
+  <rect x="18" y="18" width="476" height="476" rx="40" fill="none" stroke="#D8D4C7" stroke-width="10"/>
+  <text
+    x="256"
+    y="338"
+    fill="#6F7B46"
+    font-family="SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
+    font-size="210"
+    font-weight="700"
+    text-anchor="middle">ETF</text>
+</svg>
