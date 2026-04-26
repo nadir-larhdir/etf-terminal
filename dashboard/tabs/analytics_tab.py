@@ -18,7 +18,6 @@ from fixed_income.analytics import format_oas_proxy_label
 from fixed_income.instruments.security import Security
 from services.market.duration_estimator import CURVE_REGRESSION_TICKERS, ISHARES_ETFS, PROXY_MAP
 
-
 LOGGER = logging.getLogger(__name__)
 
 
@@ -35,7 +34,9 @@ class AnalyticsTab:
             metadata = security.metadata or {}
             snapshot = security.trading_snapshot()
             analytics = self._analytics_snapshot(security)
-            has_credit_spread = analytics.spread_proxy_used is not None and analytics.spread_beta_per_bp is not None
+            has_credit_spread = (
+                analytics.spread_proxy_used is not None and analytics.spread_beta_per_bp is not None
+            )
             liquidity_regime = self._liquidity_regime(snapshot["volume_z"])
             duration_method, duration_source = self._duration_source_details(security)
             duration_footer = self._duration_scale_indicator(analytics.estimated_duration)
@@ -71,7 +72,12 @@ class AnalyticsTab:
         if has_credit_spread:
             s1, s2, s3, s4 = st.columns(4)
             with s1:
-                self._render_metric_card("OAS Proxy Used", format_oas_proxy_label(analytics.spread_proxy_used), "#1F271C", "#6F7B46")
+                self._render_metric_card(
+                    "OAS Proxy Used",
+                    format_oas_proxy_label(analytics.spread_proxy_used),
+                    "#1F271C",
+                    "#6F7B46",
+                )
             with s2:
                 self._render_metric_card(
                     "CS Beta",
@@ -113,7 +119,9 @@ class AnalyticsTab:
             self.info_panel.render(
                 title="Current Read",
                 headline=self._current_read_headline(security, metadata),
-                body=self._current_read_body(security, metadata, snapshot, analytics, duration_method, duration_source),
+                body=self._current_read_body(
+                    security, metadata, snapshot, analytics, duration_method, duration_source
+                ),
                 accent_color="#5F8D84",
                 margin_top="0.50rem",
                 margin_bottom="0.30rem",
@@ -144,7 +152,11 @@ class AnalyticsTab:
 
     def _analytics_snapshot(self, security: Security):
         cache_key = app_cache_key(self.analytics_service.price_store.engine)
-        price_as_of = pd.Timestamp(security.history.index.max()).date().isoformat() if not security.history.empty else "n/a"
+        price_as_of = (
+            pd.Timestamp(security.history.index.max()).date().isoformat()
+            if not security.history.empty
+            else "n/a"
+        )
         metadata_duration = self._metadata_duration(security.metadata or {})
         with timed_block("analytics.fetch_precomputed_snapshot"):
             precomputed = restore_analytics_snapshot(
@@ -328,7 +340,9 @@ class AnalyticsTab:
                 size=10,
             ),
             xaxis=dict(showgrid=False, tickfont=dict(color="#4F5A49")),
-            yaxis=dict(showgrid=True, gridcolor="#D8D4C7", zeroline=False, tickfont=dict(color="#4F5A49")),
+            yaxis=dict(
+                showgrid=True, gridcolor="#D8D4C7", zeroline=False, tickfont=dict(color="#4F5A49")
+            ),
             showlegend=False,
         )
         st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
@@ -399,7 +413,11 @@ class AnalyticsTab:
         )
 
     def _dv01_change_footer(self, security: Security, duration: float | None) -> str | None:
-        if duration is None or security.history.empty or "adj_close" not in security.history.columns:
+        if (
+            duration is None
+            or security.history.empty
+            or "adj_close" not in security.history.columns
+        ):
             return None
         prices = security.history["adj_close"].astype(float).dropna()
         if len(prices) < 31:

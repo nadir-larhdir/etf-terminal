@@ -10,7 +10,6 @@ from dashboard.components.controls import WINDOW_LOOKBACK_MAP
 from dashboard.mobile import PLOTLY_CHART_CONFIG, responsive_chart_layout
 from dashboard.perf import timed_block
 
-
 CARD_CONFIG = [
     ("10Y yield", "UST_10Y_LEVEL", "UST_10Y_Z20", "Rates"),
     ("2s10s", "UST_2S10S", "UST_2S10S_Z20", "Curve"),
@@ -151,7 +150,9 @@ class MacroPage:
             return "n/a"
         return f"{value:+.2f}"
 
-    def _format_feature_value(self, feature_name: str, value: float | None, signed: bool = False) -> str:
+    def _format_feature_value(
+        self, feature_name: str, value: float | None, signed: bool = False
+    ) -> str:
         if feature_name in OAS_FEATURES:
             if value is None or pd.isna(value):
                 return "n/a"
@@ -251,7 +252,9 @@ class MacroPage:
         inflation_body = "CPI YoY is below 2.5% and 3M annualized inflation is contained."
         if cpi_yoy > 3.0 or cpi_3m_ann > 3.0:
             inflation = "Inflation Hot"
-            inflation_body = "Headline inflation or its short-term annualized pace remains elevated."
+            inflation_body = (
+                "Headline inflation or its short-term annualized pace remains elevated."
+            )
         elif bei_5y_change_20d > 0.25:
             inflation = "Inflation Repricing"
             inflation_body = "Breakevens have moved higher over the last 20 trading days."
@@ -317,7 +320,9 @@ class MacroPage:
         for _, names in CHART_CONFIG:
             feature_names.extend(names)
         feature_names.extend(feature_name for _, _, feature_name in YIELD_CURVE_CONFIG)
-        feature_names.extend(["UST_2S10S_Z20", "UST_5S30S_Z20", "BEI_5Y_CHANGE_20D", "UNRATE_3M_CHANGE"])
+        feature_names.extend(
+            ["UST_2S10S_Z20", "UST_5S30S_Z20", "BEI_5Y_CHANGE_20D", "UNRATE_3M_CHANGE"]
+        )
         return sorted(dict.fromkeys(feature_names))
 
     def _selected_lookback(self) -> int | None:
@@ -346,7 +351,9 @@ class MacroPage:
                 unsafe_allow_html=True,
             )
         with control_col:
-            st.markdown("<div class='bb-macro-control-label'>Macro Window</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div class='bb-macro-control-label'>Macro Window</div>", unsafe_allow_html=True
+            )
             lookback = self._selected_lookback()
         st.markdown("<div class='bb-macro-header-divider'></div>", unsafe_allow_html=True)
         return lookback
@@ -354,7 +361,11 @@ class MacroPage:
     def _matrix_start_date(self, lookback: int | None) -> str | None:
         if lookback is None:
             return None
-        return (pd.Timestamp.utcnow().normalize() - pd.tseries.offsets.BDay(lookback + 10)).date().isoformat()
+        return (
+            (pd.Timestamp.utcnow().normalize() - pd.tseries.offsets.BDay(lookback + 10))
+            .date()
+            .isoformat()
+        )
 
     def _windowed_matrix(self, matrix: pd.DataFrame, lookback: int | None) -> pd.DataFrame:
         if matrix.empty:
@@ -498,7 +509,9 @@ class MacroPage:
             unsafe_allow_html=True,
         )
 
-    def _nelson_siegel_curve(self, maturities: np.ndarray, beta0: float, beta1: float, beta2: float, tau: float) -> np.ndarray:
+    def _nelson_siegel_curve(
+        self, maturities: np.ndarray, beta0: float, beta1: float, beta2: float, tau: float
+    ) -> np.ndarray:
         safe_tau = max(float(tau), 1e-6)
         load1 = (1.0 - np.exp(-maturities / safe_tau)) / (maturities / safe_tau)
         load2 = load1 - np.exp(-maturities / safe_tau)
@@ -513,7 +526,7 @@ class MacroPage:
         def objective(params: np.ndarray) -> float:
             fitted = self._nelson_siegel_curve(maturities, *params)
             residuals = yields - fitted
-            return float(np.sum(residuals ** 2))
+            return float(np.sum(residuals**2))
 
         result = minimize(
             objective,
@@ -616,10 +629,16 @@ class MacroPage:
             caption = f"Latest available yield-curve snapshot as of {pd.Timestamp(curve_date).strftime('%Y-%m-%d')}."
             if fitted_params is not None:
                 caption += " Curve overlay uses a smooth Nelson-Siegel fit rather than linear interpolation."
-            st.markdown(f"<div class='bb-macro-featured-caption'>{caption}</div>", unsafe_allow_html=True)
+            st.markdown(
+                f"<div class='bb-macro-featured-caption'>{caption}</div>", unsafe_allow_html=True
+            )
 
-    def _render_chart(self, matrix: pd.DataFrame, title: str, feature_names: list[str], start_date, end_date) -> None:
-        filtered = matrix.loc[(matrix.index >= start_date) & (matrix.index <= end_date), feature_names].copy()
+    def _render_chart(
+        self, matrix: pd.DataFrame, title: str, feature_names: list[str], start_date, end_date
+    ) -> None:
+        filtered = matrix.loc[
+            (matrix.index >= start_date) & (matrix.index <= end_date), feature_names
+        ].copy()
         if filtered.empty:
             st.info(f"No data available for {title.lower()} in the selected window.")
             return
@@ -633,7 +652,9 @@ class MacroPage:
             series = filtered[feature_name].dropna()
             if series.empty:
                 continue
-            line_color = TREASURY_CHART_COLORS.get(feature_name) or MACRO_CHART_COLORS.get(feature_name)
+            line_color = TREASURY_CHART_COLORS.get(feature_name) or MACRO_CHART_COLORS.get(
+                feature_name
+            )
             if line_color is None:
                 line_color = CHART_PALETTE[idx % len(CHART_PALETTE)]
             display_series = self._display_series(feature_name, series)
@@ -657,9 +678,11 @@ class MacroPage:
                         name=FEATURE_LABELS.get(feature_name, feature_name.replace("_", " ")),
                         line=dict(color=line_color, width=2),
                         connectgaps=False,
-                        hovertemplate="%{x|%Y-%m-%d}<br>%{y:.0f} bps<extra></extra>"
-                        if feature_name in OAS_FEATURES
-                        else None,
+                        hovertemplate=(
+                            "%{x|%Y-%m-%d}<br>%{y:.0f} bps<extra></extra>"
+                            if feature_name in OAS_FEATURES
+                            else None
+                        ),
                     )
                 )
             traces_added += 1
@@ -713,11 +736,17 @@ class MacroPage:
 
         top_left, top_right = st.columns([1.58, 1.42], vertical_alignment="top")
         with top_left:
-            st.markdown("<div class='bb-macro-panel-marker bb-macro-panel-marker--featured'></div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div class='bb-macro-panel-marker bb-macro-panel-marker--featured'></div>",
+                unsafe_allow_html=True,
+            )
             with timed_block("macro.render_yield_curve"):
                 self._render_yield_curve(filtered_matrix)
         with top_right:
-            st.markdown("<div class='bb-macro-panel-marker bb-macro-panel-marker--summary'></div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div class='bb-macro-panel-marker bb-macro-panel-marker--summary'></div>",
+                unsafe_allow_html=True,
+            )
             with timed_block("macro.render_cards"):
                 self._render_cards(filtered_matrix)
         self._render_chart_grid(filtered_matrix, start_date, end_date)

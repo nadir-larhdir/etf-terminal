@@ -2,7 +2,9 @@ from fixed_income.analytics.result_models import RateRiskEstimate, SecurityAnaly
 from fixed_income.analytics.snapshot_utils import is_snapshot_stale
 
 
-def _snapshot(*, estimated_duration: float | None, as_of_date: str = "2026-04-22") -> SecurityAnalyticsSnapshot:
+def _snapshot(
+    *, estimated_duration: float | None, as_of_date: str = "2026-04-22"
+) -> SecurityAnalyticsSnapshot:
     return SecurityAnalyticsSnapshot(
         ticker="LQD",
         asset_bucket="Investment Grade Credit",

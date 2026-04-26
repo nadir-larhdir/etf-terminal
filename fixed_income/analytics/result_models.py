@@ -163,11 +163,17 @@ class SecurityAnalyticsSnapshot:
             equity_beta=row.get("equity_beta"),
             as_of_date=None if row.get("as_of_date") is None else str(row.get("as_of_date")),
             updated_at=None if row.get("updated_at") is None else str(row.get("updated_at")),
-            model_version=None if row.get("model_version") is None else str(row.get("model_version")),
-            computed_from_start_date=None
-            if row.get("computed_from_start_date") is None
-            else str(row.get("computed_from_start_date")),
-            computed_from_end_date=None
-            if row.get("computed_from_end_date") is None
-            else str(row.get("computed_from_end_date")),
+            model_version=(
+                None if row.get("model_version") is None else str(row.get("model_version"))
+            ),
+            computed_from_start_date=(
+                None
+                if row.get("computed_from_start_date") is None
+                else str(row.get("computed_from_start_date"))
+            ),
+            computed_from_end_date=(
+                None
+                if row.get("computed_from_end_date") is None
+                else str(row.get("computed_from_end_date"))
+            ),
         )

@@ -135,23 +135,29 @@ class RVTab:
                 "Compare With",
                 rv_candidates,
                 key=f"rv_compare_{selected_security}",
-        )
+            )
 
         compare_obj = Security(compare_security)
         cache_key = app_cache_key(self.price_store.engine)
         with timed_block("rv.load_compare_history"):
-            compare_hist = cached_price_history(cache_key, compare_security, None, None, self.price_store)
+            compare_hist = cached_price_history(
+                cache_key, compare_security, None, None, self.price_store
+            )
             compare_obj.set_history(compare_hist)
         if compare_hist.empty:
             st.warning(f"No price history found for {compare_security}.")
             return
 
-        merged = hist[["close", "volume"]].join(
-            compare_hist[["close", "volume"]],
-            how="inner",
-            lsuffix="_base",
-            rsuffix="_comp",
-        ).dropna()
+        merged = (
+            hist[["close", "volume"]]
+            .join(
+                compare_hist[["close", "volume"]],
+                how="inner",
+                lsuffix="_base",
+                rsuffix="_comp",
+            )
+            .dropna()
+        )
 
         if merged.empty:
             st.warning("No overlapping history available for RV analysis.")
@@ -177,7 +183,8 @@ class RVTab:
 
         merged_dates = pd.to_datetime(merged.index)
         rv_merged = merged.loc[
-            (merged_dates >= pd.Timestamp(rv_start_date)) & (merged_dates <= pd.Timestamp(rv_end_date))
+            (merged_dates >= pd.Timestamp(rv_start_date))
+            & (merged_dates <= pd.Timestamp(rv_end_date))
         ].copy()
 
         if rv_merged.empty:
@@ -190,23 +197,31 @@ class RVTab:
         ratio_mean = float(rv_merged["ratio"].mean())
         ratio_std = float(rv_merged["ratio"].std(ddof=0)) if len(rv_merged) > 1 else 0.0
 
-        zscore_series = ratio_zscore(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
+        zscore_series = ratio_zscore(
+            security, compare_obj, start_date=rv_start_date, end_date=rv_end_date
+        )
         zscore_series = zscore_series.loc[rv_merged.index]
         rv_merged["zscore"] = zscore_series if not zscore_series.empty else 0.0
 
         current_ratio = float(rv_merged["ratio"].iloc[-1])
         current_z = float(rv_merged["zscore"].iloc[-1])
-        abs_dev_pct = ratio_deviation_pct(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
+        abs_dev_pct = ratio_deviation_pct(
+            security, compare_obj, start_date=rv_start_date, end_date=rv_end_date
+        )
 
         ratio_returns = rv_merged["ratio"].pct_change()
 
         corr_20_series = rolling_correlation(security, compare_obj, window=20)
         corr_20_series = corr_20_series.loc[rv_merged.index.intersection(corr_20_series.index)]
-        current_corr_20 = float(corr_20_series.dropna().iloc[-1]) if not corr_20_series.dropna().empty else 0.0
+        current_corr_20 = (
+            float(corr_20_series.dropna().iloc[-1]) if not corr_20_series.dropna().empty else 0.0
+        )
 
         corr_60_series = rolling_correlation(security, compare_obj, window=60)
         corr_60_series = corr_60_series.loc[rv_merged.index.intersection(corr_60_series.index)]
-        current_corr_60 = float(corr_60_series.dropna().iloc[-1]) if not corr_60_series.dropna().empty else 0.0
+        current_corr_60 = (
+            float(corr_60_series.dropna().iloc[-1]) if not corr_60_series.dropna().empty else 0.0
+        )
 
         current_beta, beta_adj_spread, beta_adj_z = beta_metrics(
             security,
@@ -221,63 +236,69 @@ class RVTab:
         current_beta_adj_z = float(rv_merged["beta_adj_z"].iloc[-1])
         beta_stability_value = hedge_beta_stability(returns_frame(security, compare_obj), window=20)
 
-        realized_vol = float(ratio_returns.std(ddof=0)) * (252 ** 0.5) if len(ratio_returns.dropna()) > 1 else 0.0
+        realized_vol = (
+            float(ratio_returns.std(ddof=0)) * (252**0.5)
+            if len(ratio_returns.dropna()) > 1
+            else 0.0
+        )
         vol_adj_score = current_z / realized_vol if realized_vol != 0 else 0.0
 
         lag1_autocorr = float(rv_merged["ratio"].autocorr(lag=1)) if len(rv_merged) > 3 else 0.0
-        half_life = half_life_proxy(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
+        half_life = half_life_proxy(
+            security, compare_obj, start_date=rv_start_date, end_date=rv_end_date
+        )
 
-        rv_regime = regime_label(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
-        trade_bias_label = trade_bias(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
+        rv_regime = regime_label(
+            security, compare_obj, start_date=rv_start_date, end_date=rv_end_date
+        )
+        trade_bias_label = trade_bias(
+            security, compare_obj, start_date=rv_start_date, end_date=rv_end_date
+        )
 
-        mr_quality = mean_reversion_quality(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
+        mr_quality = mean_reversion_quality(
+            security, compare_obj, start_date=rv_start_date, end_date=rv_end_date
+        )
 
-        base_vol_ratio = (float(hist["volume"].iloc[-1]) / float(hist["volume"].tail(30).mean())) if float(hist["volume"].tail(30).mean()) != 0 else 0.0
-        comp_vol_ratio = (float(compare_hist["volume"].iloc[-1]) / float(compare_hist["volume"].tail(30).mean())) if float(compare_hist["volume"].tail(30).mean()) != 0 else 0.0
+        base_vol_ratio = (
+            (float(hist["volume"].iloc[-1]) / float(hist["volume"].tail(30).mean()))
+            if float(hist["volume"].tail(30).mean()) != 0
+            else 0.0
+        )
+        comp_vol_ratio = (
+            (float(compare_hist["volume"].iloc[-1]) / float(compare_hist["volume"].tail(30).mean()))
+            if float(compare_hist["volume"].tail(30).mean()) != 0
+            else 0.0
+        )
 
         z_30d = window_zscore(security, compare_obj, 30)
         z_90d = window_zscore(security, compare_obj, 90)
         z_180d = window_zscore(security, compare_obj, 180)
 
-        stability = stability_score(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
+        stability = stability_score(
+            security, compare_obj, start_date=rv_start_date, end_date=rv_end_date
+        )
 
         fwd_5_avg, fwd_5_hit, fwd_5_n = forward_reversion_stats(security, compare_obj, 5)
         fwd_10_avg, fwd_10_hit, fwd_10_n = forward_reversion_stats(security, compare_obj, 10)
         fwd_20_avg, fwd_20_hit, fwd_20_n = forward_reversion_stats(security, compare_obj, 20)
 
         if abs(current_z) >= 2.0:
-            stretch_comment = (
-                f"The pair is statistically stretched with a z-score of {current_z:,.2f} and a ratio deviation of {abs_dev_pct:+.2f}% versus its selected-window mean."
-            )
+            stretch_comment = f"The pair is statistically stretched with a z-score of {current_z:,.2f} and a ratio deviation of {abs_dev_pct:+.2f}% versus its selected-window mean."
         elif abs(current_z) >= 1.0:
-            stretch_comment = (
-                f"The pair is moving away from fair value with a moderate dislocation: z-score {current_z:,.2f} and ratio deviation {abs_dev_pct:+.2f}%."
-            )
+            stretch_comment = f"The pair is moving away from fair value with a moderate dislocation: z-score {current_z:,.2f} and ratio deviation {abs_dev_pct:+.2f}%."
         else:
-            stretch_comment = (
-                f"The pair remains broadly close to its recent equilibrium with a z-score of {current_z:,.2f} and a ratio deviation of {abs_dev_pct:+.2f}%."
-            )
+            stretch_comment = f"The pair remains broadly close to its recent equilibrium with a z-score of {current_z:,.2f} and a ratio deviation of {abs_dev_pct:+.2f}%."
 
-        correlation_comment = (
-            f"Short-term and medium-term co-movement remains at {current_corr_20:,.2f} and {current_corr_60:,.2f} respectively, while the rolling hedge ratio is {current_beta:,.2f}."
-        )
+        correlation_comment = f"Short-term and medium-term co-movement remains at {current_corr_20:,.2f} and {current_corr_60:,.2f} respectively, while the rolling hedge ratio is {current_beta:,.2f}."
 
         if half_life > 0:
-            mr_comment = (
-                f"Mean-reversion quality is assessed as {mr_quality.lower()} with an estimated half-life of {half_life:,.1f} trading days."
-            )
+            mr_comment = f"Mean-reversion quality is assessed as {mr_quality.lower()} with an estimated half-life of {half_life:,.1f} trading days."
         else:
-            mr_comment = (
-                f"Mean-reversion quality is assessed as {mr_quality.lower()}, but the half-life estimate is not stable enough to be informative on this window."
-            )
+            mr_comment = f"Mean-reversion quality is assessed as {mr_quality.lower()}, but the half-life estimate is not stable enough to be informative on this window."
 
-        liquidity_comment = (
-            f"Liquidity conditions are {base_vol_ratio:.2f}x and {comp_vol_ratio:.2f}x of 30-day average volume for {selected_security} and {compare_security}, suggesting the pair is {'reasonably tradeable' if min(base_vol_ratio, comp_vol_ratio) >= 0.8 else 'less balanced from an execution perspective'}."
-        )
+        liquidity_comment = f"Liquidity conditions are {base_vol_ratio:.2f}x and {comp_vol_ratio:.2f}x of 30-day average volume for {selected_security} and {compare_security}, suggesting the pair is {'reasonably tradeable' if min(base_vol_ratio, comp_vol_ratio) >= 0.8 else 'less balanced from an execution perspective'}."
 
-        horizon_comment = (
-            f"Across horizons, the pair screens at {z_30d:,.2f} on 30D, {z_90d:,.2f} on 90D, and {z_180d:,.2f} on 180D, which helps frame whether the current move is tactical or persistent."
-        )
+        horizon_comment = f"Across horizons, the pair screens at {z_30d:,.2f} on 30D, {z_90d:,.2f} on 90D, and {z_180d:,.2f} on 180D, which helps frame whether the current move is tactical or persistent."
 
         rv_signal_paragraph = " ".join(
             [
@@ -289,8 +310,12 @@ class RVTab:
             ]
         )
 
-        rv_merged["base_cumret"] = rv_merged["close_base"] / float(rv_merged["close_base"].iloc[0]) - 1.0
-        rv_merged["comp_cumret"] = rv_merged["close_comp"] / float(rv_merged["close_comp"].iloc[0]) - 1.0
+        rv_merged["base_cumret"] = (
+            rv_merged["close_base"] / float(rv_merged["close_base"].iloc[0]) - 1.0
+        )
+        rv_merged["comp_cumret"] = (
+            rv_merged["close_comp"] / float(rv_merged["close_comp"].iloc[0]) - 1.0
+        )
         rv_merged["cum_spread"] = rv_merged["base_cumret"] - current_beta * rv_merged["comp_cumret"]
 
         st.caption(f"Displaying RV analysis from {rv_start_date.date()} to {rv_end_date.date()}")

@@ -7,7 +7,6 @@ from scripts.logging_utils import configure_logging
 from scripts.script_helpers import add_ticker_argument, filter_new_ticker_rows, parse_ticker_list
 from stores.market import MetadataStore
 
-
 # Static metadata rows used when you want a controlled in-house metadata baseline.
 DEFAULT_METADATA = [
     {
@@ -87,9 +86,18 @@ logger = logging.getLogger(__name__)
 
 if __name__ == "__main__":
     configure_logging()
-    parser = argparse.ArgumentParser(description="Seed static ETF metadata into the local database.")
-    parser.add_argument("--backend", choices=["local", "supabase"], default=None, help="Target data backend.")
-    parser.add_argument("--app-env", choices=["prod", "uat"], default=None, help="Local DB environment when using --backend local.")
+    parser = argparse.ArgumentParser(
+        description="Seed static ETF metadata into the local database."
+    )
+    parser.add_argument(
+        "--backend", choices=["local", "supabase"], default=None, help="Target data backend."
+    )
+    parser.add_argument(
+        "--app-env",
+        choices=["prod", "uat"],
+        default=None,
+        help="Local DB environment when using --backend local.",
+    )
     parser.add_argument(
         "--mode",
         choices=["upsert", "missing-only"],

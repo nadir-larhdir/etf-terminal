@@ -65,7 +65,9 @@ class NewsPage:
             unsafe_allow_html=True,
         )
 
-    def _news_link_style(self, *, font_size: str, weight: int = 700, line_height: str = "1.4") -> str:
+    def _news_link_style(
+        self, *, font_size: str, weight: int = 700, line_height: str = "1.4"
+    ) -> str:
         return (
             f"color:#1F271C;text-decoration:none;font-weight:{weight};font-size:{font_size};line-height:{line_height};"
             "transition:color 0.18s ease;"
@@ -102,7 +104,9 @@ class NewsPage:
         except ValueError:
             return "time unavailable"
 
-    def _pick_top_story(self, grouped_items: dict[str, list[dict]]) -> tuple[str, dict] | tuple[None, None]:
+    def _pick_top_story(
+        self, grouped_items: dict[str, list[dict]]
+    ) -> tuple[str, dict] | tuple[None, None]:
         for feed_key in ["rates", "credit", "macro"]:
             items = grouped_items.get(feed_key, [])
             if items:
@@ -195,7 +199,9 @@ class NewsPage:
                     unsafe_allow_html=True,
                 )
 
-    def _render_featured_headline(self, title: str, items: list[dict], *, accent_color: str, bucket: str) -> None:
+    def _render_featured_headline(
+        self, title: str, items: list[dict], *, accent_color: str, bucket: str
+    ) -> None:
         if not items:
             self.info_panel.render_note(
                 title=title,
@@ -226,12 +232,14 @@ class NewsPage:
             margin_bottom="0.20rem",
         )
 
-    def _render_headline_list(self, items: list[dict], *, bucket: str, accent_color: str, max_items: int = 4) -> None:
+    def _render_headline_list(
+        self, items: list[dict], *, bucket: str, accent_color: str, max_items: int = 4
+    ) -> None:
         if len(items) <= 1:
             return
 
         rows = []
-        for item in items[1:max_items + 1]:
+        for item in items[1 : max_items + 1]:
             tag = self._headline_tag(item["title"], bucket)
             rows.append(
                 f"<div style='padding:0.38rem 0;border-bottom:1px solid #D8D4C7;'>"
@@ -311,13 +319,19 @@ class NewsPage:
 
         col1, col2, col3 = st.columns(3, vertical_alignment="top")
         with col1:
-            self._render_featured_headline("Rates", rates_items, accent_color="#5F8D84", bucket="rates")
+            self._render_featured_headline(
+                "Rates", rates_items, accent_color="#5F8D84", bucket="rates"
+            )
             self._render_headline_list(rates_items, bucket="rates", accent_color="#5F8D84")
         with col2:
-            self._render_featured_headline("Credit And ETFs", credit_items, accent_color="#6F7B46", bucket="credit")
+            self._render_featured_headline(
+                "Credit And ETFs", credit_items, accent_color="#6F7B46", bucket="credit"
+            )
             self._render_headline_list(credit_items, bucket="credit", accent_color="#6F7B46")
         with col3:
-            self._render_featured_headline("Macro", macro_items, accent_color="#A55C45", bucket="macro")
+            self._render_featured_headline(
+                "Macro", macro_items, accent_color="#A55C45", bucket="macro"
+            )
             self._render_headline_list(macro_items, bucket="macro", accent_color="#A55C45")
 
         st.markdown("### Coverage Map")

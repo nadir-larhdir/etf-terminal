@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-
 FEATURE_METADATA = {
     "UST_3M_LEVEL": ("Rates", "Rates Level"),
     "UST_6M_LEVEL": ("Rates", "Rates Level"),
@@ -228,16 +227,24 @@ class MacroFeatureService:
             feature_map["UNRATE_12M_CHANGE"] = self._change(unrate_monthly, 12)
 
         oas_calendar = (
-            self._clean_series(raw.get("BAMLC0A0CM")).index
-            .union(self._clean_series(raw.get("BAMLH0A0HYM2")).index)
+            self._clean_series(raw.get("BAMLC0A0CM"))
+            .index.union(self._clean_series(raw.get("BAMLH0A0HYM2")).index)
             .union(self._clean_series(raw.get("BAMLC0A4CBBB")).index)
             .union(self._clean_series(raw.get("BAMLH0A2HYB")).index)
             .sort_values()
         )
-        ig_oas = self._repair_isolated_internal_gaps(raw.get("BAMLC0A0CM"), reference_index=oas_calendar)
-        hy_oas = self._repair_isolated_internal_gaps(raw.get("BAMLH0A0HYM2"), reference_index=oas_calendar)
-        bbb_oas = self._repair_isolated_internal_gaps(raw.get("BAMLC0A4CBBB"), reference_index=oas_calendar)
-        single_b_oas = self._repair_isolated_internal_gaps(raw.get("BAMLH0A2HYB"), reference_index=oas_calendar)
+        ig_oas = self._repair_isolated_internal_gaps(
+            raw.get("BAMLC0A0CM"), reference_index=oas_calendar
+        )
+        hy_oas = self._repair_isolated_internal_gaps(
+            raw.get("BAMLH0A0HYM2"), reference_index=oas_calendar
+        )
+        bbb_oas = self._repair_isolated_internal_gaps(
+            raw.get("BAMLC0A4CBBB"), reference_index=oas_calendar
+        )
+        single_b_oas = self._repair_isolated_internal_gaps(
+            raw.get("BAMLH0A2HYB"), reference_index=oas_calendar
+        )
         hy_minus_ig = hy_oas - ig_oas
         feature_map["IG_OAS_LEVEL"] = ig_oas
         feature_map["HY_OAS_LEVEL"] = hy_oas
@@ -283,8 +290,12 @@ class MacroFeatureService:
             .reset_index(drop=True)
         )
         flattened["date"] = pd.to_datetime(flattened["date"]).dt.strftime("%Y-%m-%d")
-        flattened["category"] = flattened["feature_name"].map(lambda name: FEATURE_METADATA[name][0])
-        flattened["sub_category"] = flattened["feature_name"].map(lambda name: FEATURE_METADATA[name][1])
+        flattened["category"] = flattened["feature_name"].map(
+            lambda name: FEATURE_METADATA[name][0]
+        )
+        flattened["sub_category"] = flattened["feature_name"].map(
+            lambda name: FEATURE_METADATA[name][1]
+        )
         flattened["source"] = "derived"
         flattened["last_updated_at"] = datetime.utcnow().isoformat()
         return flattened[self.OUTPUT_COLUMNS]

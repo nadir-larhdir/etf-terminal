@@ -8,12 +8,13 @@ from scripts.script_helpers import parse_csv_values
 from services.macro import DEFAULT_MACRO_SERIES, FredClient, MacroDataService
 from stores.macro import MacroStore
 
-
 logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Load FRED macro time series into the local database.")
+    parser = argparse.ArgumentParser(
+        description="Load FRED macro time series into the local database."
+    )
     parser.add_argument(
         "--mode",
         choices=["full", "incremental"],
@@ -75,7 +76,9 @@ if __name__ == "__main__":
             end=args.end,
             replace_existing=True,
         )
-        logger.info("Replaced macro history for %s series: %s", len(series_ids), ", ".join(series_ids))
+        logger.info(
+            "Replaced macro history for %s series: %s", len(series_ids), ", ".join(series_ids)
+        )
     else:
         statuses = service.sync_incremental_updates(
             series_ids,

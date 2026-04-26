@@ -2,7 +2,6 @@ import logging
 from contextlib import contextmanager
 from time import perf_counter
 
-
 LOGGER = logging.getLogger("etf_terminal.perf")
 
 

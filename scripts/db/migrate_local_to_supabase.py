@@ -6,7 +6,6 @@ from db.connection import get_engine
 from scripts.db.migration_utils import TABLE_COPY_ORDER, copy_table, parse_local_env, prepare_target
 from scripts.logging_utils import configure_logging
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -18,7 +17,9 @@ def migrate_environment(app_env: str) -> dict[str, int]:
 
     counts: dict[str, int] = {}
     for table_name in TABLE_COPY_ORDER:
-        counts[table_name] = copy_table(source_engine, target_engine, table_name, normalize_for_target=True)
+        counts[table_name] = copy_table(
+            source_engine, target_engine, table_name, normalize_for_target=True
+        )
     return counts
 
 

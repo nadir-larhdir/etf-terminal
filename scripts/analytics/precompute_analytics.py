@@ -2,14 +2,18 @@ import argparse
 import logging
 
 from db.connection import get_engine
-from fixed_income.analytics import DurationModelSelector, FixedIncomeAnalyticsService, is_snapshot_stale, snapshot_age_hours
+from fixed_income.analytics import (
+    DurationModelSelector,
+    FixedIncomeAnalyticsService,
+    is_snapshot_stale,
+    snapshot_age_hours,
+)
 from fixed_income.analytics.result_models import SecurityAnalyticsSnapshot
 from fixed_income.instruments.security import Security
 from scripts.logging_utils import configure_logging
 from stores.analytics import AnalyticsSnapshotStore
 from stores.macro import MacroStore
 from stores.market import MetadataStore, PriceStore, SecurityStore
-
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +30,11 @@ def _metadata_duration(metadata: dict) -> float | None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Precompute fixed-income analytics snapshots.")
-    parser.add_argument("--force", action="store_true", help="Recompute all symbols even when a fresh snapshot exists.")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Recompute all symbols even when a fresh snapshot exists.",
+    )
     parser.add_argument(
         "--ttl-hours",
         type=int,
@@ -36,7 +44,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def run_precompute_analytics(*, engine=None, force: bool = False, ttl_hours: int = 24) -> tuple[int, int]:
+def run_precompute_analytics(
+    *, engine=None, force: bool = False, ttl_hours: int = 24
+) -> tuple[int, int]:
     if engine is None:
         engine = get_engine()
     security_store = SecurityStore(engine)
@@ -45,7 +55,9 @@ def run_precompute_analytics(*, engine=None, force: bool = False, ttl_hours: int
     macro_store = MacroStore(engine)
     snapshot_store = AnalyticsSnapshotStore(engine)
     selector = DurationModelSelector()
-    analytics_service = FixedIncomeAnalyticsService(price_store, macro_store, selector, snapshot_store)
+    analytics_service = FixedIncomeAnalyticsService(
+        price_store, macro_store, selector, snapshot_store
+    )
 
     securities = security_store.list_active_securities()
     if securities.empty:
@@ -54,10 +66,14 @@ def run_precompute_analytics(*, engine=None, force: bool = False, ttl_hours: int
 
     tickers = securities["ticker"].astype(str).tolist()
     latest_price_dates = price_store.get_latest_stored_dates(tickers)
-    latest_snapshot_rows = snapshot_store.get_latest_snapshots(securities["ticker"].astype(str).tolist())
-    latest_snapshot_map = {
-        str(row["symbol"]): row.to_dict() for _, row in latest_snapshot_rows.iterrows()
-    } if not latest_snapshot_rows.empty else {}
+    latest_snapshot_rows = snapshot_store.get_latest_snapshots(
+        securities["ticker"].astype(str).tolist()
+    )
+    latest_snapshot_map = (
+        {str(row["symbol"]): row.to_dict() for _, row in latest_snapshot_rows.iterrows()}
+        if not latest_snapshot_rows.empty
+        else {}
+    )
 
     persisted = 0
     skipped = 0

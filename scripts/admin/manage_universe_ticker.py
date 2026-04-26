@@ -7,13 +7,16 @@ from services.admin import TickerManagerService
 from services.market import MarketDataService
 from stores.market import InputStore, MetadataStore, PriceStore, SecurityStore
 
-
 logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Add or remove a ticker across the local ETF database.")
-    parser.add_argument("action", choices=["add", "delete"], help="Whether to add or delete the ticker.")
+    parser = argparse.ArgumentParser(
+        description="Add or remove a ticker across the local ETF database."
+    )
+    parser.add_argument(
+        "action", choices=["add", "delete"], help="Whether to add or delete the ticker."
+    )
     parser.add_argument("ticker", help="Ticker symbol to manage.")
     parser.add_argument(
         "--asset-class",
@@ -59,4 +62,7 @@ if __name__ == "__main__":
         logger.info(" - category: %s", profile.diagnostics.get("category") or "N/A")
     else:
         manager.delete_ticker(args.ticker)
-        logger.info("Ticker deleted from securities, metadata, prices, and inputs: %s", args.ticker.strip().upper())
+        logger.info(
+            "Ticker deleted from securities, metadata, prices, and inputs: %s",
+            args.ticker.strip().upper(),
+        )

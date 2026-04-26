@@ -1,6 +1,12 @@
 from fixed_income.analytics import DurationModelSelector, FixedIncomeAnalyticsService
 from services.admin import TickerManagerService
-from services.macro import DEFAULT_MACRO_SERIES, FEATURE_METADATA, FredClient, MacroDataService, MacroFeatureService
+from services.macro import (
+    DEFAULT_MACRO_SERIES,
+    FEATURE_METADATA,
+    FredClient,
+    MacroDataService,
+    MacroFeatureService,
+)
 from services.market import MarketDataService
 from services.news import NewsFeedService
 

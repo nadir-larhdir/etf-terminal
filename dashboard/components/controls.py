@@ -42,12 +42,16 @@ class DashboardControls:
 
         options_df = options_df.sort_values(["asset_class", "ticker"]).reset_index(drop=True)
 
-        search_value = st.text_input(
-            f"Search {label}",
-            value="",
-            key=f"{key}_search",
-            placeholder="Type ticker...",
-        ).strip().upper()
+        search_value = (
+            st.text_input(
+                f"Search {label}",
+                value="",
+                key=f"{key}_search",
+                placeholder="Type ticker...",
+            )
+            .strip()
+            .upper()
+        )
 
         if search_value:
             filtered_df = options_df.loc[
@@ -65,10 +69,7 @@ class DashboardControls:
             st.caption("No matching securities.")
             return ""
 
-        label_map = {
-            row["ticker"]: str(row["ticker"])
-            for _, row in filtered_df.iterrows()
-        }
+        label_map = {row["ticker"]: str(row["ticker"]) for _, row in filtered_df.iterrows()}
 
         selected = st.selectbox(
             label,

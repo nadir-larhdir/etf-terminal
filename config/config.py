@@ -1,17 +1,14 @@
+"""Application-wide configuration loaded once at startup from env vars and config.json."""
+
 import json
 import os
 from pathlib import Path
 
-try:
-    from dotenv import load_dotenv
-except ImportError:
-    def load_dotenv(*args, **kwargs):
-        """No-op fallback when python-dotenv is not installed yet."""
-
-        return False
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
+
 ENV_DB_FILENAMES = {
     "prod": "market_data_prod.db",
     "uat": "market_data_uat.db",
@@ -22,39 +19,37 @@ load_dotenv(BASE_DIR / ".env")
 
 
 def get_app_env() -> str:
-    """Return the active application environment used for database selection."""
+    """Return the validated APP_ENV value, defaulting to 'prod' on unrecognised input."""
+    raw = os.getenv("APP_ENV", "prod").strip().lower()
+    return raw if raw in ENV_DB_FILENAMES else "prod"
 
-    raw_env = os.getenv("APP_ENV", "prod").strip().lower()
-    return raw_env if raw_env in ENV_DB_FILENAMES else "prod"
+
+def load_config() -> dict:
+    """Load and return the JSON configuration file as a plain dict."""
+    with open(CONFIG_PATH, encoding="utf-8") as f:
+        return json.load(f)
 
 
 APP_ENV = get_app_env()
 DB_SCHEMA = os.getenv("SUPABASE_SCHEMA", "public").strip() or "public"
 DB_PATH = BASE_DIR / ENV_DB_FILENAMES[APP_ENV]
+
+# Support both DATABASE_URL (legacy) and SUPABASE_DB_URL.
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip() or os.getenv("SUPABASE_DB_URL", "").strip()
 SUPABASE_DB_URL = DATABASE_URL
-default_backend = "supabase" if DATABASE_URL else "local"
-DATA_BACKEND = os.getenv("DATA_BACKEND", default_backend).strip().lower()
+
+_default_backend = "supabase" if DATABASE_URL else "local"
+DATA_BACKEND = os.getenv("DATA_BACKEND", _default_backend).strip().lower()
 if DATA_BACKEND not in VALID_DATA_BACKENDS:
-    DATA_BACKEND = default_backend
+    DATA_BACKEND = _default_backend
+
 FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
 FMP_BASE_URL = "https://financialmodelingprep.com/stable"
 FRED_API_KEY = os.getenv("FRED_API_KEY", "").strip()
 FRED_BASE_URL = "https://api.stlouisfed.org/fred"
 
-
-def load_config() -> dict:
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
 _config = load_config()
-
-# Static default ticker universe loaded from the JSON configuration file.
-DEFAULT_TICKERS = _config["DEFAULT_TICKERS"]
-# Predefined lookback windows used by the dashboard controls.
-PERIOD_OPTIONS = _config["PERIOD_OPTIONS"]
-# Canonical registry for supported FRED macro series.
-MACRO_SERIES_REGISTRY = _config["MACRO_SERIES_REGISTRY"]
-# Configured RSS/news feeds shown in the News tab.
-NEWS_FEEDS = _config["NEWS_FEEDS"]
+DEFAULT_TICKERS: list[str] = _config["DEFAULT_TICKERS"]
+PERIOD_OPTIONS: list[str] = _config["PERIOD_OPTIONS"]
+MACRO_SERIES_REGISTRY: dict = _config["MACRO_SERIES_REGISTRY"]
+NEWS_FEEDS: list[dict] = _config["NEWS_FEEDS"]

@@ -1,9 +1,9 @@
+"""Database schema definitions, table creation, and incremental migration helpers."""
+
 from sqlalchemy import inspect, text
 
 from db.sql import qualified_table, schema_name as active_schema_name
 
-
-# SQLite table definitions managed by the database bootstrap script.
 TABLE_DEFINITIONS = {
     "securities": """
         CREATE TABLE IF NOT EXISTS securities (
@@ -119,17 +119,8 @@ TABLE_DEFINITIONS = {
 }
 
 EXPECTED_MACRO_DATA_COLUMNS = [
-    "series_id",
-    "date",
-    "value",
-    "series_name",
-    "category",
-    "sub_category",
-    "frequency",
-    "units",
-    "source",
-    "is_active",
-    "last_updated_at",
+    "series_id", "date", "value", "series_name", "category",
+    "sub_category", "frequency", "units", "source", "is_active", "last_updated_at",
 ]
 
 INDEX_DEFINITIONS = {
@@ -145,11 +136,16 @@ INDEX_DEFINITIONS = {
 
 
 def get_existing_tables(engine) -> set[str]:
+    """Return the set of table names currently present in the active schema."""
     inspector = inspect(engine)
     return set(inspector.get_table_names(schema=active_schema_name(engine)))
 
 
-def create_tables(engine):
+def create_tables(engine) -> None:
+    """Create all application tables and indexes if they do not already exist.
+
+    Also runs incremental column-migration helpers for tables that evolve over time.
+    """
     with engine.begin() as conn:
         _ensure_schema(conn)
         for table_name, ddl in TABLE_DEFINITIONS.items():
@@ -161,125 +157,102 @@ def create_tables(engine):
         ensure_analytics_snapshot_schema(conn)
 
 
-def ensure_security_metadata_schema(conn):
+def ensure_security_metadata_schema(conn) -> None:
+    """Add any columns missing from security_metadata introduced after the initial schema."""
+    _add_missing_columns(conn, "security_metadata", {"duration": "REAL"})
+
+
+def ensure_analytics_snapshot_schema(conn) -> None:
+    """Add any columns missing from analytics_snapshots introduced after the initial schema."""
+    _add_missing_columns(
+        conn,
+        "analytics_snapshots",
+        {
+            "model_version": "TEXT",
+            "computed_from_start_date": "DATE",
+            "computed_from_end_date": "DATE",
+            "spread_beta_per_bp": "REAL",
+            "benchmark_beta": "REAL",
+        },
+    )
+
+
+def ensure_macro_data_schema(conn) -> None:
+    """Migrate macro_data to the current column layout if the legacy schema is detected.
+
+    This is a one-time destructive migration for SQLite only: it renames the old table,
+    recreates it with the full column set, copies the overlapping rows, then drops the backup.
+    """
     engine = conn.engine
     inspector = inspect(conn)
     schema = active_schema_name(engine)
-    if "security_metadata" not in set(inspector.get_table_names(schema=schema)):
+
+    if "macro_data" not in set(inspector.get_table_names(schema=schema)):
         return
 
-    existing_columns = {row["name"] for row in inspector.get_columns("security_metadata", schema=schema)}
-    missing_columns = {
-        "duration": "REAL",
-    }
-    for column_name, column_type in missing_columns.items():
-        if column_name in existing_columns:
-            continue
-        conn.execute(
-            text(
-                f"ALTER TABLE {qualified_table(engine, 'security_metadata')} "
-                f"ADD COLUMN {column_name} {column_type}"
-            )
-        )
-
-
-def ensure_macro_data_schema(conn):
-    engine = conn.engine
-    inspector = inspect(conn)
-    schema_name = active_schema_name(engine)
-    table_names = set(inspector.get_table_names(schema=schema_name))
-    if "macro_data" not in table_names:
-        return
-
-    rows = inspector.get_columns("macro_data", schema=schema_name)
-    if not rows:
-        return
-
-    existing_columns = [row["name"] for row in rows]
+    existing_columns = [row["name"] for row in inspector.get_columns("macro_data", schema=schema)]
     if existing_columns == EXPECTED_MACRO_DATA_COLUMNS:
         return
 
+    # Column migration is only safe on SQLite; Postgres supports ALTER TABLE ADD COLUMN.
     if engine.dialect.name != "sqlite":
         return
 
     conn.exec_driver_sql("ALTER TABLE macro_data RENAME TO macro_data_legacy")
     conn.execute(text(_qualify_ddl(engine, "macro_data", TABLE_DEFINITIONS["macro_data"])))
-    legacy_columns = set(existing_columns)
 
-    if {"series_id", "date", "value"}.issubset(legacy_columns):
-        source_expression = "COALESCE(source, 'fred')" if "source" in legacy_columns else "'fred'"
-        timestamp_expression = "updated_at" if "updated_at" in legacy_columns else "CURRENT_TIMESTAMP"
-        insert_statement = """
-        INSERT INTO macro_data (
-            series_id,
-            date,
-            value,
-            series_name,
-            category,
-            sub_category,
-            frequency,
-            units,
-            source,
-            is_active,
-            last_updated_at
-        )
-        SELECT
-            series_id,
-            date,
-            value,
-            NULL AS series_name,
-            NULL AS category,
-            NULL AS sub_category,
-            NULL AS frequency,
-            NULL AS units,
-            {source_expression} AS source,
-            1 AS is_active,
-            {timestamp_expression} AS last_updated_at
-        FROM macro_data_legacy
-        """.format(
-            source_expression=source_expression,
-            timestamp_expression=timestamp_expression,
-        )
-        conn.exec_driver_sql(insert_statement)
+    legacy = set(existing_columns)
+    source_expr = "COALESCE(source, 'fred')" if "source" in legacy else "'fred'"
+    ts_expr = "updated_at" if "updated_at" in legacy else "CURRENT_TIMESTAMP"
+
+    if {"series_id", "date", "value"}.issubset(legacy):
+        conn.exec_driver_sql(f"""
+            INSERT INTO macro_data (
+                series_id, date, value, series_name, category, sub_category,
+                frequency, units, source, is_active, last_updated_at
+            )
+            SELECT
+                series_id, date, value,
+                NULL, NULL, NULL, NULL, NULL,
+                {source_expr}, 1, {ts_expr}
+            FROM macro_data_legacy
+        """)
 
     conn.exec_driver_sql("DROP TABLE macro_data_legacy")
 
 
-def ensure_analytics_snapshot_schema(conn):
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _add_missing_columns(conn, table_name: str, missing_columns: dict[str, str]) -> None:
+    """ALTER TABLE to add any columns from missing_columns that are not yet present."""
     engine = conn.engine
     inspector = inspect(conn)
     schema = active_schema_name(engine)
-    if "analytics_snapshots" not in set(inspector.get_table_names(schema=schema)):
+
+    if table_name not in set(inspector.get_table_names(schema=schema)):
         return
 
-    existing_columns = {row["name"] for row in inspector.get_columns("analytics_snapshots", schema=schema)}
-    missing_columns = {
-        "model_version": "TEXT",
-        "computed_from_start_date": "DATE",
-        "computed_from_end_date": "DATE",
-        "spread_beta_per_bp": "REAL",
-        "benchmark_beta": "REAL",
-    }
+    existing = {row["name"] for row in inspector.get_columns(table_name, schema=schema)}
     for column_name, column_type in missing_columns.items():
-        if column_name in existing_columns:
-            continue
-        conn.execute(
-            text(
-                f"ALTER TABLE {qualified_table(engine, 'analytics_snapshots')} "
+        if column_name not in existing:
+            conn.execute(text(
+                f"ALTER TABLE {qualified_table(engine, table_name)} "
                 f"ADD COLUMN {column_name} {column_type}"
-            )
-        )
+            ))
 
 
 def _ensure_schema(conn) -> None:
+    """Create the Postgres schema if it does not exist (no-op for SQLite)."""
     if conn.engine.dialect.name != "postgresql":
         return
-
-    schema_name = active_schema_name(conn.engine) or "public"
-    conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
+    schema = active_schema_name(conn.engine) or "public"
+    conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema}"'))
 
 
 def _qualify_ddl(engine, table_name: str, ddl: str) -> str:
+    """Prefix the table name with its schema in a CREATE TABLE statement for Postgres."""
     if engine.dialect.name != "postgresql":
         return ddl
     return ddl.replace(
@@ -289,9 +262,10 @@ def _qualify_ddl(engine, table_name: str, ddl: str) -> str:
 
 
 def _qualify_index_ddl(engine, ddl: str) -> str:
+    """Prefix all table references in a CREATE INDEX statement with the active schema."""
     if engine.dialect.name != "postgresql":
         return ddl
-    qualified = ddl
+    result = ddl
     for table_name in TABLE_DEFINITIONS:
-        qualified = qualified.replace(f" ON {table_name} ", f" ON {qualified_table(engine, table_name)} ")
-    return qualified
+        result = result.replace(f" ON {table_name} ", f" ON {qualified_table(engine, table_name)} ")
+    return result

@@ -7,7 +7,6 @@ from config.config import ENV_DB_FILENAMES
 from db.schema import TABLE_DEFINITIONS, create_tables
 from db.sql import pandas_to_sql_kwargs, qualified_table
 
-
 TABLE_COPY_ORDER = list(TABLE_DEFINITIONS.keys())
 
 DATE_COLUMNS = {
@@ -28,7 +27,9 @@ TIMESTAMP_COLUMNS = {
 def parse_local_env(raw_value: str, *, label: str) -> str:
     selected = raw_value.strip().lower()
     if selected not in ENV_DB_FILENAMES:
-        raise SystemExit(f"Invalid {label} environment. Use --{label}-env prod or --{label}-env uat.")
+        raise SystemExit(
+            f"Invalid {label} environment. Use --{label}-env prod or --{label}-env uat."
+        )
     return selected
 
 
@@ -56,7 +57,9 @@ def normalize_frame_for_target(frame: pd.DataFrame, table_name: str) -> pd.DataF
     return normalized
 
 
-def copy_table(source_engine, target_engine, table_name: str, *, normalize_for_target: bool = False) -> int:
+def copy_table(
+    source_engine, target_engine, table_name: str, *, normalize_for_target: bool = False
+) -> int:
     source_table = qualified_table(source_engine, table_name)
     with source_engine.connect() as source_conn:
         frame = pd.read_sql(text(f"SELECT * FROM {source_table}"), source_conn)
@@ -68,7 +71,13 @@ def copy_table(source_engine, target_engine, table_name: str, *, normalize_for_t
         frame = normalize_frame_for_target(frame, table_name)
 
     with target_engine.begin() as target_conn:
-        frame.to_sql(table_name, target_conn, if_exists="append", index=False, **pandas_to_sql_kwargs(target_engine))
+        frame.to_sql(
+            table_name,
+            target_conn,
+            if_exists="append",
+            index=False,
+            **pandas_to_sql_kwargs(target_engine),
+        )
     return len(frame)
 
 

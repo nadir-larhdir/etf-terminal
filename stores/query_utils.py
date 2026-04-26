@@ -3,7 +3,9 @@
 import pandas as pd
 
 
-def sql_in_clause_params(prefix: str, items: tuple[str, ...] | list[str]) -> tuple[str, dict[str, str]]:
+def sql_in_clause_params(
+    prefix: str, items: tuple[str, ...] | list[str]
+) -> tuple[str, dict[str, str]]:
     """Build named SQL placeholders and params for a small IN-clause list."""
 
     values = list(items)
@@ -12,7 +14,9 @@ def sql_in_clause_params(prefix: str, items: tuple[str, ...] | list[str]) -> tup
     return placeholders, params
 
 
-def latest_dates_map(df: pd.DataFrame, *, key_column: str, date_column: str = "latest_date") -> dict[str, str]:
+def latest_dates_map(
+    df: pd.DataFrame, *, key_column: str, date_column: str = "latest_date"
+) -> dict[str, str]:
     """Convert grouped latest-date query results into a simple string mapping."""
     if df.empty:
         return {}
@@ -50,6 +54,8 @@ def pivot_time_series(
 
     working = df.copy()
     working[index_column] = pd.to_datetime(working[index_column])
-    matrix = working.pivot(index=index_column, columns=column_column, values=value_column).sort_index()
+    matrix = working.pivot(
+        index=index_column, columns=column_column, values=value_column
+    ).sort_index()
     matrix.columns.name = None
     return matrix

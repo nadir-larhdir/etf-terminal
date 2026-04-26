@@ -1,3 +1,5 @@
+"""RSS feed fetching and filtering for the News tab."""
+
 from __future__ import annotations
 
 from email.utils import parsedate_to_datetime
@@ -9,7 +11,11 @@ from config import NEWS_FEEDS
 
 
 class NewsFeedService:
-    """Fetch and normalize RSS headlines for the News tab."""
+    """Fetch, filter, and normalise RSS headlines for the News tab.
+
+    Applies promotional-content filtering and bucket keyword matching so only
+    relevant fixed-income headlines reach the dashboard.
+    """
 
     PROMOTIONAL_PATTERNS = (
         "which is the better",
@@ -78,6 +84,7 @@ class NewsFeedService:
         self.feeds = feeds or NEWS_FEEDS
 
     def fetch_all(self, limit_per_feed: int = 5) -> dict[str, dict]:
+        """Fetch all configured feeds and return a keyed dict of label + items."""
         return {
             feed_key: {
                 "label": feed_config["label"],
@@ -87,6 +94,7 @@ class NewsFeedService:
         }
 
     def fetch_feed(self, feed_key: str, limit: int = 5) -> list[dict]:
+        """Fetch a single RSS feed and return up to limit filtered headline dicts."""
         feed_config = self.feeds[feed_key]
         response = requests.get(feed_config["url"], timeout=20)
         response.raise_for_status()
@@ -119,6 +127,7 @@ class NewsFeedService:
         return items
 
     def _is_relevant_headline(self, feed_key: str, title: str, source: str) -> bool:
+        """Return True when a headline passes promotional filtering and matches bucket keywords."""
         title_lower = title.lower()
         source_lower = source.lower()
         combined = f"{title_lower} {source_lower}"
@@ -132,6 +141,7 @@ class NewsFeedService:
         return any(keyword in title_lower for keyword in keywords)
 
     def _parse_pub_date(self, pub_date: str | None):
+        """Parse an RFC-2822 pubDate string into a datetime, returning None on failure."""
         if not pub_date:
             return None
         try:

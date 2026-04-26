@@ -6,8 +6,9 @@ import streamlit as st
 from dashboard.components.controls import WINDOW_LOOKBACK_MAP
 from dashboard.mobile import PLOTLY_CHART_CONFIG, responsive_chart_layout
 
-
-TERMINAL_FONT = '"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+TERMINAL_FONT = (
+    '"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
+)
 CHART_GRID = "#D8D4C7"
 CHART_INK = "#1F271C"
 CHART_MUTED = "#7A7568"
@@ -46,7 +47,9 @@ def format_volume_label(value: float) -> str:
     return f"{value:.0f}"
 
 
-def _apply_terminal_chart_layout(fig: go.Figure, *, title: str, height: int, margin=None, legend=None) -> None:
+def _apply_terminal_chart_layout(
+    fig: go.Figure, *, title: str, height: int, margin=None, legend=None
+) -> None:
     fig.update_layout(
         **responsive_chart_layout(
             title,
@@ -183,7 +186,11 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
     bar_colors = [CHART_UP if value >= mean_volume else CHART_DOWN for value in volume_series]
 
     max_volume = float(volume_series.max())
-    step = 5_000_000 if max_volume <= 50_000_000 else 10_000_000 if max_volume <= 100_000_000 else 20_000_000
+    step = (
+        5_000_000
+        if max_volume <= 50_000_000
+        else 10_000_000 if max_volume <= 100_000_000 else 20_000_000
+    )
     tick_vals = list(range(0, int(max_volume * 1.15) + step, step))
     tick_text = [format_volume_label(v) for v in tick_vals]
 
@@ -241,6 +248,7 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
     )
 
     st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
+
 
 def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
     fig = go.Figure()
@@ -320,7 +328,9 @@ def render_return_spread_chart(ratio_series: pd.Series, ticker_a: str, ticker_b:
     st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
 
 
-def render_beta_adjusted_z_chart(z_series: pd.Series, beta_series: pd.Series, ticker_a: str, ticker_b: str):
+def render_beta_adjusted_z_chart(
+    z_series: pd.Series, beta_series: pd.Series, ticker_a: str, ticker_b: str
+):
     adj_z = z_series * beta_series
 
     fig = go.Figure()
