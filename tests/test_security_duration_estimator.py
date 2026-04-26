@@ -34,7 +34,9 @@ class FakeDurationEstimator:
 
 
 def test_issuer_from_long_name_uses_first_word() -> None:
-    assert issuer_from_long_name("iShares 0-5 Year Investment Grade Corporate Bond ETF") == "iShares"
+    assert (
+        issuer_from_long_name("iShares 0-5 Year Investment Grade Corporate Bond ETF") == "iShares"
+    )
     assert issuer_from_long_name("Vanguard Short-Term Corporate Bond ETF") == "Vanguard"
 
 

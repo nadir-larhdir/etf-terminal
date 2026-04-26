@@ -7,14 +7,20 @@ from scripts.script_helpers import add_ticker_argument, resolve_target_tickers
 from services.market import MarketDataService
 from stores.market import PriceStore, SecurityStore
 
-
 logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Load ETF price history into the local database.")
-    parser.add_argument("--backend", choices=["local", "supabase"], default=None, help="Target data backend.")
-    parser.add_argument("--app-env", choices=["prod", "uat"], default=None, help="Local DB environment when using --backend local.")
+    parser.add_argument(
+        "--backend", choices=["local", "supabase"], default=None, help="Target data backend."
+    )
+    parser.add_argument(
+        "--app-env",
+        choices=["prod", "uat"],
+        default=None,
+        help="Local DB environment when using --backend local.",
+    )
     parser.add_argument(
         "--mode",
         choices=["full", "gap-fill", "incremental", "missing-only"],
@@ -43,7 +49,9 @@ if __name__ == "__main__":
     engine = get_engine(data_backend=args.backend, app_env=args.app_env)
     security_store = SecurityStore(engine)
     active_securities = security_store.list_active_securities()
-    db_tickers = active_securities["ticker"].astype(str).tolist() if not active_securities.empty else []
+    db_tickers = (
+        active_securities["ticker"].astype(str).tolist() if not active_securities.empty else []
+    )
     tickers = resolve_target_tickers(args.tickers, available_tickers=db_tickers)
 
     price_store = PriceStore(engine)
@@ -54,7 +62,9 @@ if __name__ == "__main__":
         logger.info("Replaced price history for %s ticker(s): %s", len(tickers), ", ".join(tickers))
     elif args.mode == "gap-fill":
         service.sync_price_gaps(tickers, period=args.period)
-        logger.info("Gap-filled price history for %s ticker(s): %s", len(tickers), ", ".join(tickers))
+        logger.info(
+            "Gap-filled price history for %s ticker(s): %s", len(tickers), ", ".join(tickers)
+        )
     elif args.mode == "missing-only":
         loaded = service.sync_missing_ticker_history(tickers, period=args.period)
         skipped = [ticker for ticker in tickers if ticker not in loaded]
@@ -64,7 +74,11 @@ if __name__ == "__main__":
             ", ".join(loaded) if loaded else "none",
         )
         if skipped:
-            logger.info("Skipped existing ticker history for %s ticker(s): %s", len(skipped), ", ".join(skipped))
+            logger.info(
+                "Skipped existing ticker history for %s ticker(s): %s",
+                len(skipped),
+                ", ".join(skipped),
+            )
     else:
         statuses = service.sync_incremental_updates(
             tickers,

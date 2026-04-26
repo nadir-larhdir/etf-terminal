@@ -5,7 +5,6 @@ from db.connection import get_engine
 from scripts.db.migration_utils import TABLE_COPY_ORDER, copy_table, parse_local_env, prepare_target
 from scripts.logging_utils import configure_logging
 
-
 logger = logging.getLogger(__name__)
 
 

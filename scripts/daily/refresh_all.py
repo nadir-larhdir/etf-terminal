@@ -12,14 +12,22 @@ from services.market.duration_estimator import SecurityDurationEstimator
 from stores.macro import MacroFeatureStore, MacroStore
 from stores.market import MetadataStore, PriceStore, SecurityStore
 
-
 logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run the end-of-day ETF Terminal refresh workflow.")
-    parser.add_argument("--backend", choices=["local", "supabase"], default=None, help="Target data backend.")
-    parser.add_argument("--app-env", choices=["prod", "uat"], default=None, help="Local DB environment when using --backend local.")
+    parser = argparse.ArgumentParser(
+        description="Run the end-of-day ETF Terminal refresh workflow."
+    )
+    parser.add_argument(
+        "--backend", choices=["local", "supabase"], default=None, help="Target data backend."
+    )
+    parser.add_argument(
+        "--app-env",
+        choices=["prod", "uat"],
+        default=None,
+        help="Local DB environment when using --backend local.",
+    )
     parser.add_argument(
         "--price-period",
         default="3y",
@@ -83,7 +91,9 @@ def _latest_macro_date(macro_store: MacroStore, series_ids: list[str]) -> str:
     return max(latest.values()) if latest else "n/a"
 
 
-def _latest_feature_date(feature_store: MacroFeatureStore, feature_name: str = "UST_10Y_LEVEL") -> str:
+def _latest_feature_date(
+    feature_store: MacroFeatureStore, feature_name: str = "UST_10Y_LEVEL"
+) -> str:
     latest = feature_store.get_latest_feature_values([feature_name])
     if latest.empty:
         return "n/a"

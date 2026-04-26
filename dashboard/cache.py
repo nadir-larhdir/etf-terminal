@@ -24,22 +24,36 @@ def cached_security_metadata(cache_key: str, ticker: str, _metadata_store):
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def cached_price_history(cache_key: str, ticker: str, start_date, end_date, _price_store) -> pd.DataFrame:
-    return _price_store.get_ticker_price_history(ticker, start_date=start_date, end_date=end_date).copy()
+def cached_price_history(
+    cache_key: str, ticker: str, start_date, end_date, _price_store
+) -> pd.DataFrame:
+    return _price_store.get_ticker_price_history(
+        ticker, start_date=start_date, end_date=end_date
+    ).copy()
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def cached_multi_price_history(cache_key: str, tickers: tuple[str, ...], start_date, end_date, _price_store):
-    return _price_store.get_multi_ticker_price_history(list(tickers), start_date=start_date, end_date=end_date)
+def cached_multi_price_history(
+    cache_key: str, tickers: tuple[str, ...], start_date, end_date, _price_store
+):
+    return _price_store.get_multi_ticker_price_history(
+        list(tickers), start_date=start_date, end_date=end_date
+    )
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def cached_feature_matrix(cache_key: str, feature_names: tuple[str, ...], start_date, end_date, _macro_feature_store) -> pd.DataFrame:
-    return _macro_feature_store.get_feature_matrix(list(feature_names), start_date=start_date, end_date=end_date).copy()
+def cached_feature_matrix(
+    cache_key: str, feature_names: tuple[str, ...], start_date, end_date, _macro_feature_store
+) -> pd.DataFrame:
+    return _macro_feature_store.get_feature_matrix(
+        list(feature_names), start_date=start_date, end_date=end_date
+    ).copy()
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def cached_latest_feature_values(cache_key: str, feature_names: tuple[str, ...], _macro_feature_store) -> pd.DataFrame:
+def cached_latest_feature_values(
+    cache_key: str, feature_names: tuple[str, ...], _macro_feature_store
+) -> pd.DataFrame:
     return _macro_feature_store.get_latest_feature_values(list(feature_names)).copy()
 
 
@@ -69,7 +83,13 @@ def cached_live_analytics_snapshot(
     name: str | None,
     _analytics_service,
 ):
-    security = Security(ticker=ticker, name=name, asset_class=asset_class, metadata=metadata or {}, history=history.copy())
+    security = Security(
+        ticker=ticker,
+        name=name,
+        asset_class=asset_class,
+        metadata=metadata or {},
+        history=history.copy(),
+    )
     factor_bundle = _analytics_service.load_factor_bundle(security)
     snapshot = _analytics_service.analyze_factor_bundle(security, factor_bundle)
     return snapshot.to_record()

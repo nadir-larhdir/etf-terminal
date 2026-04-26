@@ -143,10 +143,30 @@ def test_fixed_income_analytics_service_smoke_estimates() -> None:
     price_store, macro_store = _synthetic_environment()
     service = FixedIncomeAnalyticsService(price_store, macro_store, DurationModelSelector())
 
-    tlt = Security("TLT", name="Treasury ETF", asset_class="UST Long", history=price_store.get_ticker_price_history("TLT"))
-    ief = Security("IEF", name="Treasury ETF", asset_class="UST Belly", history=price_store.get_ticker_price_history("IEF"))
-    lqd = Security("LQD", name="Investment Grade Bond ETF", asset_class="IG Credit", history=price_store.get_ticker_price_history("LQD"))
-    hyg = Security("HYG", name="High Yield Bond ETF", asset_class="HY Credit", history=price_store.get_ticker_price_history("HYG"))
+    tlt = Security(
+        "TLT",
+        name="Treasury ETF",
+        asset_class="UST Long",
+        history=price_store.get_ticker_price_history("TLT"),
+    )
+    ief = Security(
+        "IEF",
+        name="Treasury ETF",
+        asset_class="UST Belly",
+        history=price_store.get_ticker_price_history("IEF"),
+    )
+    lqd = Security(
+        "LQD",
+        name="Investment Grade Bond ETF",
+        asset_class="IG Credit",
+        history=price_store.get_ticker_price_history("LQD"),
+    )
+    hyg = Security(
+        "HYG",
+        name="High Yield Bond ETF",
+        asset_class="HY Credit",
+        history=price_store.get_ticker_price_history("HYG"),
+    )
 
     tlt_result = service.analyze_security(tlt)
     ief_result = service.analyze_security(ief)

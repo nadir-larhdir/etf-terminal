@@ -7,14 +7,22 @@ from scripts.logging_utils import configure_logging
 from scripts.script_helpers import add_ticker_argument, filter_new_ticker_rows, parse_ticker_list
 from stores.market import SecurityStore
 
-
 logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Seed the securities universe into the local database.")
-    parser.add_argument("--backend", choices=["local", "supabase"], default=None, help="Target data backend.")
-    parser.add_argument("--app-env", choices=["prod", "uat"], default=None, help="Local DB environment when using --backend local.")
+    parser = argparse.ArgumentParser(
+        description="Seed the securities universe into the local database."
+    )
+    parser.add_argument(
+        "--backend", choices=["local", "supabase"], default=None, help="Target data backend."
+    )
+    parser.add_argument(
+        "--app-env",
+        choices=["prod", "uat"],
+        default=None,
+        help="Local DB environment when using --backend local.",
+    )
     parser.add_argument(
         "--mode",
         choices=["full-replace", "upsert", "missing-only"],
@@ -40,7 +48,9 @@ if __name__ == "__main__":
 
     if args.mode == "full-replace":
         security_store.replace_securities_universe(rows)
-        logger.info("Replaced securities universe with %s ticker(s): %s", len(rows), ", ".join(tickers))
+        logger.info(
+            "Replaced securities universe with %s ticker(s): %s", len(rows), ", ".join(tickers)
+        )
     elif args.mode == "missing-only":
         existing = security_store.get_existing_tickers()
         new_rows = filter_new_ticker_rows(rows, existing)

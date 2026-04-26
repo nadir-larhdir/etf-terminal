@@ -11,7 +11,6 @@ from services.market.duration_estimator import SecurityDurationEstimator, issuer
 from services.market.fmp_client import FMPClient
 from stores.market import MetadataStore
 
-
 # Internal overrides for known fixed-income ETF metadata fields.
 INTERNAL_METADATA = {
     "BND": {
@@ -178,7 +177,9 @@ def get_etf_description(ticker: str) -> dict:
             profile.get("fundFamily"),
             profile.get("companyName"),
         ),
-        "expense_ratio": _choose_preferred(etf_info.get("expenseRatio"), profile.get("expenseRatio")),
+        "expense_ratio": _choose_preferred(
+            etf_info.get("expenseRatio"), profile.get("expenseRatio")
+        ),
         "total_assets": _choose_preferred(
             etf_info.get("assetsUnderManagement"),
             etf_info.get("aum"),
@@ -235,7 +236,12 @@ def derive_asset_class(search_values: list[str]) -> str:
 def derive_duration_bucket(search_values: list[str]) -> str:
     search_blob = " ".join(value for value in search_values if _is_populated(value)).lower()
 
-    if "0-5" in search_blob or "1-3" in search_blob or "ultra short" in search_blob or "short-term" in search_blob:
+    if (
+        "0-5" in search_blob
+        or "1-3" in search_blob
+        or "ultra short" in search_blob
+        or "short-term" in search_blob
+    ):
         return "Short Duration"
     if "3-7" in search_blob or "7-10" in search_blob or "intermediate" in search_blob:
         return "Intermediate Duration"
@@ -275,7 +281,9 @@ def build_metadata_row(
     ]
     derived_category = normalize_asset_class(derive_asset_class(search_values))
     derived_duration = derive_duration_bucket(search_values)
-    long_name = _choose_preferred(fmp_meta.get("long_name"), existing.get("long_name"), base.get("name"), ticker)
+    long_name = _choose_preferred(
+        fmp_meta.get("long_name"), existing.get("long_name"), base.get("name"), ticker
+    )
     issuer = _choose_preferred(
         issuer_from_long_name(long_name),
         existing.get("issuer"),
@@ -302,7 +310,11 @@ def build_metadata_row(
         ),
         "category": _choose_preferred(
             internal.get("category"),
-            normalize_asset_class(existing.get("category")) if _is_populated(existing.get("category")) else None,
+            (
+                normalize_asset_class(existing.get("category"))
+                if _is_populated(existing.get("category"))
+                else None
+            ),
             derived_category,
             fmp_meta.get("category"),
             base.get("asset_class"),
@@ -315,8 +327,12 @@ def build_metadata_row(
         ),
         "currency": _choose_preferred(fmp_meta.get("currency"), existing.get("currency"), "USD"),
         "exchange": _choose_preferred(fmp_meta.get("exchange"), existing.get("exchange"), "N/A"),
-        "expense_ratio": _choose_preferred(fmp_meta.get("expense_ratio"), existing.get("expense_ratio")),
-        "total_assets": _choose_preferred(fmp_meta.get("total_assets"), existing.get("total_assets")),
+        "expense_ratio": _choose_preferred(
+            fmp_meta.get("expense_ratio"), existing.get("expense_ratio")
+        ),
+        "total_assets": _choose_preferred(
+            fmp_meta.get("total_assets"), existing.get("total_assets")
+        ),
         "quote_type": _choose_preferred(fmp_meta.get("quote_type"), existing.get("quote_type")),
         "source": "fmp_enriched_merged",
         "updated_at": datetime.utcnow().isoformat(),
@@ -325,9 +341,18 @@ def build_metadata_row(
 
 if __name__ == "__main__":
     configure_logging()
-    parser = argparse.ArgumentParser(description="Enrich ETF metadata from Financial Modeling Prep.")
-    parser.add_argument("--backend", choices=["local", "supabase"], default=None, help="Target data backend.")
-    parser.add_argument("--app-env", choices=["prod", "uat"], default=None, help="Local DB environment when using --backend local.")
+    parser = argparse.ArgumentParser(
+        description="Enrich ETF metadata from Financial Modeling Prep."
+    )
+    parser.add_argument(
+        "--backend", choices=["local", "supabase"], default=None, help="Target data backend."
+    )
+    parser.add_argument(
+        "--app-env",
+        choices=["prod", "uat"],
+        default=None,
+        help="Local DB environment when using --backend local.",
+    )
     parser.add_argument(
         "--mode",
         choices=["upsert", "missing-only"],

@@ -76,6 +76,5 @@ def responsive_chart_layout(
             title_font=dict(size=max(font_size - 1, 9)),
             tickfont=dict(size=max(font_size - 1, 8)),
         ),
-        legend=legend
-        or _responsive_legend(height),
+        legend=legend or _responsive_legend(height),
     )

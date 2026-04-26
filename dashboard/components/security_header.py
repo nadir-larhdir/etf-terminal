@@ -54,7 +54,9 @@ class SecurityHeader:
         selected_security: str,
         metadata: dict | None,
     ) -> None:
-        selected_matches = securities.loc[securities["ticker"].astype(str) == str(selected_security)]
+        selected_matches = securities.loc[
+            securities["ticker"].astype(str) == str(selected_security)
+        ]
         if selected_matches.empty:
             st.warning(f"Security metadata not found for {selected_security}.")
             return
@@ -63,10 +65,14 @@ class SecurityHeader:
         asset_class = selected_row["asset_class"]
 
         headline = f"{selected_security} — {metadata.get('long_name', security_name) if metadata else security_name}"
-        body = metadata.get(
-            "description",
-            f"This ETF is currently classified in the dashboard as {asset_class}.",
-        ) if metadata else f"This ETF is currently classified in the dashboard as {asset_class}."
+        body = (
+            metadata.get(
+                "description",
+                f"This ETF is currently classified in the dashboard as {asset_class}.",
+            )
+            if metadata
+            else f"This ETF is currently classified in the dashboard as {asset_class}."
+        )
 
         footer = (
             f"<span style='color:#1F271C; font-weight:700;'>Category:</span> {metadata.get('category', asset_class) if metadata else asset_class}"
@@ -87,7 +93,9 @@ class SecurityHeader:
             margin_bottom="0.00rem",
         )
 
-    def render_header_strip(self, hist: pd.DataFrame, selected_security: str, metadata: dict | None = None) -> None:
+    def render_header_strip(
+        self, hist: pd.DataFrame, selected_security: str, metadata: dict | None = None
+    ) -> None:
         metadata = metadata or {}
         px_last = float(hist["close"].iloc[-1])
         prev_close = float(hist["close"].iloc[-2]) if len(hist) > 1 else px_last
@@ -103,11 +111,15 @@ class SecurityHeader:
             self._header_cell_html("Security", selected_security, emphasis="primary"),
             self._header_cell_html("PX_LAST", f"{px_last:,.2f}", emphasis="primary"),
             self._header_cell_html("CHG", f"{chg:+,.2f}", color=chg_color, emphasis="primary"),
-            self._header_cell_html("CHG %", f"{chg_pct:+.2f}%", color=chg_color, emphasis="primary"),
+            self._header_cell_html(
+                "CHG %", f"{chg_pct:+.2f}%", color=chg_color, emphasis="primary"
+            ),
             self._header_cell_html("VOLUME / 30D", f"{volume:,.0f} / {vol_ratio:.2f}x"),
             self._header_cell_html("EXCHANGE", str(metadata.get("exchange", "N/A"))),
             self._header_cell_html("AUM", self._format_aum(metadata.get("total_assets"))),
-            self._header_cell_html("EXP RATIO", self._format_expense_ratio(metadata.get("expense_ratio"))),
+            self._header_cell_html(
+                "EXP RATIO", self._format_expense_ratio(metadata.get("expense_ratio"))
+            ),
         ]
 
         st.markdown(

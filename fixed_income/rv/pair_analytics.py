@@ -4,7 +4,13 @@ import math
 
 import pandas as pd
 
-from fixed_income.rv.hedge_models import beta_adjusted_spread, beta_adjusted_zscore, beta_stability, latest_beta, rolling_beta
+from fixed_income.rv.hedge_models import (
+    beta_adjusted_spread,
+    beta_adjusted_zscore,
+    beta_stability,
+    latest_beta,
+    rolling_beta,
+)
 from fixed_income.rv.spread_definition import RVAnalyticsSnapshot, SpreadDefinition
 
 
@@ -45,7 +51,9 @@ def ratio(left, right, *, start_date=None, end_date=None) -> pd.Series:
     return prices["close_left"] / prices["close_right"]
 
 
-def ratio_zscore(left, right, *, window: int | None = None, start_date=None, end_date=None) -> pd.Series:
+def ratio_zscore(
+    left, right, *, window: int | None = None, start_date=None, end_date=None
+) -> pd.Series:
     series = ratio(left, right, start_date=start_date, end_date=end_date)
     if series.empty:
         return pd.Series(dtype=float)
@@ -96,12 +104,25 @@ def stability_score(left, right, *, start_date=None, end_date=None) -> float:
     series = ratio(left, right, start_date=start_date, end_date=end_date)
     ratio_autocorr = float(series.autocorr(lag=1)) if len(series) > 3 else 0.0
     half_life_component = (
-        max(min(1 - abs(((-math.log(2) / math.log(ratio_autocorr)) if 0 < ratio_autocorr < 1 else 0.0) - 10) / 20, 1.0), 0.0)
+        max(
+            min(
+                1
+                - abs(
+                    ((-math.log(2) / math.log(ratio_autocorr)) if 0 < ratio_autocorr < 1 else 0.0)
+                    - 10
+                )
+                / 20,
+                1.0,
+            ),
+            0.0,
+        )
         if 0 < ratio_autocorr < 1
         else 0.0
     )
     corr_component = max(min(abs(latest_correlation(left, right, window=20)), 1.0), 0.0)
-    beta_component = max(min(1 / (1 + beta_stability(returns_frame(left, right), window=20)), 1.0), 0.0)
+    beta_component = max(
+        min(1 / (1 + beta_stability(returns_frame(left, right), window=20)), 1.0), 0.0
+    )
     return 100 * (0.45 * corr_component + 0.30 * half_life_component + 0.25 * beta_component)
 
 
@@ -218,29 +239,56 @@ def screener_snapshot(
     end_date=None,
     prices: pd.DataFrame | None = None,
 ) -> RVAnalyticsSnapshot:
-    prices = filtered_prices(left, right, start_date=start_date, end_date=end_date) if prices is None else prices
+    prices = (
+        filtered_prices(left, right, start_date=start_date, end_date=end_date)
+        if prices is None
+        else prices
+    )
     if prices.empty:
-        return RVAnalyticsSnapshot(name=definition.name, zscore=0.0, correlation_20d=0.0, stability=0.0)
+        return RVAnalyticsSnapshot(
+            name=definition.name, zscore=0.0, correlation_20d=0.0, stability=0.0
+        )
 
     series = prices["close_left"] / prices["close_right"]
     if series.empty:
-        return RVAnalyticsSnapshot(name=definition.name, zscore=0.0, correlation_20d=0.0, stability=0.0)
+        return RVAnalyticsSnapshot(
+            name=definition.name, zscore=0.0, correlation_20d=0.0, stability=0.0
+        )
 
     ratio_mean = float(series.mean())
     ratio_std = float(series.std(ddof=0)) if len(series) > 1 else 0.0
     current_ratio = float(series.iloc[-1])
     current_z = ((current_ratio - ratio_mean) / ratio_std) if ratio_std != 0 else 0.0
     returns = returns_from_prices(prices)
-    corr_series = returns["ret_left"].rolling(20).corr(returns["ret_right"]).dropna() if not returns.empty else pd.Series(dtype=float)
+    corr_series = (
+        returns["ret_left"].rolling(20).corr(returns["ret_right"]).dropna()
+        if not returns.empty
+        else pd.Series(dtype=float)
+    )
     current_corr = float(corr_series.iloc[-1]) if not corr_series.empty else 0.0
     ratio_autocorr = float(series.autocorr(lag=1)) if len(series) > 3 else 0.0
     half_life_component = (
-        max(min(1 - abs(((-math.log(2) / math.log(ratio_autocorr)) if 0 < ratio_autocorr < 1 else 0.0) - 10) / 20, 1.0), 0.0)
+        max(
+            min(
+                1
+                - abs(
+                    ((-math.log(2) / math.log(ratio_autocorr)) if 0 < ratio_autocorr < 1 else 0.0)
+                    - 10
+                )
+                / 20,
+                1.0,
+            ),
+            0.0,
+        )
         if 0 < ratio_autocorr < 1
         else 0.0
     )
     corr_component = max(min(abs(current_corr), 1.0), 0.0)
-    beta_component = max(min(1 / (1 + beta_stability(returns, window=20)), 1.0), 0.0) if not returns.empty else 0.0
+    beta_component = (
+        max(min(1 / (1 + beta_stability(returns, window=20)), 1.0), 0.0)
+        if not returns.empty
+        else 0.0
+    )
     stability = 100 * (0.45 * corr_component + 0.30 * half_life_component + 0.25 * beta_component)
     return RVAnalyticsSnapshot(
         name=definition.name,
@@ -250,10 +298,16 @@ def screener_snapshot(
     )
 
 
-def beta_metrics(left, right, *, start_date=None, end_date=None, beta: float | None = None) -> tuple[float, pd.Series, pd.Series]:
+def beta_metrics(
+    left, right, *, start_date=None, end_date=None, beta: float | None = None
+) -> tuple[float, pd.Series, pd.Series]:
     aligned = filtered_prices(left, right, start_date=start_date, end_date=end_date)
     returns = returns_frame(left, right)
     beta_value = beta if beta is not None else latest_beta(returns)
-    spread = beta_adjusted_spread(aligned, beta=beta_value) if not aligned.empty else pd.Series(dtype=float)
+    spread = (
+        beta_adjusted_spread(aligned, beta=beta_value)
+        if not aligned.empty
+        else pd.Series(dtype=float)
+    )
     zscore = beta_adjusted_zscore(spread) if not spread.empty else pd.Series(dtype=float)
     return beta_value, spread, zscore

@@ -80,7 +80,9 @@ class HomePage:
         with main_left:
             st.markdown(stat_cards_html, unsafe_allow_html=True)
             st.markdown(context_cards_html, unsafe_allow_html=True)
-            st.markdown('<div class="home-section-title">Universe Snapshot</div>', unsafe_allow_html=True)
+            st.markdown(
+                '<div class="home-section-title">Universe Snapshot</div>', unsafe_allow_html=True
+            )
             self.table.render(bucket_summary, hide_index=True, height=270)
         with main_right:
             st.markdown(pulse_html, unsafe_allow_html=True)
@@ -218,8 +220,12 @@ class HomePage:
             .map(normalize_asset_class)
         )
 
-        latest_dates = self.price_store.get_latest_stored_dates(working_frame["ticker"].astype(str).tolist())
-        histories = self.price_store.get_multi_ticker_price_history(list(latest_dates.keys()), start_date=None)
+        latest_dates = self.price_store.get_latest_stored_dates(
+            working_frame["ticker"].astype(str).tolist()
+        )
+        histories = self.price_store.get_multi_ticker_price_history(
+            list(latest_dates.keys()), start_date=None
+        )
 
         direction_map: dict[str, int] = {}
         for ticker, history in histories.items():
@@ -231,7 +237,9 @@ class HomePage:
             if len(close_series) < 2:
                 direction_map[ticker] = 0
                 continue
-            direction_map[ticker] = int(close_series.iloc[-1] > close_series.iloc[-2]) - int(close_series.iloc[-1] < close_series.iloc[-2])
+            direction_map[ticker] = int(close_series.iloc[-1] > close_series.iloc[-2]) - int(
+                close_series.iloc[-1] < close_series.iloc[-2]
+            )
 
         grouped = (
             working_frame.groupby("asset_class", dropna=False)["ticker"]
@@ -288,20 +296,14 @@ class HomePage:
         return mapping.get(feature_name, "Macro")
 
     def _market_snapshot_html(self, tiles: list[SnapshotTile], latest_date_label: str) -> str:
-        cells = [
-            dedent(
-                """
+        cells = [dedent("""
                 <div class="home-strip-primary">
                     <div class="home-strip-kicker">Market Snapshot <span class="home-live-chip">LIVE</span></div>
                     <div class="home-strip-sub">As of {latest_date}</div>
                 </div>
-                """
-            ).strip().format(latest_date=latest_date_label)
-        ]
+                """).strip().format(latest_date=latest_date_label)]
         for tile in tiles[:7]:
-            cells.append(
-                dedent(
-                    f"""
+            cells.append(dedent(f"""
                     <div class="home-strip-cell">
                         <div class="home-strip-label">{tile.label}</div>
                         <div class="home-strip-mini">{tile.sublabel}</div>
@@ -310,15 +312,12 @@ class HomePage:
                             <div class="home-strip-delta {tile.delta_class}">{tile.indicator} {tile.delta}</div>
                         </div>
                     </div>
-                    """
-                ).strip()
-            )
+                    """).strip())
         return f'<div class="home-market-strip">{"".join(cells)}</div>'
 
     def _hero_html(self) -> str:
         hero_src = self._hero_image_src()
-        return dedent(
-            f"""
+        return dedent(f"""
             <div class="home-hero">
                 <div class="home-hero-copy">
                     <div class="home-eyebrow">Opening Market Screen</div>
@@ -343,8 +342,7 @@ class HomePage:
                     <img class="home-hero-image" src="{hero_src}" alt="" />
                 </div>
             </div>
-            """
-        ).strip()
+            """).strip()
 
     def _hero_image_src(self) -> str:
         if self.HERO_IMAGE_PATH.exists():
@@ -354,8 +352,7 @@ class HomePage:
         return f"data:image/svg+xml;utf8,{hero_svg}"
 
     def _hero_svg_markup(self) -> str:
-        return dedent(
-            """
+        return dedent("""
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 260" preserveAspectRatio="none">
                 <defs>
                     <linearGradient id="cyanFade" x1="0" y1="0" x2="1" y2="0">
@@ -427,13 +424,11 @@ class HomePage:
                     <rect x="860" y="34" width="4" height="216" fill="#14CCE9" fill-opacity="0.36"/>
                 </g>
             </svg>
-            """
-        ).strip()
+            """).strip()
 
     def _regime_card_html(self, regime: dict[str, str | float]) -> str:
         position = float(regime["position"])
-        return dedent(
-            f"""
+        return dedent(f"""
             <div class="home-regime-card">
                 <div class="home-panel-kicker">Market Regime Indicator</div>
                 <div class="home-regime-label" style="color:{regime['accent']};">{regime['label']}</div>
@@ -448,8 +443,7 @@ class HomePage:
                     <span>Risk On</span>
                 </div>
             </div>
-            """
-        ).strip()
+            """).strip()
 
     def _stat_cards_html(self, *, active_etfs: int, bucket_count: int, latest_date: str) -> str:
         active_icon = """
@@ -478,8 +472,7 @@ class HomePage:
             <circle cx="21.5" cy="22" r="1.15" fill="currentColor"/>
         </svg>
         """
-        return dedent(
-            f"""
+        return dedent(f"""
             <div class="home-stat-grid">
                 <div class="home-stat-card">
                     <div class="home-stat-icon">{active_icon}</div>
@@ -506,8 +499,7 @@ class HomePage:
                     </div>
                 </div>
             </div>
-            """
-        ).strip()
+            """).strip()
 
     def _pulse_card_html(self, volume_leaders: list[str]) -> str:
         items = volume_leaders or ["LQD (1.18x)", "TLT (1.07x)", "HYG (1.04x)", "MUB (0.96x)"]
@@ -517,20 +509,14 @@ class HomePage:
             ("Liquidity", "Volume vs 30D", "NORMAL", "active"),
             ("Flows", "Defensive bias", "ELEVATED", "neutral"),
         ]
-        rows = "".join(
-            dedent(
-                f"""
+        rows = "".join(dedent(f"""
                 <div class="home-pulse-row">
                     <div class="home-pulse-icon">↗</div>
                     <div class="home-pulse-text"><strong>{title}</strong>: {body}</div>
                     <div class="home-pulse-tag home-pulse-tag--{tag_class}">{tag}</div>
                 </div>
-                """
-            ).strip()
-            for title, body, tag, tag_class in pulse_rows
-        )
-        return dedent(
-            f"""
+                """).strip() for title, body, tag, tag_class in pulse_rows)
+        return dedent(f"""
             <div class="home-side-card">
                 <div class="home-panel-kicker">Market Pulse</div>
                 <div class="home-side-title">Morning framing</div>
@@ -541,12 +527,10 @@ class HomePage:
                 <div class="home-pulse-list">{rows}</div>
                 <a class="home-inline-link home-inline-link--small" href="?view=macro" target="_self">Go to macro →</a>
             </div>
-            """
-        ).strip()
+            """).strip()
 
     def _context_cards_html(self, regime: dict[str, str | float]) -> str:
-        return dedent(
-            f"""
+        return dedent(f"""
             <div class="home-context-grid">
                 <div class="home-context-card">
                     <div class="home-panel-kicker">Project Overview</div>
@@ -579,12 +563,10 @@ class HomePage:
                     <div class="home-inline-link">View latest news →</div>
                 </div>
             </div>
-            """
-        ).strip()
+            """).strip()
 
     def _built_for_card_html(self) -> str:
-        return dedent(
-            """
+        return dedent("""
             <div class="home-built-card">
                 <div class="home-built-icon">◎</div>
                 <div>
@@ -595,5 +577,4 @@ class HomePage:
                     </div>
                 </div>
             </div>
-            """
-        ).strip()
+            """).strip()

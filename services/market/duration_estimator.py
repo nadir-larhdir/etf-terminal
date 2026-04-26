@@ -9,7 +9,6 @@ from sqlalchemy import text
 
 from db.sql import qualified_table
 
-
 ISHARES_ETFS = {
     "SLQD": ("258098", "ishares-iboxx-investment-grade-corporate-bond-etf"),
     "SHY": ("239452", "ishares-1-3-year-treasury-bond-etf"),
@@ -177,14 +176,12 @@ class SecurityDurationEstimator:
     def _load_price_history(self, tickers: list[str]) -> pd.DataFrame:
         placeholders = ", ".join(f":ticker_{idx}" for idx in range(len(tickers)))
         params = {f"ticker_{idx}": ticker for idx, ticker in enumerate(tickers)}
-        query = text(
-            f"""
+        query = text(f"""
             SELECT ticker, date, adj_close
             FROM {qualified_table(self.engine, 'price_history')}
             WHERE ticker IN ({placeholders})
             ORDER BY date, ticker
-            """
-        )
+            """)
         with self.engine.connect() as conn:
             frame = pd.read_sql(query, conn, params=params)
         if frame.empty:
@@ -195,14 +192,12 @@ class SecurityDurationEstimator:
     def _load_curve_history(self) -> pd.DataFrame:
         placeholders = ", ".join(f":series_{idx}" for idx in range(len(TREASURY_TENORS)))
         params = {f"series_{idx}": series_id for idx, series_id in enumerate(TREASURY_TENORS)}
-        query = text(
-            f"""
+        query = text(f"""
             SELECT series_id, date, value
             FROM {qualified_table(self.engine, 'macro_data')}
             WHERE series_id IN ({placeholders})
             ORDER BY date, series_id
-            """
-        )
+            """)
         with self.engine.connect() as conn:
             frame = pd.read_sql(query, conn, params=params)
         if frame.empty:

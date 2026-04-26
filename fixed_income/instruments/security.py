@@ -122,7 +122,11 @@ class Security:
         average_volume = float(trailing.mean()) if not volume.empty else None
         std_volume = float(trailing.std(ddof=0)) if len(trailing) > 1 else None
         volume_z = None
-        if std_volume not in (None, 0.0) and current_volume is not None and average_volume is not None:
+        if (
+            std_volume not in (None, 0.0)
+            and current_volume is not None
+            and average_volume is not None
+        ):
             volume_z = (current_volume - average_volume) / std_volume
 
         high = float(self.history["high"].iloc[-1]) if "high" in self.history.columns else None

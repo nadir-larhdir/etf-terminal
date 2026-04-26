@@ -6,7 +6,6 @@ from stores.macro import MacroFeatureStore, MacroStore
 from scripts.logging_utils import configure_logging
 from services.macro import MacroFeatureService
 
-
 logger = logging.getLogger(__name__)
 
 

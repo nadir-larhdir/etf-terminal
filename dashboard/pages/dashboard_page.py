@@ -23,9 +23,13 @@ class DashboardPage:
     def render(self, securities, render_tab_safe) -> None:
         if "asset_class" not in securities.columns:
             securities["asset_class"] = "Other"
-        securities["asset_class"] = securities["asset_class"].fillna("Other").map(normalize_asset_class)
+        securities["asset_class"] = (
+            securities["asset_class"].fillna("Other").map(normalize_asset_class)
+        )
 
-        asset_classes = sorted([asset for asset in securities["asset_class"].dropna().unique().tolist() if asset])
+        asset_classes = sorted(
+            [asset for asset in securities["asset_class"].dropna().unique().tolist() if asset]
+        )
         universe_options = ["All"] + asset_classes
 
         filter_col, selector_col, desc_col = st.columns([0.7, 0.9, 2.4])
@@ -42,7 +46,9 @@ class DashboardPage:
             if selected_universe == "All"
             else securities.loc[securities["asset_class"] == selected_universe].copy()
         )
-        filtered_securities = filtered_securities.sort_values(["asset_class", "ticker"]).reset_index(drop=True)
+        filtered_securities = filtered_securities.sort_values(
+            ["asset_class", "ticker"]
+        ).reset_index(drop=True)
         ticker_options = filtered_securities["ticker"].tolist()
 
         if not ticker_options:
@@ -56,7 +62,9 @@ class DashboardPage:
                 key="main_security_selector",
             )
 
-        selected_row = filtered_securities.loc[filtered_securities["ticker"] == selected_security].iloc[0]
+        selected_row = filtered_securities.loc[
+            filtered_securities["ticker"] == selected_security
+        ].iloc[0]
         security = Security(
             selected_security,
             name=selected_row.get("name"),
@@ -64,7 +72,9 @@ class DashboardPage:
         )
         cache_key = app_cache_key(self.price_store.engine)
         with timed_block("dashboard.load_metadata"):
-            metadata = cached_security_metadata(cache_key, selected_security, self.metadata_store) or {}
+            metadata = (
+                cached_security_metadata(cache_key, selected_security, self.metadata_store) or {}
+            )
             security.set_metadata(metadata)
 
         with desc_col:

@@ -1,3 +1,5 @@
+"""HTTP client for the Federal Reserve Economic Data (FRED) API."""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -5,7 +7,7 @@ import requests
 
 
 class FredClient:
-    """Fetch macroeconomic time series from the FRED API."""
+    """Fetch macroeconomic time series and metadata from the FRED REST API."""
 
     def __init__(self, api_key: str, base_url: str):
         self.api_key = api_key
@@ -17,6 +19,10 @@ class FredClient:
         start: str | None = None,
         end: str | None = None,
     ) -> pd.DataFrame:
+        """Return a clean DataFrame of (date, value, series_id) for the given FRED series.
+
+        Non-numeric values (e.g. FRED's '.' placeholder) are coerced to NaN and dropped.
+        """
         params = {
             "series_id": series_id,
             "api_key": self.api_key,
@@ -50,6 +56,7 @@ class FredClient:
         return frame
 
     def get_series_metadata(self, series_id: str) -> dict[str, str]:
+        """Return title, frequency, and units for a FRED series from the /series endpoint."""
         response = requests.get(
             f"{self.base_url}/series",
             params={

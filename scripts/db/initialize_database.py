@@ -5,7 +5,6 @@ from db.connection import get_engine
 from db.schema import TABLE_DEFINITIONS, create_tables, get_existing_tables
 from scripts.logging_utils import configure_logging
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -17,7 +16,11 @@ def main() -> None:
     existing_after = get_existing_tables(engine)
 
     managed_tables = list(TABLE_DEFINITIONS.keys())
-    created_tables = [table for table in managed_tables if table not in existing_before and table in existing_after]
+    created_tables = [
+        table
+        for table in managed_tables
+        if table not in existing_before and table in existing_after
+    ]
     already_present = [table for table in managed_tables if table in existing_before]
 
     logger.info("Database initialized.")

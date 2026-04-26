@@ -208,7 +208,13 @@ def test_macro_feature_service_uses_dense_series_calendar_for_rolling_features()
             "BAMLH0A2HYB": 4.0,
         }.items()
     ):
-        raw[column] = pd.Series(base_value + (pd.Series(range(len(treasury_index)), index=treasury_index) * (0.001 + idx * 0.0001)), index=treasury_index).reindex(all_index)
+        raw[column] = pd.Series(
+            base_value
+            + (
+                pd.Series(range(len(treasury_index)), index=treasury_index) * (0.001 + idx * 0.0001)
+            ),
+            index=treasury_index,
+        ).reindex(all_index)
 
     raw["CPIAUCSL"] = pd.Series(range(len(monthly_index)), index=monthly_index) + 300.0
     raw["FEDFUNDS"] = pd.Series(5.25, index=monthly_index)

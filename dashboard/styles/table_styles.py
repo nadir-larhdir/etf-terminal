@@ -124,7 +124,9 @@ class DashboardTable:
 
         return display_df
 
-    def render(self, df: pd.DataFrame, *, hide_index: bool = True, height: int | None = None) -> None:
+    def render(
+        self, df: pd.DataFrame, *, hide_index: bool = True, height: int | None = None
+    ) -> None:
         table_id = f"core-table-{uuid.uuid4().hex[:8]}"
         display_df = self._prepare_display_dataframe(df)
 

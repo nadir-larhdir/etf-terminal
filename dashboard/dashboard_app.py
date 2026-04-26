@@ -11,7 +11,6 @@ from stores.analytics import AnalyticsSnapshotStore
 from stores.market import MetadataStore, PriceStore, SecurityStore
 from db.connection import get_engine
 
-
 NAVIGATION_VIEWS = ("Home", "Dashboard", "News", "Macro")
 
 
@@ -31,7 +30,9 @@ def get_cached_app_dependencies(data_backend: str, app_env: str):
         "macro_feature_store": MacroFeatureStore(engine),
         "analytics_snapshot_store": analytics_snapshot_store,
         "duration_selector": duration_selector,
-        "analytics_service": FixedIncomeAnalyticsService(price_store, macro_store, duration_selector, analytics_snapshot_store),
+        "analytics_service": FixedIncomeAnalyticsService(
+            price_store, macro_store, duration_selector, analytics_snapshot_store
+        ),
     }
 
 
@@ -88,7 +89,9 @@ class DashboardApp:
             self._render_tab_safe("Macro", self.macro_page.render)
             return
 
-        self._render_tab_safe("Dashboard", self.dashboard_page.render, securities, self._render_tab_safe)
+        self._render_tab_safe(
+            "Dashboard", self.dashboard_page.render, securities, self._render_tab_safe
+        )
 
     def _render_shell(self, securities) -> None:
         st.markdown(
@@ -106,8 +109,15 @@ class DashboardApp:
         nav_columns = st.columns([2.2, 0.9, 1.0, 0.9, 0.9, 2.2], vertical_alignment="center")
         for column, view_name in zip(nav_columns[1:5], NAVIGATION_VIEWS, strict=False):
             with column:
-                button_type = "primary" if st.session_state["active_view"] == view_name else "secondary"
-                if st.button(view_name, key=f"nav_{view_name.lower()}", use_container_width=True, type=button_type):
+                button_type = (
+                    "primary" if st.session_state["active_view"] == view_name else "secondary"
+                )
+                if st.button(
+                    view_name,
+                    key=f"nav_{view_name.lower()}",
+                    use_container_width=True,
+                    type=button_type,
+                ):
                     st.session_state["active_view"] = view_name
                     st.query_params["view"] = view_name.lower()
                     st.rerun()
