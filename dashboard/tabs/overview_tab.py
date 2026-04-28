@@ -1,3 +1,5 @@
+"""Overview tab: date-windowed price and volume charts with a raw history expander."""
+
 import streamlit as st
 
 from dashboard.components.charts import (
@@ -20,6 +22,7 @@ class OverviewTab:
         self.info_panel = InfoPanel()
 
     def _render_section_label(self, title: str, subtitle: str, *, accent_color: str) -> None:
+        """Render a small section heading with an accented uppercase title and a muted subtitle."""
         st.markdown(
             (
                 "<div style='margin-top:0.25rem;margin-bottom:0.25rem;'>"
@@ -33,6 +36,7 @@ class OverviewTab:
         )
 
     def render(self, security: Security) -> None:
+        """Render the Overview tab: window summary note, price chart, volume chart, and history expander."""
         st.subheader("Overview")
 
         hist = security.history

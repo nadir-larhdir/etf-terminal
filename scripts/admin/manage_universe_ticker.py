@@ -1,3 +1,5 @@
+"""CLI for adding or deleting a fixed-income ETF ticker across all data stores."""
+
 import argparse
 import logging
 
@@ -11,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the CLI argument parser for the manage_universe_ticker script."""
     parser = argparse.ArgumentParser(
         description="Add or remove a ticker across the local ETF database."
     )

@@ -1,3 +1,5 @@
+"""Dashboard page: universe filter, security selector, header strip, and tabbed analytics workspace."""
+
 import streamlit as st
 
 from config import normalize_asset_class
@@ -21,6 +23,7 @@ class DashboardPage:
         self.controls = DashboardControls()
 
     def render(self, securities, render_tab_safe) -> None:
+        """Render the full dashboard page with universe filter, security selector, and section tabs."""
         if "asset_class" not in securities.columns:
             securities["asset_class"] = "Other"
         securities["asset_class"] = (

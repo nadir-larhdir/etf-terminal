@@ -1,3 +1,5 @@
+"""Sync FRED macro time series into the local database (full or incremental mode)."""
+
 import argparse
 import logging
 
@@ -12,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the CLI argument parser for the sync_macro_data script."""
     parser = argparse.ArgumentParser(
         description="Load FRED macro time series into the local database."
     )
@@ -53,6 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def parse_series_ids(series_arg: str | None) -> list[str]:
+    """Return series IDs from a CLI arg or fall back to the full default macro coverage set."""
     if not series_arg:
         return list(DEFAULT_MACRO_SERIES.keys())
     return parse_csv_values(series_arg)

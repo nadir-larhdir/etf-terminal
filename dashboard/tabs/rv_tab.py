@@ -1,3 +1,5 @@
+"""RV Analysis tab: pair z-score, beta-adjusted spread, screener, and signal-history table."""
+
 import pandas as pd
 import streamlit as st
 
@@ -95,12 +97,14 @@ class RVTab:
         self.controls = DashboardControls()
 
     def _render_metric_grid(self, metrics, columns: int) -> None:
+        """Render a flat list of (label, value) pairs as a Streamlit metric grid with the given column count."""
         cols = st.columns(columns)
         for idx, (label, value) in enumerate(metrics):
             with cols[idx % columns]:
                 st.metric(label, value)
 
     def _render_pair_screener(self, screener_df: pd.DataFrame) -> None:
+        """Render the top-12 RV pair screener results inside an expander."""
         with st.expander("Show RV pair screener"):
             if not screener_df.empty:
                 screener_df = screener_df.sort_values(
@@ -113,6 +117,7 @@ class RVTab:
                 st.info("No RV screening candidates available for the selected window.")
 
     def _signal_regime(self, z_value: float) -> tuple[str, str]:
+        """Map a z-score to a (regime label, threshold label) pair for the signal-history table."""
         if z_value >= 2:
             return "RICH / EXTREME", "+2σ"
         if z_value >= 1:
@@ -124,6 +129,7 @@ class RVTab:
         return "NEUTRAL", ""
 
     def render(self, security: Security, tickers) -> None:
+        """Render the RV Analysis tab: pair metrics, signal narrative, charts, screener, and history."""
         st.subheader("RV Analysis")
         hist = security.history
         selected_security = security.ticker

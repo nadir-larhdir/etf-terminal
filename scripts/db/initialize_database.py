@@ -1,3 +1,5 @@
+"""Create all database tables for the configured backend (local SQLite or Supabase)."""
+
 import logging
 
 from config import APP_ENV, DATA_BACKEND, DB_SCHEMA
@@ -9,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> None:
+    """Create tables and log which were created versus already present."""
     configure_logging()
     engine = get_engine()
     existing_before = get_existing_tables(engine)

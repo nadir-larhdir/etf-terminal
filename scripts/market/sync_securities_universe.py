@@ -1,3 +1,5 @@
+"""Seed or update the securities universe in the database from the configured DEFAULT_TICKERS."""
+
 import argparse
 import logging
 
@@ -11,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the CLI argument parser for the sync_securities_universe script."""
     parser = argparse.ArgumentParser(
         description="Seed the securities universe into the local database."
     )

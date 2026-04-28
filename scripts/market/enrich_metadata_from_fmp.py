@@ -1,3 +1,5 @@
+"""Fetch and merge ETF metadata from Financial Modeling Prep into the local database."""
+
 import argparse
 import logging
 
@@ -130,6 +132,7 @@ logger = logging.getLogger(__name__)
 
 
 def _is_populated(value) -> bool:
+    """Return True when value is non-None and not a blank/sentinel string."""
     if value is None:
         return False
     if isinstance(value, str) and value.strip().upper() in {"", "N/A", "NONE", "NULL"}:
@@ -138,6 +141,7 @@ def _is_populated(value) -> bool:
 
 
 def _choose_preferred(*values):
+    """Return the first value that passes the _is_populated check."""
     for value in values:
         if _is_populated(value):
             return value
@@ -145,6 +149,7 @@ def _choose_preferred(*values):
 
 
 def _choose_longer_text(*values):
+    """Return the longest non-empty string from the given values."""
     populated = [str(value).strip() for value in values if _is_populated(value)]
     if not populated:
         return None
@@ -152,6 +157,7 @@ def _choose_longer_text(*values):
 
 
 def get_etf_description(ticker: str) -> dict:
+    """Fetch and merge ETF profile and ETF-info fields from FMP into a single flat dict."""
     profile = FMP_CLIENT.get_security_profile(ticker)
     etf_info = FMP_CLIENT.get_etf_info(ticker)
 
@@ -203,56 +209,55 @@ def get_etf_description(ticker: str) -> dict:
     }
 
 
+_ASSET_CLASS_RULES: list[tuple[tuple[str, ...], str | dict]] = [
+    (("treasury",), {
+        "1-3": "UST Short", "short": "UST Short",
+        "3-7": "UST Belly", "7-10": "UST Belly", "intermediate": "UST Belly",
+        "20+": "UST Long", "long": "UST Long", "extended duration": "UST Long",
+        "_default": "UST Broad",
+    }),
+    (("high yield",),           "HY Credit"),
+    (("investment grade", "corporate", "credit"), "IG Credit"),
+    (("mortgage", "mbs"),       "MBS"),
+    (("municipal", "muni", "tax-exempt"), "Municipal"),
+    (("emerging markets",),     "EM Debt"),
+    (("tips", "inflation"),     "Inflation-Linked"),
+    (("floating rate",),        "Floating Rate"),
+    (("aggregate", "core", "total bond"), "Core Bond"),
+]
+
+
 def derive_asset_class(search_values: list[str]) -> str:
+    """Infer an asset class label from metadata text fields using keyword matching."""
     search_blob = " ".join(value for value in search_values if _is_populated(value)).lower()
 
-    if "treasury" in search_blob:
-        if "1-3" in search_blob or "short" in search_blob:
-            return "UST Short"
-        if "3-7" in search_blob or "7-10" in search_blob or "intermediate" in search_blob:
-            return "UST Belly"
-        if "20+" in search_blob or "long" in search_blob or "extended duration" in search_blob:
-            return "UST Long"
-        return "UST Broad"
-    if "high yield" in search_blob:
-        return "HY Credit"
-    if "investment grade" in search_blob or "corporate" in search_blob or "credit" in search_blob:
-        return "IG Credit"
-    if "mortgage" in search_blob or "mbs" in search_blob:
-        return "MBS"
-    if "municipal" in search_blob or "muni" in search_blob or "tax-exempt" in search_blob:
-        return "Municipal"
-    if "emerging markets" in search_blob:
-        return "EM Debt"
-    if "tips" in search_blob or "inflation" in search_blob:
-        return "Inflation-Linked"
-    if "floating rate" in search_blob:
-        return "Floating Rate"
-    if "aggregate" in search_blob or "core" in search_blob or "total bond" in search_blob:
-        return "Core Bond"
+    for keywords, label in _ASSET_CLASS_RULES:
+        if any(kw in search_blob for kw in keywords):
+            if isinstance(label, dict):
+                for sub_kw, sub_label in label.items():
+                    if sub_kw != "_default" and sub_kw in search_blob:
+                        return sub_label
+                return label["_default"]
+            return label
     return "Fixed Income"
 
 
-def derive_duration_bucket(search_values: list[str]) -> str:
-    search_blob = " ".join(value for value in search_values if _is_populated(value)).lower()
+_DURATION_BUCKET_RULES: list[tuple[tuple[str, ...], str]] = [
+    (("0-5", "1-3", "ultra short", "short-term"), "Short Duration"),
+    (("3-7", "7-10", "intermediate"),              "Intermediate Duration"),
+    (("20+", "long", "extended duration"),          "Long Duration"),
+    (("floating rate",),                            "Floating Rate"),
+    (("mortgage", "mbs"),                           "Securitized"),
+    (("tips", "inflation"),                         "Inflation-Linked"),
+]
 
-    if (
-        "0-5" in search_blob
-        or "1-3" in search_blob
-        or "ultra short" in search_blob
-        or "short-term" in search_blob
-    ):
-        return "Short Duration"
-    if "3-7" in search_blob or "7-10" in search_blob or "intermediate" in search_blob:
-        return "Intermediate Duration"
-    if "20+" in search_blob or "long" in search_blob or "extended duration" in search_blob:
-        return "Long Duration"
-    if "floating rate" in search_blob:
-        return "Floating Rate"
-    if "mortgage" in search_blob or "mbs" in search_blob:
-        return "Securitized"
-    if "tips" in search_blob or "inflation" in search_blob:
-        return "Inflation-Linked"
+
+def derive_duration_bucket(search_values: list[str]) -> str:
+    """Infer a duration bucket label from metadata text using keyword matching."""
+    search_blob = " ".join(value for value in search_values if _is_populated(value)).lower()
+    for keywords, label in _DURATION_BUCKET_RULES:
+        if any(kw in search_blob for kw in keywords):
+            return label
     return "Broad Market"
 
 
@@ -262,6 +267,10 @@ def build_metadata_row(
     *,
     duration_estimator: SecurityDurationEstimator | None = None,
 ) -> dict:
+    """Build a complete metadata dict for a ticker by merging FMP, internal, and existing data.
+
+    Priority order: internal overrides > existing DB row > FMP response > config defaults.
+    """
     base = DEFAULT_TICKERS.get(ticker, {})
     internal = INTERNAL_METADATA.get(ticker, {})
     fmp_meta = get_etf_description(ticker)

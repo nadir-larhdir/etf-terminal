@@ -1,3 +1,5 @@
+"""Seed curated static ETF metadata rows into the database without calling FMP."""
+
 import argparse
 import logging
 from datetime import datetime

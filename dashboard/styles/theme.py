@@ -1,7 +1,10 @@
+"""Global CSS injection for the ETF Terminal dashboard theme."""
+
 import streamlit as st
 
 
 def apply_dashboard_theme():
+    """Inject the full terminal CSS stylesheet into the active Streamlit page."""
     st.markdown(
         """
         <style>

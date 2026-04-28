@@ -1,3 +1,5 @@
+"""Plotly chart rendering functions for price, volume, and RV analysis panels."""
+
 import pandas as pd
 from pandas import DatetimeIndex
 import plotly.graph_objects as go
@@ -21,11 +23,13 @@ CHART_GOLD = "#C9A64B"
 
 
 def _filter_by_period(hist: pd.DataFrame, period_label: str) -> pd.DataFrame:
+    """Return the trailing N rows of hist corresponding to the given period label."""
     lookback = WINDOW_LOOKBACK_MAP.get(period_label, len(hist))
     return hist.tail(min(lookback, len(hist))).copy()
 
 
 def _filter_by_dates(hist: pd.DataFrame, start_date, end_date) -> pd.DataFrame:
+    """Slice hist to [start_date, end_date]; falls back to the last row if empty."""
     idx = DatetimeIndex(hist.index)
     start_ts = pd.Timestamp(start_date)
     end_ts = pd.Timestamp(end_date)
@@ -34,12 +38,14 @@ def _filter_by_dates(hist: pd.DataFrame, start_date, end_date) -> pd.DataFrame:
 
 
 def compute_default_date_range(hist: pd.DataFrame, period_label: str):
+    """Return the (min_date, max_date) pair for the trailing window matching period_label."""
     filtered = _filter_by_period(hist, period_label)
     idx = DatetimeIndex(filtered.index)
     return idx.min().date(), idx.max().date()
 
 
 def format_volume_label(value: float) -> str:
+    """Format a raw volume integer as a compact string (e.g. '24M', '1MM')."""
     if value >= 1_000_000:
         return f"{value / 1_000_000:.0f}MM"
     if value >= 1_000:
@@ -50,6 +56,7 @@ def format_volume_label(value: float) -> str:
 def _apply_terminal_chart_layout(
     fig: go.Figure, *, title: str, height: int, margin=None, legend=None
 ) -> None:
+    """Apply the shared terminal chart layout to fig in-place."""
     fig.update_layout(
         **responsive_chart_layout(
             title,
@@ -62,6 +69,7 @@ def _apply_terminal_chart_layout(
 
 
 def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
+    """Render a price-action chart with mean ± 1σ bands and colour-coded above/below lines."""
     filtered = _filter_by_dates(hist, start_date, end_date)
 
     close_series = filtered["close"]
@@ -179,6 +187,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
 
 
 def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
+    """Render a bar-chart of trading volume with a 30-day average overlay."""
     filtered = _filter_by_dates(hist, start_date, end_date)
 
     volume_series = filtered["volume"]
@@ -251,6 +260,7 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
 
 
 def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
+    """Render the RV z-score series with ±1σ/±2σ reference lines and extreme-point markers."""
     fig = go.Figure()
 
     # Main Z line
@@ -307,6 +317,7 @@ def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
 
 
 def render_return_spread_chart(ratio_series: pd.Series, ticker_a: str, ticker_b: str):
+    """Render the cumulative beta-adjusted return spread between two ETFs."""
     fig = go.Figure()
 
     fig.add_trace(
@@ -331,6 +342,7 @@ def render_return_spread_chart(ratio_series: pd.Series, ticker_a: str, ticker_b:
 def render_beta_adjusted_z_chart(
     z_series: pd.Series, beta_series: pd.Series, ticker_a: str, ticker_b: str
 ):
+    """Render the rolling-beta-adjusted z-score series for the given pair."""
     adj_z = z_series * beta_series
 
     fig = go.Figure()

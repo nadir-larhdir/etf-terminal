@@ -1,3 +1,5 @@
+"""Reusable narrative panel component rendered as styled HTML blocks."""
+
 import streamlit as st
 
 
@@ -23,6 +25,7 @@ class InfoPanel:
         margin_bottom: str,
         box_shadow: bool = False,
     ) -> str:
+        """Build and return the full HTML string for a styled panel card."""
         headline_block = ""
         if headline:
             headline_block = (
@@ -70,6 +73,7 @@ class InfoPanel:
         margin_top: str = "0.35rem",
         margin_bottom: str = "0.50rem",
     ) -> None:
+        """Render a full panel card with title, headline, body, and optional footer."""
         html = self._panel_html(
             title=title,
             headline=headline,
@@ -101,6 +105,7 @@ class InfoPanel:
         margin_top: str = "0.20rem",
         margin_bottom: str = "0.40rem",
     ) -> None:
+        """Render a compact note panel (no headline or box-shadow) for summary context rows."""
         html = self._panel_html(
             title=title,
             body=body,

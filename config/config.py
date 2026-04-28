@@ -49,7 +49,7 @@ FRED_API_KEY = os.getenv("FRED_API_KEY", "").strip()
 FRED_BASE_URL = "https://api.stlouisfed.org/fred"
 
 _config = load_config()
-DEFAULT_TICKERS: list[str] = _config["DEFAULT_TICKERS"]
-PERIOD_OPTIONS: list[str] = _config["PERIOD_OPTIONS"]
-MACRO_SERIES_REGISTRY: dict = _config["MACRO_SERIES_REGISTRY"]
-NEWS_FEEDS: list[dict] = _config["NEWS_FEEDS"]
+DEFAULT_TICKERS: dict[str, dict[str, str]] = _config["DEFAULT_TICKERS"]
+PERIOD_OPTIONS: dict[str, int] = _config["PERIOD_OPTIONS"]
+MACRO_SERIES_REGISTRY: dict[str, dict[str, str]] = _config["MACRO_SERIES_REGISTRY"]
+NEWS_FEEDS: dict[str, dict[str, str]] = _config["NEWS_FEEDS"]

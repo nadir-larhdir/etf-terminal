@@ -1,3 +1,5 @@
+"""Plotly chart configuration and responsive layout helpers for the dashboard."""
+
 from __future__ import annotations
 
 PLOTLY_CHART_CONFIG = {
@@ -9,6 +11,7 @@ PLOTLY_CHART_CONFIG = {
 
 
 def _responsive_legend(height: int) -> dict:
+    """Return Plotly legend kwargs sized appropriately for the given chart height."""
     if height >= 520:
         font_size = 10
         y_pos = 1.12
@@ -46,6 +49,7 @@ def responsive_chart_layout(
     font_family: str,
     font_size: int = 11,
 ) -> dict:
+    """Return a Plotly layout dict with consistent terminal styling and responsive legend."""
     return dict(
         title=dict(text=title, x=0.02, xanchor="left", y=0.985, pad=dict(t=8, b=10)),
         template="plotly_white",

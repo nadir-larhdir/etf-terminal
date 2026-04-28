@@ -1,3 +1,5 @@
+"""Reusable Streamlit selectors, date pickers, and window controls for the dashboard."""
+
 from typing import Literal
 from datetime import timedelta
 
@@ -26,6 +28,7 @@ class DashboardControls:
         key: str,
         width: int | Literal["stretch"] = "stretch",
     ) -> str:
+        """Render a search-driven security selector; return the selected ticker string."""
         options_df = securities.copy()
 
         if options_df.empty or "ticker" not in options_df.columns:
@@ -90,6 +93,7 @@ class DashboardControls:
         label_visibility: Literal["visible", "hidden", "collapsed"] = "visible",
         width: int | Literal["stretch"] = "stretch",
     ) -> str:
+        """Render a simple selectbox and return the selected option as a string."""
         if not options:
             return ""
         selected = st.selectbox(
@@ -115,6 +119,7 @@ class DashboardControls:
         end_key: str,
         columns_ratio: list[int] | None = None,
     ) -> tuple[pd.Timestamp, pd.Timestamp]:
+        """Render a two-column date picker; return (start_ts, end_ts) auto-swapped if inverted."""
         ratios = columns_ratio if columns_ratio is not None else [1, 1]
         c1, c2 = st.columns(ratios)
 
@@ -160,6 +165,11 @@ class DashboardControls:
         end_key: str,
         width: int | Literal["stretch"] = "stretch",
     ) -> tuple[str, pd.Timestamp, pd.Timestamp]:
+        """Render a combined preset-window + date-picker control row.
+
+        Selecting a preset window automatically updates the date inputs; users can then
+        fine-tune the dates manually. Returns (selected_window, start_ts, end_ts).
+        """
         c1, c2, c3 = st.columns([0.9, 1, 1])
 
         with c1:
