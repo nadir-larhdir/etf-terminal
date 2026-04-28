@@ -1,3 +1,5 @@
+"""Copy all tables from a local SQLite database into the configured Supabase schema."""
+
 import argparse
 import logging
 
@@ -10,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def migrate_environment(app_env: str) -> dict[str, int]:
+    """Truncate the Supabase target, then copy all tables from the local env; return row counts."""
     source_engine = get_engine(data_backend="local", app_env=app_env)
     target_engine = get_engine(data_backend="supabase")
 
@@ -24,6 +27,7 @@ def migrate_environment(app_env: str) -> dict[str, int]:
 
 
 def main() -> None:
+    """Entry point: parse args, run the migration, and log per-table row counts."""
     configure_logging()
     parser = argparse.ArgumentParser(
         description="Copy one local SQLite ETF Terminal database into the Supabase public schema.",

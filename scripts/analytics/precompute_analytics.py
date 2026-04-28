@@ -1,3 +1,5 @@
+"""Precompute and persist fixed-income analytics snapshots for all active securities."""
+
 import argparse
 import logging
 
@@ -19,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def _metadata_duration(metadata: dict) -> float | None:
+    """Extract a numeric duration from a metadata dict, returning None for missing or N/A values."""
     raw_value = metadata.get("duration")
     if raw_value in (None, "", "N/A"):
         return None
@@ -29,6 +32,7 @@ def _metadata_duration(metadata: dict) -> float | None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the CLI argument parser for the precompute_analytics script."""
     parser = argparse.ArgumentParser(description="Precompute fixed-income analytics snapshots.")
     parser.add_argument(
         "--force",
@@ -47,6 +51,11 @@ def build_parser() -> argparse.ArgumentParser:
 def run_precompute_analytics(
     *, engine=None, force: bool = False, ttl_hours: int = 24
 ) -> tuple[int, int]:
+    """Compute and persist analytics snapshots for all active securities.
+
+    Returns (persisted_count, skipped_count). Skips securities whose snapshots
+    are still within the ttl_hours freshness window unless force=True.
+    """
     if engine is None:
         engine = get_engine()
     security_store = SecurityStore(engine)

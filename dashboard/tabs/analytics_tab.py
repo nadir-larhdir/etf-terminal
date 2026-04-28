@@ -1,3 +1,5 @@
+"""Analytics tab: duration, DV01, spread beta, volume bars, and current-read narrative panel."""
+
 import logging
 import pandas as pd
 import plotly.graph_objects as go
@@ -29,6 +31,7 @@ class AnalyticsTab:
         self.info_panel = InfoPanel()
 
     def render(self, security: Security) -> None:
+        """Render the Analytics tab: metric cards, credit spread section, volume bars, and narrative panels."""
         st.subheader("Analytics")
         with timed_block("analytics.prepare_inputs"):
             metadata = security.metadata or {}
@@ -151,6 +154,7 @@ class AnalyticsTab:
             self._render_volume_bars(security)
 
     def _analytics_snapshot(self, security: Security):
+        """Return a live or cached analytics snapshot, falling back to live computation when stale."""
         cache_key = app_cache_key(self.analytics_service.price_store.engine)
         price_as_of = (
             pd.Timestamp(security.history.index.max()).date().isoformat()
@@ -211,6 +215,7 @@ class AnalyticsTab:
         return analytics
 
     def _metadata_duration(self, metadata: dict) -> float | None:
+        """Extract and cast the duration field from metadata, returning None for missing or non-numeric values."""
         raw_value = metadata.get("duration")
         if raw_value in (None, "", "N/A"):
             return None
@@ -220,6 +225,7 @@ class AnalyticsTab:
             return None
 
     def _current_read_headline(self, security: Security, metadata: dict) -> str:
+        """Build the headline string for the Current Read panel from category and duration bucket."""
         category = str(metadata.get("category") or security.asset_class or "Fixed Income")
         duration_bucket = str(metadata.get("duration_bucket") or "").strip()
         if duration_bucket and duration_bucket.upper() != "N/A":
@@ -235,6 +241,7 @@ class AnalyticsTab:
         duration_method: str,
         duration_source: str,
     ) -> str:
+        """Build the body text for the Current Read panel with benchmark, duration, and DV01 summary."""
         benchmark = str(metadata.get("benchmark_index") or "N/A")
         return (
             f"Benchmark: {benchmark}. Duration is {self._format_years(analytics.estimated_duration)} and DV01 is "
@@ -243,30 +250,38 @@ class AnalyticsTab:
         )
 
     def _format_dollar_per_million(self, value: float | None) -> str:
+        """Format a per-share dollar risk as a dollar amount per $1MM notional."""
         return "N/A" if value is None else f"${value * 10000:,.0f}"
 
     def _format_years(self, value: float | None) -> str:
+        """Format a duration in years to one decimal place."""
         return "N/A" if value is None else f"{value:.1f}y"
 
     def _format_number(self, value: float | None) -> str:
+        """Format a float to 2 decimal places."""
         return "N/A" if value is None else f"{value:.2f}"
 
     def _format_spread_beta_bps(self, value: float | None) -> str:
+        """Format a spread beta (per decimal) as a signed basis-point string."""
         return "N/A" if value is None else f"{value * 10000:+.1f} bps"
 
     def _format_percent(self, value: float | None) -> str:
+        """Format a decimal proportion as a whole-number percentage string."""
         return "N/A" if value is None else f"{value:.0%}"
 
     def _format_bps_impact(self, value: float | None) -> str:
+        """Format a signed basis-point price impact to 2 decimal places."""
         return "N/A" if value is None else f"{value:+.2f} bps"
 
     def _oas_move_explanation(self, analytics) -> str:
+        """Return a plain-English sentence describing the price impact of a +1 bp OAS move."""
         if analytics.spread_beta_per_bp is None or not analytics.spread_proxy_used:
             return "OAS 1 bp move interpretation unavailable."
         impact_bps = analytics.spread_beta_per_bp * 10000.0
         return f"+1bp OAS widening -> {self._format_bps_impact(impact_bps)} price change."
 
     def _duration_source_details(self, security: Security) -> tuple[str, str]:
+        """Return a (method, source) label pair describing how duration was estimated for this ticker."""
         ticker = security.ticker.strip().upper()
         if ticker in ISHARES_ETFS:
             return ("Holdings", "PCF")
@@ -286,6 +301,7 @@ class AnalyticsTab:
         footer: str | None = None,
         show_bottom_border: bool = True,
     ) -> None:
+        """Render a single large-value metric card with a label, colored value, and optional footer HTML."""
         footer_block = ""
         if footer:
             footer_block = f"<div style='margin-top:0.45rem;color:#707A68;font-size:0.72rem;line-height:1.3;'>{footer}</div>"
@@ -309,6 +325,7 @@ class AnalyticsTab:
         )
 
     def _render_volume_bars(self, security: Security) -> None:
+        """Render a 30-day bar chart of volume relative to the rolling 30D average."""
         history = security.history.copy()
         if history.empty or "volume" not in history.columns:
             return
@@ -348,6 +365,7 @@ class AnalyticsTab:
         st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
 
     def _volume_multiple(self, snapshot: dict[str, float | None]) -> float:
+        """Return the ratio of today's volume to the 30-day average, or 0.0 if unavailable."""
         current_volume = snapshot["current_volume"]
         average_volume = snapshot["average_volume"]
         if current_volume is None or average_volume in (None, 0.0):
@@ -355,6 +373,7 @@ class AnalyticsTab:
         return current_volume / average_volume
 
     def _liquidity_regime(self, vol_z: float | None) -> str:
+        """Return a liquidity regime label ('HIGH ACTIVITY', 'NORMAL', or 'QUIET') from the volume z-score."""
         if vol_z is None:
             return "NORMAL"
         if vol_z > 2:
@@ -364,6 +383,7 @@ class AnalyticsTab:
         return "NORMAL"
 
     def _duration_risk_color(self, value: float | None) -> str:
+        """Return a hex color for the duration metric card: teal ≤3y, amber ≤7y, red otherwise."""
         if value is None:
             return "#1F271C"
         if value <= 3.0:
@@ -373,6 +393,7 @@ class AnalyticsTab:
         return "#A55C45"
 
     def _dv01_risk_color(self, value: float | None) -> str:
+        """Return a hex color for the DV01 card: teal ≤$150/MM, amber ≤$500/MM, red otherwise."""
         if value is None:
             return "#1F271C"
         per_million = abs(value * 10000)
@@ -383,6 +404,7 @@ class AnalyticsTab:
         return "#A55C45"
 
     def _cs_beta_risk_color(self, value: float | None) -> str:
+        """Return a hex color for the CS beta card: teal ≤1 bp, amber ≤3 bp, red otherwise."""
         if value is None:
             return "#1F271C"
         beta_bps = abs(value * 10000)
@@ -393,6 +415,7 @@ class AnalyticsTab:
         return "#A55C45"
 
     def _cs01_risk_color(self, value: float | None) -> str:
+        """Return a hex color for the CS01 card: teal ≤$100/MM, amber ≤$400/MM, red otherwise."""
         if value is None:
             return "#1F271C"
         per_million = abs(value * 10000)
@@ -403,6 +426,7 @@ class AnalyticsTab:
         return "#A55C45"
 
     def _r2_gauge(self, value: float | None) -> str:
+        """Return an inline HTML progress bar representing the R² model fit quality."""
         if value is None:
             return ""
         pct = max(0.0, min(value, 1.0)) * 100.0
@@ -413,6 +437,7 @@ class AnalyticsTab:
         )
 
     def _dv01_change_footer(self, security: Security, duration: float | None) -> str | None:
+        """Return a 30-day DV01 change label (e.g. '30d ↑ 2.3%'), or None if insufficient history."""
         if (
             duration is None
             or security.history.empty
@@ -431,6 +456,7 @@ class AnalyticsTab:
         return f"30d {arrow} {abs(pct):.1f}%"
 
     def _duration_scale_indicator(self, duration: float | None) -> str | None:
+        """Return an inline HTML scale bar with a dot marker positioned on a 0–30Y axis."""
         if duration is None:
             return None
         scale_max = 30.0

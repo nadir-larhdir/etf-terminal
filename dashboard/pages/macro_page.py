@@ -1,3 +1,5 @@
+"""Macro page: yield curve, feature cards, chart grid, and rule-based regime summaries."""
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -141,11 +143,13 @@ class MacroPage:
         self.info_panel = InfoPanel()
 
     def _format_value(self, value: float | None) -> str:
+        """Format a float to a 2dp comma-separated string, returning 'n/a' for missing values."""
         if value is None or pd.isna(value):
             return "n/a"
         return f"{value:,.2f}"
 
     def _format_delta(self, value: float | None) -> str:
+        """Format a float as a signed 2dp string, returning 'n/a' for missing values."""
         if value is None or pd.isna(value):
             return "n/a"
         return f"{value:+.2f}"
@@ -153,6 +157,7 @@ class MacroPage:
     def _format_feature_value(
         self, feature_name: str, value: float | None, signed: bool = False
     ) -> str:
+        """Format a feature value in its natural unit (bps for OAS, % for rates, plain otherwise)."""
         if feature_name in OAS_FEATURES:
             if value is None or pd.isna(value):
                 return "n/a"
@@ -166,6 +171,7 @@ class MacroPage:
         return formatter(value)
 
     def _format_delta_value(self, feature_name: str, value: float | None) -> str:
+        """Format a delta value with appropriate unit label (z-score prefix, bps, or signed float)."""
         if value is None or pd.isna(value):
             return "n/a"
         if feature_name in Z_SCORE_FEATURES:
@@ -175,6 +181,7 @@ class MacroPage:
         return self._format_feature_value(feature_name, value, signed=True)
 
     def _badge_html(self, label: str, tone: str) -> str:
+        """Return an HTML badge span colored by tone (positive / negative / neutral)."""
         color_map = {
             "positive": ("rgba(78, 123, 82, 0.10)", "#4E7B52"),
             "negative": ("rgba(165, 92, 69, 0.10)", "#A55C45"),
@@ -189,6 +196,7 @@ class MacroPage:
         )
 
     def _metric_tone(self, value: float | None) -> str:
+        """Return 'positive', 'negative', or 'neutral' based on the sign of value."""
         if value is None or pd.isna(value):
             return "neutral"
         if value > 0:
@@ -204,6 +212,7 @@ class MacroPage:
         return float(value)
 
     def _delta_html(self, label: str, text: str, value: float | None) -> str:
+        """Return an HTML delta row with a directional arrow and tone-based CSS class."""
         tone = self._metric_tone(value)
         tone_class = {
             "positive": "bb-macro-card-delta--positive",
@@ -214,6 +223,7 @@ class MacroPage:
         return f"<div class='bb-macro-card-delta {tone_class}'>{label}: {arrow} {text}</div>"
 
     def _latest_change(self, matrix: pd.DataFrame, feature_name: str) -> float | None:
+        """Return the most recent day-over-day change for a feature, or None if insufficient data."""
         if feature_name not in matrix.columns:
             return None
         series = matrix[feature_name].dropna()
@@ -222,6 +232,7 @@ class MacroPage:
         return float(series.iloc[-1] - series.iloc[-2])
 
     def _rule_based_regimes(self, matrix: pd.DataFrame) -> dict[str, tuple[str, str]]:
+        """Derive duration, curve, inflation, and growth regime labels from current macro levels."""
         latest = {column: self._latest_value(matrix, column) for column in matrix.columns}
         ust_10y_change_20d = self._number(latest.get("UST_10Y_CHANGE_20D"))
         ust_2s10s = self._number(latest.get("UST_2S10S"))
@@ -276,6 +287,7 @@ class MacroPage:
         }
 
     def _latest_value(self, matrix: pd.DataFrame, feature_name: str) -> float | None:
+        """Return the most recent non-null value for a feature column, or None if unavailable."""
         if feature_name not in matrix.columns:
             return None
         series = matrix[feature_name].dropna()
@@ -284,6 +296,7 @@ class MacroPage:
         return float(series.iloc[-1])
 
     def _latest_date(self, matrix: pd.DataFrame, feature_name: str):
+        """Return the index timestamp of the most recent non-null observation for a feature, or None."""
         if feature_name not in matrix.columns:
             return None
         series = matrix[feature_name].dropna()
@@ -292,17 +305,21 @@ class MacroPage:
         return series.index[-1]
 
     def _display_series(self, feature_name: str, series: pd.Series) -> pd.Series:
+        """Convert a raw feature series to display units (multiply OAS by 100 for basis points)."""
         return series * 100.0 if feature_name in OAS_FEATURES else series
 
     def _zscore(self, series: pd.Series, window: int) -> pd.Series:
+        """Compute a rolling z-score over the given lookback window."""
         rolling_mean = series.rolling(window).mean()
         rolling_std = series.rolling(window).std(ddof=0)
         return (series - rolling_mean) / rolling_std.replace(0, np.nan)
 
     def _change(self, series: pd.Series, periods: int) -> pd.Series:
+        """Return the absolute change in a series over the given number of periods."""
         return series - series.shift(periods)
 
     def _ensure_display_features(self, matrix: pd.DataFrame) -> pd.DataFrame:
+        """Derive any display-only features (e.g. z-scores) not present in the stored matrix."""
         if matrix.empty:
             return matrix
 
@@ -326,6 +343,7 @@ class MacroPage:
         return sorted(dict.fromkeys(feature_names))
 
     def _selected_lookback(self) -> int | None:
+        """Render the window selector and return the corresponding lookback in trading days, or None for ALL."""
         selected_window = self.controls.render_select(
             "Macro Window",
             list(LOOKBACK_MAP),
@@ -337,6 +355,7 @@ class MacroPage:
         return LOOKBACK_MAP.get(selected_window)
 
     def _render_header(self) -> int | None:
+        """Render the page title and window control; return the selected lookback in trading days."""
         title_col, control_col = st.columns([1.55, 0.55], vertical_alignment="bottom")
         with title_col:
             st.markdown(
@@ -359,6 +378,7 @@ class MacroPage:
         return lookback
 
     def _matrix_start_date(self, lookback: int | None) -> str | None:
+        """Convert a lookback in trading days to an ISO date string for the feature matrix query."""
         if lookback is None:
             return None
         return (
@@ -368,11 +388,13 @@ class MacroPage:
         )
 
     def _windowed_matrix(self, matrix: pd.DataFrame, lookback: int | None) -> pd.DataFrame:
+        """Slice the feature matrix to the most recent lookback rows, or return it unchanged for ALL."""
         if matrix.empty:
             return matrix
         return matrix.copy() if lookback is None else matrix.tail(min(lookback, len(matrix))).copy()
 
     def _curve_rows(self, matrix: pd.DataFrame) -> list[dict[str, object]]:
+        """Build a list of tenor-keyed dicts for the yield curve chart from the current feature matrix."""
         rows: list[dict[str, object]] = []
         for tenor_label, maturity_years, feature_name in YIELD_CURVE_CONFIG:
             value = self._latest_value(matrix, feature_name)
@@ -400,6 +422,7 @@ class MacroPage:
         legend: dict | None = None,
         font_size: int = 11,
     ) -> dict:
+        """Return a Plotly layout dict using the dashboard's monospace font and responsive helpers."""
         return responsive_chart_layout(
             title,
             height=height,
@@ -412,6 +435,7 @@ class MacroPage:
         )
 
     def _render_chart_grid(self, matrix: pd.DataFrame, start_date, end_date) -> None:
+        """Render all CHART_CONFIG entries as a two-row 5-column grid of Plotly charts."""
         st.markdown(
             """
             <div class="bb-macro-section-header">
@@ -432,6 +456,7 @@ class MacroPage:
             st.markdown("<div class='bb-metric-group-spacer'></div>", unsafe_allow_html=True)
 
     def _render_regimes(self, matrix: pd.DataFrame) -> None:
+        """Render the four regime cards (duration, curve, inflation, growth) from rule-based signals."""
         st.markdown(
             """
             <div class="bb-macro-section-header">
@@ -469,6 +494,7 @@ class MacroPage:
         )
 
     def _render_cards(self, matrix: pd.DataFrame) -> None:
+        """Render the State of Macro card grid with latest values, deltas, and z-score badges."""
         cards: list[str] = []
         for label, feature_name, badge_feature, badge_label in CARD_CONFIG:
             value = self._latest_value(matrix, feature_name)
@@ -512,12 +538,14 @@ class MacroPage:
     def _nelson_siegel_curve(
         self, maturities: np.ndarray, beta0: float, beta1: float, beta2: float, tau: float
     ) -> np.ndarray:
+        """Evaluate the Nelson-Siegel yield curve model at the given maturities."""
         safe_tau = max(float(tau), 1e-6)
         load1 = (1.0 - np.exp(-maturities / safe_tau)) / (maturities / safe_tau)
         load2 = load1 - np.exp(-maturities / safe_tau)
         return beta0 + beta1 * load1 + beta2 * load2
 
     def _fit_nelson_siegel(self, maturities: np.ndarray, yields: np.ndarray) -> np.ndarray | None:
+        """Fit Nelson-Siegel parameters via L-BFGS-B; return the parameter array or None on failure."""
         if len(maturities) < 4:
             return None
 
@@ -539,6 +567,7 @@ class MacroPage:
         return result.x
 
     def _render_yield_curve(self, matrix: pd.DataFrame) -> None:
+        """Render the yield curve chart with observed points and a Nelson-Siegel smooth overlay."""
         curve_rows = self._curve_rows(matrix)
         if not curve_rows:
             st.info("No yield-curve levels available yet.")
@@ -636,6 +665,7 @@ class MacroPage:
     def _render_chart(
         self, matrix: pd.DataFrame, title: str, feature_names: list[str], start_date, end_date
     ) -> None:
+        """Render one macro chart panel as a line chart (or sparse bar for CPI/FEDFUNDS/UNRATE)."""
         filtered = matrix.loc[
             (matrix.index >= start_date) & (matrix.index <= end_date), feature_names
         ].copy()
@@ -710,6 +740,7 @@ class MacroPage:
         st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
 
     def render(self) -> None:
+        """Render the full macro page: header, yield curve, State of Macro cards, chart grid, and regimes."""
         feature_names = self._feature_names()
         lookback = self._render_header()
         start_date_filter = self._matrix_start_date(lookback)

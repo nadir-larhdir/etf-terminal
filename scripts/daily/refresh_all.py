@@ -1,3 +1,5 @@
+"""End-of-day orchestration script: prices, macro, features, metadata, and analytics snapshots."""
+
 import argparse
 import logging
 
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the CLI argument parser for the daily refresh orchestration script."""
     parser = argparse.ArgumentParser(
         description="Run the end-of-day ETF Terminal refresh workflow."
     )
@@ -82,11 +85,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _latest_price_date(price_store: PriceStore, tickers: list[str]) -> str:
+    """Return the most recent stored price date across the given tickers, or 'n/a'."""
     latest = price_store.get_latest_stored_dates(tickers)
     return max(latest.values()) if latest else "n/a"
 
 
 def _latest_macro_date(macro_store: MacroStore, series_ids: list[str]) -> str:
+    """Return the most recent stored macro observation date across the given series, or 'n/a'."""
     latest = macro_store.get_latest_stored_dates(series_ids)
     return max(latest.values()) if latest else "n/a"
 
@@ -94,6 +99,7 @@ def _latest_macro_date(macro_store: MacroStore, series_ids: list[str]) -> str:
 def _latest_feature_date(
     feature_store: MacroFeatureStore, feature_name: str = "UST_10Y_LEVEL"
 ) -> str:
+    """Return the most recent macro feature date for the sentinel feature, or 'n/a'."""
     latest = feature_store.get_latest_feature_values([feature_name])
     if latest.empty:
         return "n/a"
@@ -101,6 +107,7 @@ def _latest_feature_date(
 
 
 def _refresh_metadata(metadata_store: MetadataStore, tickers: list[str]) -> int:
+    """Fetch and upsert FMP metadata for each ticker; return the row count."""
     duration_estimator = SecurityDurationEstimator(metadata_store.engine)
     rows = []
     for ticker in tickers:
@@ -117,6 +124,7 @@ def _refresh_metadata(metadata_store: MetadataStore, tickers: list[str]) -> int:
 
 
 def _refresh_universe(security_store: SecurityStore) -> int:
+    """Upsert the configured DEFAULT_TICKERS universe into the securities table; return row count."""
     rows = [
         {"ticker": ticker, "name": meta["name"], "asset_class": meta["asset_class"], "active": 1}
         for ticker, meta in DEFAULT_TICKERS.items()
@@ -126,6 +134,7 @@ def _refresh_universe(security_store: SecurityStore) -> int:
 
 
 def main() -> None:
+    """Entry point: orchestrate the 6-step end-of-day refresh and log a summary."""
     configure_logging()
     args = build_parser().parse_args()
     run_analytics = not args.skip_analytics

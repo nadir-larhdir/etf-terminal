@@ -1,3 +1,5 @@
+"""Homepage page rendering: market snapshot strip, hero, regime card, and universe table."""
+
 from __future__ import annotations
 
 import base64
@@ -45,6 +47,7 @@ class HomePage:
         self.table = DashboardTable()
 
     def render(self, securities: pd.DataFrame) -> None:
+        """Render the full homepage: snapshot strip, hero, regime card, stat cards, and tables."""
         with timed_block("home.latest_market_date"):
             latest_market_date = self._latest_market_date(securities)
         with timed_block("home.bucket_summary"):
@@ -89,6 +92,7 @@ class HomePage:
             st.markdown(built_for_html, unsafe_allow_html=True)
 
     def _latest_market_date(self, securities: pd.DataFrame) -> str | None:
+        """Return the most recent stored price date across all active securities."""
         tickers = securities["ticker"].astype(str).tolist() if not securities.empty else []
         latest_dates = self.price_store.get_latest_stored_dates(tickers)
         if not latest_dates:
@@ -96,6 +100,7 @@ class HomePage:
         return max(latest_dates.values())
 
     def _build_market_snapshot_tiles(self) -> list[SnapshotTile]:
+        """Build SnapshotTile objects for each configured macro feature."""
         feature_names = list(self.SNAPSHOT_FEATURES.keys())
         matrix = self.macro_feature_store.get_feature_matrix(feature_names=feature_names)
         if matrix.empty:
@@ -129,6 +134,7 @@ class HomePage:
         return tiles
 
     def _market_regime(self, snapshot_tiles: list[SnapshotTile]) -> dict[str, str | float]:
+        """Derive a Risk On / Neutral / Risk Off regime signal from HY, IG, and curve moves."""
         tile_map = {tile.label: tile for tile in snapshot_tiles}
 
         def numeric_delta(label: str) -> float:
@@ -182,6 +188,7 @@ class HomePage:
         }
 
     def _top_volume_names(self, securities: pd.DataFrame) -> list[str]:
+        """Return the top-4 tickers by volume-vs-30D ratio for the Market Pulse card."""
         tickers = securities["ticker"].astype(str).tolist() if not securities.empty else []
         if not tickers:
             return []
@@ -208,6 +215,7 @@ class HomePage:
         return [f"{ticker} ({ratio:.2f}x)" for ticker, ratio in ranking[:4]]
 
     def _build_bucket_summary(self, securities: pd.DataFrame) -> pd.DataFrame:
+        """Build the Universe Snapshot table: asset class, ETF count, examples, and 1D direction."""
         if securities.empty:
             return pd.DataFrame(columns=["ASSET CLASS", "ETF COUNT", "EXAMPLE TICKERS"])
 
@@ -259,6 +267,7 @@ class HomePage:
         return grouped[["ASSET CLASS", "ETF COUNT", "EXAMPLE TICKERS", "VS 1D"]]
 
     def _format_vs_1d(self, value: int) -> str:
+        """Format a net-direction count as an HTML up/flat/down badge string."""
         if value > 0:
             label = "Broad" if value >= 2 else "Firm"
             return f'<span class="home-table-up">▲ {value}</span> <span class="home-table-note">{label}</span>'
@@ -268,6 +277,7 @@ class HomePage:
         return '<span class="home-table-flat">—</span> <span class="home-table-note">Stable</span>'
 
     def _format_snapshot_value(self, feature_name: str, value: float) -> str:
+        """Format a macro feature value for the snapshot strip (basis points or percent string)."""
         if "OAS" in feature_name and "MINUS" not in feature_name:
             return f"{value * 100:.0f}bp"
         if feature_name in {"UST_10Y_LEVEL", "UST_2Y_LEVEL", "FEDFUNDS_LEVEL", "BEI_5Y"}:
@@ -277,6 +287,7 @@ class HomePage:
         return f"{value:.2f}"
 
     def _format_snapshot_delta(self, feature_name: str, delta: float) -> str:
+        """Format a day-over-day delta for the snapshot strip as a signed basis-point or percent string."""
         if "OAS" in feature_name:
             return f"{delta * 100:+.1f}bp"
         if feature_name == "UST_2S10S":
@@ -284,6 +295,7 @@ class HomePage:
         return f"{delta:+.2f}"
 
     def _snapshot_sublabel(self, feature_name: str) -> str:
+        """Return the short category label shown beneath each snapshot tile value."""
         mapping = {
             "UST_10Y_LEVEL": "UST",
             "UST_2Y_LEVEL": "UST",
@@ -296,6 +308,7 @@ class HomePage:
         return mapping.get(feature_name, "Macro")
 
     def _market_snapshot_html(self, tiles: list[SnapshotTile], latest_date_label: str) -> str:
+        """Build the full HTML string for the top market-snapshot strip from a list of tiles."""
         cells = [dedent("""
                 <div class="home-strip-primary">
                     <div class="home-strip-kicker">Market Snapshot <span class="home-live-chip">LIVE</span></div>
@@ -316,6 +329,7 @@ class HomePage:
         return f'<div class="home-market-strip">{"".join(cells)}</div>'
 
     def _hero_html(self) -> str:
+        """Build the HTML string for the hero section including copy, tags, and chart canvas."""
         hero_src = self._hero_image_src()
         return dedent(f"""
             <div class="home-hero">
@@ -345,6 +359,7 @@ class HomePage:
             """).strip()
 
     def _hero_image_src(self) -> str:
+        """Return the hero image src as a base64 data URI if the file exists, otherwise an inline SVG URI."""
         if self.HERO_IMAGE_PATH.exists():
             encoded = base64.b64encode(self.HERO_IMAGE_PATH.read_bytes()).decode("ascii")
             return f"data:image/png;base64,{encoded}"
@@ -352,6 +367,7 @@ class HomePage:
         return f"data:image/svg+xml;utf8,{hero_svg}"
 
     def _hero_svg_markup(self) -> str:
+        """Return the raw SVG markup used as the fallback hero chart canvas."""
         return dedent("""
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 260" preserveAspectRatio="none">
                 <defs>
@@ -427,6 +443,7 @@ class HomePage:
             """).strip()
 
     def _regime_card_html(self, regime: dict[str, str | float]) -> str:
+        """Build the HTML for the regime indicator card with label, body text, and scale marker."""
         position = float(regime["position"])
         return dedent(f"""
             <div class="home-regime-card">
@@ -446,6 +463,7 @@ class HomePage:
             """).strip()
 
     def _stat_cards_html(self, *, active_etfs: int, bucket_count: int, latest_date: str) -> str:
+        """Build the HTML for the three summary stat cards (active ETFs, buckets, latest date)."""
         active_icon = """
         <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
             <rect x="5" y="18" width="4.5" height="8" rx="0.6"></rect>
@@ -502,6 +520,7 @@ class HomePage:
             """).strip()
 
     def _pulse_card_html(self, volume_leaders: list[str]) -> str:
+        """Build the HTML for the Market Pulse side card with volume leaders and flow-condition rows."""
         items = volume_leaders or ["LQD (1.18x)", "TLT (1.07x)", "HYG (1.04x)", "MUB (0.96x)"]
         pulse_rows = [
             ("Rates", "Belly leadership", "WATCH", "elevated"),
@@ -530,6 +549,7 @@ class HomePage:
             """).strip()
 
     def _context_cards_html(self, regime: dict[str, str | float]) -> str:
+        """Build the HTML for the three context cards: project overview, morning setup, and news layer."""
         return dedent(f"""
             <div class="home-context-grid">
                 <div class="home-context-card">
@@ -566,6 +586,7 @@ class HomePage:
             """).strip()
 
     def _built_for_card_html(self) -> str:
+        """Build the HTML for the 'Built for fixed-income workflow' footer card."""
         return dedent("""
             <div class="home-built-card">
                 <div class="home-built-icon">◎</div>

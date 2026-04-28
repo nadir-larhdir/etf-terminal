@@ -1,3 +1,5 @@
+"""Styled HTML table renderer for the ETF Terminal dashboard."""
+
 import uuid
 import pandas as pd
 import streamlit as st
@@ -7,6 +9,7 @@ class DashboardTable:
     """Style and render dataframe outputs in the dashboard table theme."""
 
     def _style_dataframe(self, df: pd.DataFrame):
+        """Apply per-cell terminal styling to a DataFrame and return the Pandas Styler."""
         styled = df.style
 
         def style_value(value, column_name: str) -> str:
@@ -101,6 +104,7 @@ class DashboardTable:
         return styled
 
     def _prepare_display_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Format numeric columns for display (e.g. integers with commas, floats to 2dp)."""
         display_df = df.copy()
 
         for col in display_df.columns:
@@ -127,6 +131,7 @@ class DashboardTable:
     def render(
         self, df: pd.DataFrame, *, hide_index: bool = True, height: int | None = None
     ) -> None:
+        """Render the DataFrame as a styled, scrollable HTML table via st.html."""
         table_id = f"core-table-{uuid.uuid4().hex[:8]}"
         display_df = self._prepare_display_dataframe(df)
 
@@ -189,6 +194,7 @@ class DashboardTable:
         st.html(html)
 
     def format_history(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Format a price-history DataFrame for display: 2dp prices, comma-volume, ISO dates."""
         formatted = df.copy()
 
         for col in ["open", "high", "low", "close", "adj_close"]:
@@ -206,12 +212,14 @@ class DashboardTable:
         return formatted
 
     def format_signal_history(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Format the RV signal history table: normalise the DATE column to ISO strings."""
         formatted = df.copy()
         if "DATE" in formatted.columns:
             formatted["DATE"] = pd.to_datetime(formatted["DATE"]).dt.strftime("%Y-%m-%d")
         return formatted
 
     def format_screener(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Format the RV pair screener DataFrame: 2dp floats, integer STABILITY."""
         formatted = df.copy()
 
         for col in formatted.columns:

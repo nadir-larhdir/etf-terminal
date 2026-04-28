@@ -1,3 +1,5 @@
+"""Sync ETF price history into the database (full replace, gap-fill, incremental, or new-only)."""
+
 import argparse
 import logging
 
@@ -11,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the CLI argument parser for the sync_price_history script."""
     parser = argparse.ArgumentParser(description="Load ETF price history into the local database.")
     parser.add_argument(
         "--backend", choices=["local", "supabase"], default=None, help="Target data backend."

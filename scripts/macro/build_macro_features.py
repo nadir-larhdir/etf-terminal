@@ -1,3 +1,5 @@
+"""Build derived macro features from raw FRED series stored in the database."""
+
 import logging
 import argparse
 
@@ -10,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the CLI argument parser for the build_macro_features script."""
     parser = argparse.ArgumentParser(description="Build derived macro features.")
     parser.add_argument(
         "--full",
@@ -42,6 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    """Entry point: run incremental or full macro feature build and log per-feature row counts."""
     configure_logging()
     args = build_parser().parse_args()
     engine = get_engine(data_backend=args.backend, app_env=args.app_env)

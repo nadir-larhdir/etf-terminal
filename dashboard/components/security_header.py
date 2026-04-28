@@ -1,3 +1,5 @@
+"""Security description card and price-strip header for the Dashboard page."""
+
 import pandas as pd
 import streamlit as st
 
@@ -11,6 +13,7 @@ class SecurityHeader:
         self.info_panel = InfoPanel()
 
     def _format_aum(self, value) -> str:
+        """Format AUM as a compact string: '12.3B', '450.1M', '120.0K', etc."""
         try:
             numeric = float(value)
         except (TypeError, ValueError):
@@ -25,6 +28,7 @@ class SecurityHeader:
         return f"{numeric:,.0f}"
 
     def _format_expense_ratio(self, value) -> str:
+        """Format expense ratio as a percentage string, returning 'N/A' for non-numeric values."""
         try:
             numeric = float(value)
         except (TypeError, ValueError):
@@ -39,6 +43,7 @@ class SecurityHeader:
         color: str = "#1F271C",
         emphasis: str = "standard",
     ) -> str:
+        """Return the HTML for one summary-strip cell with label and value."""
         primary_class = " bb-summary-cell--primary" if emphasis == "primary" else ""
         value_class = " bb-summary-value--primary" if emphasis == "primary" else ""
         return (
@@ -54,6 +59,7 @@ class SecurityHeader:
         selected_security: str,
         metadata: dict | None,
     ) -> None:
+        """Render the ETF description info panel with name, description, and key attributes."""
         selected_matches = securities.loc[
             securities["ticker"].astype(str) == str(selected_security)
         ]
@@ -96,6 +102,7 @@ class SecurityHeader:
     def render_header_strip(
         self, hist: pd.DataFrame, selected_security: str, metadata: dict | None = None
     ) -> None:
+        """Render the Bloomberg-style summary strip: PX_LAST, CHG, volume, AUM, and expense ratio."""
         metadata = metadata or {}
         px_last = float(hist["close"].iloc[-1])
         prev_close = float(hist["close"].iloc[-2]) if len(hist) > 1 else px_last

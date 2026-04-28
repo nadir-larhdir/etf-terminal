@@ -1,21 +1,24 @@
+"""Streamlit application entry point: wires stores and services into the dashboard shell."""
+
 import streamlit as st
 
 from config import APP_ENV, DATA_BACKEND
+from db.connection import get_engine
 from dashboard.cache import app_cache_key, cached_active_securities
 from dashboard.pages import DashboardPage, HomePage, MacroPage, NewsPage
 from dashboard.perf import timed_block
 from dashboard.styles import apply_dashboard_theme
 from fixed_income.analytics import DurationModelSelector, FixedIncomeAnalyticsService
-from stores.macro import MacroFeatureStore, MacroStore
 from stores.analytics import AnalyticsSnapshotStore
+from stores.macro import MacroFeatureStore, MacroStore
 from stores.market import MetadataStore, PriceStore, SecurityStore
-from db.connection import get_engine
 
 NAVIGATION_VIEWS = ("Home", "Dashboard", "News", "Macro")
 
 
 @st.cache_resource(show_spinner=False)
 def get_cached_app_dependencies(data_backend: str, app_env: str):
+    """Build and cache all store/service instances for the dashboard session."""
     engine = get_engine(data_backend=data_backend, app_env=app_env)
     price_store = PriceStore(engine)
     macro_store = MacroStore(engine)
@@ -54,11 +57,12 @@ class DashboardApp:
         self.macro_store = macro_store
         self.macro_feature_store = macro_feature_store
         self.home_page = HomePage(price_store, macro_feature_store)
-        self.news_page = NewsPage(macro_feature_store)
+        self.news_page = NewsPage(macro_feature_store, price_store)
         self.dashboard_page = DashboardPage(price_store, metadata_store, analytics_service)
         self.macro_page = MacroPage(macro_feature_store)
 
-    def run(self):
+    def run(self) -> None:
+        """Apply theme, load securities, handle navigation, and delegate to the active page."""
         apply_dashboard_theme()
 
         cache_key = app_cache_key(self.security_store.engine)
@@ -94,6 +98,7 @@ class DashboardApp:
         )
 
     def _render_shell(self, securities) -> None:
+        """Render the brand bar and navigation strip at the top of every view."""
         st.markdown(
             """
             <div class="app-shell-brand">
@@ -106,6 +111,7 @@ class DashboardApp:
         self._render_navigation(securities)
 
     def _render_navigation(self, securities) -> None:
+        """Render primary/secondary nav buttons and update session state on selection."""
         nav_columns = st.columns([2.2, 0.9, 1.0, 0.9, 0.9, 2.2], vertical_alignment="center")
         for column, view_name in zip(nav_columns[1:5], NAVIGATION_VIEWS, strict=False):
             with column:
@@ -123,6 +129,7 @@ class DashboardApp:
                     st.rerun()
 
     def _render_tab_safe(self, tab_name: str, render_fn, *args) -> None:
+        """Call render_fn(*args) and surface any exception as a Streamlit error message."""
         try:
             render_fn(*args)
         except Exception as exc:

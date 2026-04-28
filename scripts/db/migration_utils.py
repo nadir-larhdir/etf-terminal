@@ -1,3 +1,5 @@
+"""Shared helpers for cross-backend database migration: copy, normalize, and prepare tables."""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -25,6 +27,7 @@ TIMESTAMP_COLUMNS = {
 
 
 def parse_local_env(raw_value: str, *, label: str) -> str:
+    """Validate and return a local environment name (prod or uat); raise SystemExit if invalid."""
     selected = raw_value.strip().lower()
     if selected not in ENV_DB_FILENAMES:
         raise SystemExit(
@@ -34,12 +37,14 @@ def parse_local_env(raw_value: str, *, label: str) -> str:
 
 
 def truncate_target_tables(engine) -> None:
+    """Delete all rows from every managed table in dependency-safe reverse order."""
     with engine.begin() as conn:
         for table_name in reversed(TABLE_COPY_ORDER):
             conn.execute(text(f"DELETE FROM {qualified_table(engine, table_name)}"))
 
 
 def normalize_frame_for_target(frame: pd.DataFrame, table_name: str) -> pd.DataFrame:
+    """Coerce date and timestamp columns for cross-backend compatibility."""
     normalized = frame.copy()
 
     for column in DATE_COLUMNS.get(table_name, []):
@@ -60,6 +65,7 @@ def normalize_frame_for_target(frame: pd.DataFrame, table_name: str) -> pd.DataF
 def copy_table(
     source_engine, target_engine, table_name: str, *, normalize_for_target: bool = False
 ) -> int:
+    """Append all rows from source table into the matching target table; return row count."""
     source_table = qualified_table(source_engine, table_name)
     with source_engine.connect() as source_conn:
         frame = pd.read_sql(text(f"SELECT * FROM {source_table}"), source_conn)
@@ -82,5 +88,6 @@ def copy_table(
 
 
 def prepare_target(engine) -> None:
+    """Ensure all tables exist on the target engine and purge any existing rows."""
     create_tables(engine)
     truncate_target_tables(engine)
