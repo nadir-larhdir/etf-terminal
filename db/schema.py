@@ -2,7 +2,8 @@
 
 from sqlalchemy import inspect, text
 
-from db.sql import qualified_table, schema_name as active_schema_name
+from db.sql import qualified_table
+from db.sql import schema_name as active_schema_name
 
 TABLE_DEFINITIONS = {
     "securities": """
@@ -119,8 +120,17 @@ TABLE_DEFINITIONS = {
 }
 
 EXPECTED_MACRO_DATA_COLUMNS = [
-    "series_id", "date", "value", "series_name", "category",
-    "sub_category", "frequency", "units", "source", "is_active", "last_updated_at",
+    "series_id",
+    "date",
+    "value",
+    "series_name",
+    "category",
+    "sub_category",
+    "frequency",
+    "units",
+    "source",
+    "is_active",
+    "last_updated_at",
 ]
 
 INDEX_DEFINITIONS = {
@@ -225,6 +235,7 @@ def ensure_macro_data_schema(conn) -> None:
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _add_missing_columns(conn, table_name: str, missing_columns: dict[str, str]) -> None:
     """ALTER TABLE to add any columns from missing_columns that are not yet present."""
     engine = conn.engine
@@ -237,10 +248,12 @@ def _add_missing_columns(conn, table_name: str, missing_columns: dict[str, str])
     existing = {row["name"] for row in inspector.get_columns(table_name, schema=schema)}
     for column_name, column_type in missing_columns.items():
         if column_name not in existing:
-            conn.execute(text(
-                f"ALTER TABLE {qualified_table(engine, table_name)} "
-                f"ADD COLUMN {column_name} {column_type}"
-            ))
+            conn.execute(
+                text(
+                    f"ALTER TABLE {qualified_table(engine, table_name)} "
+                    f"ADD COLUMN {column_name} {column_type}"
+                )
+            )
 
 
 def _ensure_schema(conn) -> None:

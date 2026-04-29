@@ -51,12 +51,18 @@ class MacroStore:
         """Delete all rows for the series and insert the provided frame."""
         with self.engine.begin() as conn:
             conn.execute(
-                text(f"DELETE FROM {qualified_table(self.engine, 'macro_data')} WHERE series_id = :series_id"),
+                text(
+                    f"DELETE FROM {qualified_table(self.engine, 'macro_data')} WHERE series_id = :series_id"
+                ),
                 {"series_id": series_id},
             )
             if not df.empty:
                 self._normalize_frame_for_write(df).to_sql(
-                    "macro_data", conn, if_exists="append", index=False, **pandas_to_sql_kwargs(self.engine)
+                    "macro_data",
+                    conn,
+                    if_exists="append",
+                    index=False,
+                    **pandas_to_sql_kwargs(self.engine),
                 )
 
     # ------------------------------------------------------------------

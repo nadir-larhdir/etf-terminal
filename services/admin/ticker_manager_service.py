@@ -9,10 +9,23 @@ from services.market.fmp_client import FMPClient
 
 # Keywords used to confirm that a new symbol is a fixed-income ETF.
 FIXED_INCOME_KEYWORDS = (
-    "bond", "treasury", "fixed income", "corporate", "credit",
-    "muni", "municipal", "mortgage", "mbs", "floating rate",
-    "ultra short", "short-term", "emerging markets bond",
-    "high yield", "investment grade", "tips", "inflation protected",
+    "bond",
+    "treasury",
+    "fixed income",
+    "corporate",
+    "credit",
+    "muni",
+    "municipal",
+    "mortgage",
+    "mbs",
+    "floating rate",
+    "ultra short",
+    "short-term",
+    "emerging markets bond",
+    "high yield",
+    "investment grade",
+    "tips",
+    "inflation protected",
 )
 
 
@@ -30,7 +43,9 @@ class TickerProfile:
 class TickerManagerService:
     """Validate, add, and remove ETFs across the securities, metadata, and price tables."""
 
-    def __init__(self, security_store, price_store, metadata_store, input_store, market_data_service):
+    def __init__(
+        self, security_store, price_store, metadata_store, input_store, market_data_service
+    ):
         self.security_store = security_store
         self.price_store = price_store
         self.metadata_store = metadata_store
@@ -49,16 +64,20 @@ class TickerManagerService:
         info = self.fmp_client.get_security_profile(normalized)
 
         if not info:
-            raise ValueError("Ticker not found or no metadata returned from Financial Modeling Prep.")
+            raise ValueError(
+                "Ticker not found or no metadata returned from Financial Modeling Prep."
+            )
 
         quote_type = str(info.get("type") or info.get("quoteType") or "").upper()
         long_name = info.get("companyName") or info.get("name") or normalized
-        search_blob = self._search_blob([
-            long_name,
-            info.get("category") or "",
-            info.get("description") or "",
-            info.get("fundFamily") or "",
-        ])
+        search_blob = self._search_blob(
+            [
+                long_name,
+                info.get("category") or "",
+                info.get("description") or "",
+                info.get("fundFamily") or "",
+            ]
+        )
         matched_keywords = [kw for kw in FIXED_INCOME_KEYWORDS if kw in search_blob]
 
         if quote_type != "ETF" or not matched_keywords:
@@ -67,7 +86,9 @@ class TickerManagerService:
             )
 
         metadata_row = build_metadata_row(normalized)
-        asset_class = normalize_asset_class(asset_class_override or self._derive_asset_class(metadata_row))
+        asset_class = normalize_asset_class(
+            asset_class_override or self._derive_asset_class(metadata_row)
+        )
         metadata_row["ticker"] = normalized
 
         return TickerProfile(
@@ -75,18 +96,33 @@ class TickerManagerService:
             name=metadata_row.get("long_name") or long_name,
             asset_class=asset_class,
             metadata_row=metadata_row,
-            diagnostics={"quote_type": quote_type, "category": info.get("category") or "", "matched_keywords": matched_keywords},
+            diagnostics={
+                "quote_type": quote_type,
+                "category": info.get("category") or "",
+                "matched_keywords": matched_keywords,
+            },
         )
 
-    def add_ticker(self, ticker: str, asset_class_override: str | None = None, period: str = "1y") -> TickerProfile:
+    def add_ticker(
+        self, ticker: str, asset_class_override: str | None = None, period: str = "1y"
+    ) -> TickerProfile:
         """Validate and persist a new ticker: securities row, metadata, and price history."""
         profile = self.inspect_ticker(ticker, asset_class_override=asset_class_override)
         self.security_store.upsert_securities(
-            [{"ticker": profile.ticker, "name": profile.name, "asset_class": profile.asset_class, "active": 1}],
+            [
+                {
+                    "ticker": profile.ticker,
+                    "name": profile.name,
+                    "asset_class": profile.asset_class,
+                    "active": 1,
+                }
+            ],
             update_existing=True,
         )
         self.metadata_store.upsert_metadata([profile.metadata_row])
-        self.market_data_service.sync_price_history([profile.ticker], period=period, replace_existing=False)
+        self.market_data_service.sync_price_history(
+            [profile.ticker], period=period, replace_existing=False
+        )
         return profile
 
     def delete_ticker(self, ticker: str) -> None:
@@ -107,19 +143,27 @@ class TickerManagerService:
 
     def _derive_asset_class(self, metadata_row: dict) -> str:
         """Infer an asset class label from metadata text fields using keyword matching."""
-        blob = self._search_blob([
-            metadata_row.get("category") or "",
-            metadata_row.get("benchmark_index") or "",
-            metadata_row.get("long_name") or "",
-            metadata_row.get("description") or "",
-        ])
+        blob = self._search_blob(
+            [
+                metadata_row.get("category") or "",
+                metadata_row.get("benchmark_index") or "",
+                metadata_row.get("long_name") or "",
+                metadata_row.get("description") or "",
+            ]
+        )
         _RULES = (
-            (("treasury",), lambda b: (
-                "UST Short" if any(k in b for k in ("1-3", "short")) else
-                "UST Belly" if any(k in b for k in ("3-7", "7-10", "intermediate")) else
-                "UST Long" if any(k in b for k in ("20+", "long")) else
-                "UST Broad"
-            )),
+            (
+                ("treasury",),
+                lambda b: (
+                    "UST Short"
+                    if any(k in b for k in ("1-3", "short"))
+                    else (
+                        "UST Belly"
+                        if any(k in b for k in ("3-7", "7-10", "intermediate"))
+                        else "UST Long" if any(k in b for k in ("20+", "long")) else "UST Broad"
+                    )
+                ),
+            ),
             (("high yield",), lambda _: "HY Credit"),
             (("investment grade", "corporate", "credit"), lambda _: "IG Credit"),
             (("mortgage", "mbs"), lambda _: "MBS"),

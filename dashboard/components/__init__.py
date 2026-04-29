@@ -6,8 +6,8 @@ from dashboard.components.charts import (
     render_volume_chart,
     render_zscore_chart,
 )
-from dashboard.components.info_panel import InfoPanel
 from dashboard.components.controls import DashboardControls
+from dashboard.components.info_panel import InfoPanel
 from dashboard.components.security_header import SecurityHeader
 from dashboard.styles.table_styles import DashboardTable
 

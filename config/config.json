@@ -285,8 +285,12 @@
       "url": "https://news.google.com/rss/search?q=treasury+yields+OR+bond+market+when:7d&hl=en-US&gl=US&ceid=US:en"
     },
     "credit": {
-      "label": "Credit And ETFs",
-      "url": "https://news.google.com/rss/search?q=corporate+bond+spreads+OR+high+yield+ETF+OR+investment+grade+ETF+when:7d&hl=en-US&gl=US&ceid=US:en"
+      "label": "Credit",
+      "url": "https://news.google.com/rss/search?q=credit+spreads+OR+corporate+bond+spreads+OR+CDX+OR+CDS+OR+spread+compression+OR+spread+widening+OR+spread+tightening+when:7d&hl=en-US&gl=US&ceid=US:en"
+    },
+    "etfs": {
+      "label": "Fixed Income ETF",
+      "url": "https://news.google.com/rss/search?q=fixed+income+ETF+OR+bond+ETF+OR+high+yield+ETF+OR+investment+grade+ETF+OR+treasury+ETF+when:7d&hl=en-US&gl=US&ceid=US:en"
     },
     "macro": {
       "label": "Macro",

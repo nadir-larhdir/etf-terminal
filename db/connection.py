@@ -3,7 +3,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool, QueuePool
 
-from config import APP_ENV, DATA_BACKEND, DB_PATH, DB_SCHEMA, DATABASE_URL
+from config import APP_ENV, DATA_BACKEND, DATABASE_URL, DB_PATH, DB_SCHEMA
 
 
 def _sqlite_url(app_env: str) -> str:

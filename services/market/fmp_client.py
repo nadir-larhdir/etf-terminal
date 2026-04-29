@@ -9,8 +9,15 @@ import requests
 
 # Calendar-day lookback per label — padded to account for weekends and holidays.
 _PERIOD_DAY_MAP = {
-    "5d": 7, "10d": 14, "30d": 45, "3m": 100, "6m": 190,
-    "1y": 370, "2y": 740, "5y": 1850, "10y": 3700,
+    "5d": 7,
+    "10d": 14,
+    "30d": 45,
+    "3m": 100,
+    "6m": 190,
+    "1y": 370,
+    "2y": 740,
+    "5y": 1850,
+    "10y": 3700,
 }
 
 _OHLCV_COLUMNS = ["open", "high", "low", "close", "adj_close", "volume"]
@@ -49,7 +56,9 @@ class FMPClient:
         frame = pd.DataFrame(rows).rename(columns={"symbol": "ticker", "adjClose": "adj_close"})
         for col in _OHLCV_COLUMNS:
             if col not in frame.columns:
-                frame[col] = frame["close"] if col == "adj_close" and "close" in frame.columns else 0.0
+                frame[col] = (
+                    frame["close"] if col == "adj_close" and "close" in frame.columns else 0.0
+                )
 
         frame["ticker"] = symbol.upper()
         frame["date"] = pd.to_datetime(frame["date"]).dt.strftime("%Y-%m-%d")

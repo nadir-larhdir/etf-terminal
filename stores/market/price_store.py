@@ -41,16 +41,26 @@ class PriceStore:
         """Delete all existing rows for ticker and insert the provided frame."""
         with self.engine.begin() as conn:
             conn.execute(
-                text(f"DELETE FROM {qualified_table(self.engine, 'price_history')} WHERE ticker = :ticker"),
+                text(
+                    f"DELETE FROM {qualified_table(self.engine, 'price_history')} WHERE ticker = :ticker"
+                ),
                 {"ticker": ticker},
             )
-            df.to_sql("price_history", conn, if_exists="append", index=False, **pandas_to_sql_kwargs(self.engine))
+            df.to_sql(
+                "price_history",
+                conn,
+                if_exists="append",
+                index=False,
+                **pandas_to_sql_kwargs(self.engine),
+            )
 
     def delete_ticker(self, ticker: str) -> None:
         """Remove all price rows for the given ticker."""
         with self.engine.begin() as conn:
             conn.execute(
-                text(f"DELETE FROM {qualified_table(self.engine, 'price_history')} WHERE ticker = :ticker"),
+                text(
+                    f"DELETE FROM {qualified_table(self.engine, 'price_history')} WHERE ticker = :ticker"
+                ),
                 {"ticker": ticker},
             )
 
@@ -132,7 +142,9 @@ class PriceStore:
         self, tickers: tuple[str, ...], start_date=None, end_date=None
     ) -> pd.DataFrame:
         if not tickers:
-            return pd.DataFrame(columns=["ticker", "date", "open", "high", "low", "close", "adj_close", "volume"])
+            return pd.DataFrame(
+                columns=["ticker", "date", "open", "high", "low", "close", "adj_close", "volume"]
+            )
         placeholders, params = sql_in_clause_params("ticker", tickers)
         query = f"""
         SELECT ticker, date, open, high, low, close, adj_close, volume

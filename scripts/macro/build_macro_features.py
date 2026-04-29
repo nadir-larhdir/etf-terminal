@@ -1,12 +1,12 @@
 """Build derived macro features from raw FRED series stored in the database."""
 
-import logging
 import argparse
+import logging
 
 from db.connection import get_engine
-from stores.macro import MacroFeatureStore, MacroStore
 from scripts.logging_utils import configure_logging
 from services.macro import MacroFeatureService
+from stores.macro import MacroFeatureStore, MacroStore
 
 logger = logging.getLogger(__name__)
 

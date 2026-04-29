@@ -3,8 +3,8 @@
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from scipy.optimize import minimize
 import streamlit as st
+from scipy.optimize import minimize
 
 from dashboard.cache import app_cache_key, cached_feature_matrix
 from dashboard.components import DashboardControls, InfoPanel
@@ -450,7 +450,7 @@ class MacroPage:
         chart_rows = [CHART_CONFIG[i : i + 5] for i in range(0, len(CHART_CONFIG), 5)]
         for row in chart_rows:
             columns = st.columns(len(row))
-            for column, (title, feature_names) in zip(columns, row):
+            for column, (title, feature_names) in zip(columns, row, strict=True):
                 with column:
                     self._render_chart(matrix, title, feature_names, start_date, end_date)
             st.markdown("<div class='bb-metric-group-spacer'></div>", unsafe_allow_html=True)
@@ -476,7 +476,7 @@ class MacroPage:
             ("Growth Regime", "growth_regime", "#4E7B52"),
         ]
         columns = st.columns(len(cards))
-        for column, (title, key, accent) in zip(columns, cards):
+        for column, (title, key, accent) in zip(columns, cards, strict=True):
             with column:
                 headline, body = regimes[key]
                 st.markdown(
@@ -510,14 +510,12 @@ class MacroPage:
                 footer_html = ""
 
             cards.append(
-                (
-                    "<div class='bb-macro-card'>"
-                    f"<div class='bb-macro-card-label'>{label.upper()}</div>"
-                    f"<div class='bb-macro-card-value'>{self._format_feature_value(feature_name, value)}</div>"
-                    f"{self._delta_html('Latest change', delta_text, delta_value)}"
-                    f"{footer_html}"
-                    "</div>"
-                )
+                "<div class='bb-macro-card'>"
+                f"<div class='bb-macro-card-label'>{label.upper()}</div>"
+                f"<div class='bb-macro-card-value'>{self._format_feature_value(feature_name, value)}</div>"
+                f"{self._delta_html('Latest change', delta_text, delta_value)}"
+                f"{footer_html}"
+                "</div>"
             )
 
         st.markdown(

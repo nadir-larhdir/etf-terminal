@@ -2,7 +2,6 @@
 
 import argparse
 import logging
-
 from datetime import datetime
 
 from config import DEFAULT_TICKERS, FMP_API_KEY, FMP_BASE_URL, normalize_asset_class
@@ -210,19 +209,27 @@ def get_etf_description(ticker: str) -> dict:
 
 
 _ASSET_CLASS_RULES: list[tuple[tuple[str, ...], str | dict]] = [
-    (("treasury",), {
-        "1-3": "UST Short", "short": "UST Short",
-        "3-7": "UST Belly", "7-10": "UST Belly", "intermediate": "UST Belly",
-        "20+": "UST Long", "long": "UST Long", "extended duration": "UST Long",
-        "_default": "UST Broad",
-    }),
-    (("high yield",),           "HY Credit"),
+    (
+        ("treasury",),
+        {
+            "1-3": "UST Short",
+            "short": "UST Short",
+            "3-7": "UST Belly",
+            "7-10": "UST Belly",
+            "intermediate": "UST Belly",
+            "20+": "UST Long",
+            "long": "UST Long",
+            "extended duration": "UST Long",
+            "_default": "UST Broad",
+        },
+    ),
+    (("high yield",), "HY Credit"),
     (("investment grade", "corporate", "credit"), "IG Credit"),
-    (("mortgage", "mbs"),       "MBS"),
+    (("mortgage", "mbs"), "MBS"),
     (("municipal", "muni", "tax-exempt"), "Municipal"),
-    (("emerging markets",),     "EM Debt"),
-    (("tips", "inflation"),     "Inflation-Linked"),
-    (("floating rate",),        "Floating Rate"),
+    (("emerging markets",), "EM Debt"),
+    (("tips", "inflation"), "Inflation-Linked"),
+    (("floating rate",), "Floating Rate"),
     (("aggregate", "core", "total bond"), "Core Bond"),
 ]
 
@@ -244,11 +251,11 @@ def derive_asset_class(search_values: list[str]) -> str:
 
 _DURATION_BUCKET_RULES: list[tuple[tuple[str, ...], str]] = [
     (("0-5", "1-3", "ultra short", "short-term"), "Short Duration"),
-    (("3-7", "7-10", "intermediate"),              "Intermediate Duration"),
-    (("20+", "long", "extended duration"),          "Long Duration"),
-    (("floating rate",),                            "Floating Rate"),
-    (("mortgage", "mbs"),                           "Securitized"),
-    (("tips", "inflation"),                         "Inflation-Linked"),
+    (("3-7", "7-10", "intermediate"), "Intermediate Duration"),
+    (("20+", "long", "extended duration"), "Long Duration"),
+    (("floating rate",), "Floating Rate"),
+    (("mortgage", "mbs"), "Securitized"),
+    (("tips", "inflation"), "Inflation-Linked"),
 ]
 
 

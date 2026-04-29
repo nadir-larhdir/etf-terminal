@@ -3,11 +3,11 @@
 import streamlit as st
 
 from config import APP_ENV, DATA_BACKEND
-from db.connection import get_engine
 from dashboard.cache import app_cache_key, cached_active_securities
 from dashboard.pages import DashboardPage, HomePage, MacroPage, NewsPage
 from dashboard.perf import timed_block
 from dashboard.styles import apply_dashboard_theme
+from db.connection import get_engine
 from fixed_income.analytics import DurationModelSelector, FixedIncomeAnalyticsService
 from stores.analytics import AnalyticsSnapshotStore
 from stores.macro import MacroFeatureStore, MacroStore

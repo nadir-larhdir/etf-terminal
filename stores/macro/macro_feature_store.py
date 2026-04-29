@@ -41,9 +41,11 @@ class MacroFeatureStore:
         chunk_size = self._write_chunk_size(len(records))
         with self.engine.begin() as conn:
             for start in range(0, len(records), chunk_size):
-                conn.execute(text(statement), records[start: start + chunk_size])
+                conn.execute(text(statement), records[start : start + chunk_size])
 
-    def delete_features(self, *, start_date: str | None = None, end_date: str | None = None) -> None:
+    def delete_features(
+        self, *, start_date: str | None = None, end_date: str | None = None
+    ) -> None:
         """Delete feature rows optionally bounded by a date range."""
         query = f"DELETE FROM {qualified_table(self.engine, 'macro_features')} WHERE 1 = 1"
         params: dict = {}
@@ -87,7 +89,9 @@ class MacroFeatureStore:
 
     def get_latest_feature_date(self) -> str | None:
         """Return the most recent date present in macro_features, or None if empty."""
-        query = f"SELECT MAX(date) AS latest_date FROM {qualified_table(self.engine, 'macro_features')}"
+        query = (
+            f"SELECT MAX(date) AS latest_date FROM {qualified_table(self.engine, 'macro_features')}"
+        )
         with self.engine.connect() as conn:
             df = pd.read_sql(text(query), conn)
         if df.empty or pd.isna(df.iloc[0]["latest_date"]):
@@ -140,4 +144,8 @@ class MacroFeatureStore:
         """Return a chunk size appropriate for the backend to avoid long single upserts."""
         if record_count <= self.DEFAULT_CHUNK_SIZE:
             return record_count
-        return self.SUPABASE_CHUNK_SIZE if self.engine.dialect.name == "postgresql" else self.DEFAULT_CHUNK_SIZE
+        return (
+            self.SUPABASE_CHUNK_SIZE
+            if self.engine.dialect.name == "postgresql"
+            else self.DEFAULT_CHUNK_SIZE
+        )

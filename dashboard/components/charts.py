@@ -1,9 +1,9 @@
 """Plotly chart rendering functions for price, volume, and RV analysis panels."""
 
 import pandas as pd
-from pandas import DatetimeIndex
 import plotly.graph_objects as go
 import streamlit as st
+from pandas import DatetimeIndex
 
 from dashboard.components.controls import WINDOW_LOOKBACK_MAP
 from dashboard.mobile import PLOTLY_CHART_CONFIG, responsive_chart_layout

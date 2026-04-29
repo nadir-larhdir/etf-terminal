@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import pytest
 import pandas as pd
+import pytest
 
 from services.macro.macro_feature_service import MacroFeatureService
 

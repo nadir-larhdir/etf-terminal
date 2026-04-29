@@ -26,7 +26,11 @@ class SecurityStore:
         with self.engine.begin() as conn:
             conn.execute(text(f"DELETE FROM {qualified_table(self.engine, 'securities')}"))
             pd.DataFrame(rows).to_sql(
-                "securities", conn, if_exists="append", index=False, **pandas_to_sql_kwargs(self.engine)
+                "securities",
+                conn,
+                if_exists="append",
+                index=False,
+                **pandas_to_sql_kwargs(self.engine),
             )
 
     def upsert_securities(self, rows: list[dict], update_existing: bool = True) -> None:
@@ -45,7 +49,12 @@ class SecurityStore:
         ON CONFLICT(ticker) {on_conflict}
         """
         payload = [
-            {"ticker": r["ticker"], "name": r["name"], "asset_class": r["asset_class"], "active": r.get("active", 1)}
+            {
+                "ticker": r["ticker"],
+                "name": r["name"],
+                "asset_class": r["asset_class"],
+                "active": r.get("active", 1),
+            }
             for r in rows
         ]
         with self.engine.begin() as conn:
@@ -56,7 +65,9 @@ class SecurityStore:
         self._ensure_schema()
         with self.engine.begin() as conn:
             conn.execute(
-                text(f"DELETE FROM {qualified_table(self.engine, 'securities')} WHERE ticker = :ticker"),
+                text(
+                    f"DELETE FROM {qualified_table(self.engine, 'securities')} WHERE ticker = :ticker"
+                ),
                 {"ticker": ticker},
             )
 

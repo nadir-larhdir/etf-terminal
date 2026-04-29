@@ -14,9 +14,22 @@ class MetadataStore:
     """Persist and retrieve security metadata (issuer, duration, AUM, etc.)."""
 
     BASE_COLUMNS = [
-        "ticker", "conid", "long_name", "description", "issuer", "duration",
-        "benchmark_index", "category", "duration_bucket", "currency", "exchange",
-        "expense_ratio", "total_assets", "quote_type", "source", "updated_at",
+        "ticker",
+        "conid",
+        "long_name",
+        "description",
+        "issuer",
+        "duration",
+        "benchmark_index",
+        "category",
+        "duration_bucket",
+        "currency",
+        "exchange",
+        "expense_ratio",
+        "total_assets",
+        "quote_type",
+        "source",
+        "updated_at",
     ]
 
     def __init__(self, engine):
@@ -64,7 +77,9 @@ class MetadataStore:
         """Remove the metadata row for the given ticker."""
         with self.engine.begin() as conn:
             conn.execute(
-                text(f"DELETE FROM {qualified_table(self.engine, 'security_metadata')} WHERE ticker = :ticker"),
+                text(
+                    f"DELETE FROM {qualified_table(self.engine, 'security_metadata')} WHERE ticker = :ticker"
+                ),
                 {"ticker": ticker},
             )
 
@@ -87,7 +102,8 @@ class MetadataStore:
     def _existing_tickers(self) -> set[str]:
         with self.engine.connect() as conn:
             df = pd.read_sql(
-                text(f"SELECT ticker FROM {qualified_table(self.engine, 'security_metadata')}"), conn
+                text(f"SELECT ticker FROM {qualified_table(self.engine, 'security_metadata')}"),
+                conn,
             )
         return set(df["ticker"].tolist()) if not df.empty else set()
 

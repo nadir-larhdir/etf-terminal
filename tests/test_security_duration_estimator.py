@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import scripts.market.enrich_metadata_from_fmp as enrich_metadata
-
 from services.market.duration_estimator import SecurityDurationEstimator, issuer_from_long_name
 
 
