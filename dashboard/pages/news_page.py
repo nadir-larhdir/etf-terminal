@@ -442,19 +442,36 @@ def _relative_time(published_at: str | None) -> str:
         return ""
 
 
+def _published_timestamp(item: dict) -> float:
+    """Return a sortable timestamp for a news item, with undated items last."""
+    published_at = item.get("published_at")
+    if not published_at:
+        return float("-inf")
+    try:
+        dt = datetime.fromisoformat(str(published_at))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt.timestamp()
+    except (ValueError, TypeError, OSError):
+        return float("-inf")
+
+
 def _dedupe_items(feed_data: dict[str, dict]) -> list[dict]:
     """Flatten all feed buckets into a single deduplicated list, newest first."""
-    seen: set[str] = set()
-    items: list[dict] = []
+    items_by_key: dict[str, dict] = {}
     for bucket in ("rates", "credit", "etfs", "macro"):
         for item in feed_data.get(bucket, {}).get("items", []):
             key = re.sub(r"\s+", " ", item.get("title", "")).strip().lower()
-            if key in seen:
+            if not key:
                 continue
-            seen.add(key)
             bucket_name = item.get("bucket") or classify_bucket(item.get("title", ""))
-            items.append({**item, "bucket": bucket_name})
-    return items
+            normalized = {**item, "bucket": bucket_name}
+            existing = items_by_key.get(key)
+            if existing is None or _published_timestamp(normalized) > _published_timestamp(
+                existing
+            ):
+                items_by_key[key] = normalized
+    return sorted(items_by_key.values(), key=_published_timestamp, reverse=True)
 
 
 def _compute_summary_counts(items: list[dict]) -> dict[str, int]:
