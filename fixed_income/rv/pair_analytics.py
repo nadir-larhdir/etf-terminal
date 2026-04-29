@@ -9,7 +9,6 @@ from fixed_income.rv.hedge_models import (
     beta_adjusted_zscore,
     beta_stability,
     latest_beta,
-    rolling_beta,
 )
 from fixed_income.rv.spread_definition import RVAnalyticsSnapshot, SpreadDefinition
 

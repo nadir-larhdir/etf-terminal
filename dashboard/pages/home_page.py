@@ -521,7 +521,6 @@ class HomePage:
 
     def _pulse_card_html(self, volume_leaders: list[str]) -> str:
         """Build the HTML for the Market Pulse side card with volume leaders and flow-condition rows."""
-        items = volume_leaders or ["LQD (1.18x)", "TLT (1.07x)", "HYG (1.04x)", "MUB (0.96x)"]
         pulse_rows = [
             ("Rates", "Belly leadership", "WATCH", "elevated"),
             ("Credit", "IG vs HY beta", "CONFIRM", "mixed"),
@@ -550,7 +549,7 @@ class HomePage:
 
     def _context_cards_html(self, regime: dict[str, str | float]) -> str:
         """Build the HTML for the three context cards: project overview, morning setup, and news layer."""
-        return dedent(f"""
+        return dedent("""
             <div class="home-context-grid">
                 <div class="home-context-card">
                     <div class="home-panel-kicker">Project Overview</div>

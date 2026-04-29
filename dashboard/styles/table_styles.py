@@ -1,6 +1,7 @@
 """Styled HTML table renderer for the ETF Terminal dashboard."""
 
 import uuid
+
 import pandas as pd
 import streamlit as st
 

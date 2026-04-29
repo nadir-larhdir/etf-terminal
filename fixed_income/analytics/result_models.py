@@ -132,7 +132,7 @@ class SecurityAnalyticsSnapshot:
         }
 
     @classmethod
-    def from_record(cls, row: dict[str, Any]) -> "SecurityAnalyticsSnapshot":
+    def from_record(cls, row: dict[str, Any]) -> SecurityAnalyticsSnapshot:
         return cls(
             ticker=str(row["symbol"]),
             asset_bucket=str(row.get("asset_bucket") or "Unknown"),

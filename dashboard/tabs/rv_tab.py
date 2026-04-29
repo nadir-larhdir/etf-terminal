@@ -200,8 +200,6 @@ class RVTab:
         ratio_series = ratio(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
         ratio_series = ratio_series.loc[rv_merged.index]
         rv_merged["ratio"] = ratio_series
-        ratio_mean = float(rv_merged["ratio"].mean())
-        ratio_std = float(rv_merged["ratio"].std(ddof=0)) if len(rv_merged) > 1 else 0.0
 
         zscore_series = ratio_zscore(
             security, compare_obj, start_date=rv_start_date, end_date=rv_end_date
@@ -209,7 +207,6 @@ class RVTab:
         zscore_series = zscore_series.loc[rv_merged.index]
         rv_merged["zscore"] = zscore_series if not zscore_series.empty else 0.0
 
-        current_ratio = float(rv_merged["ratio"].iloc[-1])
         current_z = float(rv_merged["zscore"].iloc[-1])
         abs_dev_pct = ratio_deviation_pct(
             security, compare_obj, start_date=rv_start_date, end_date=rv_end_date
@@ -249,7 +246,6 @@ class RVTab:
         )
         vol_adj_score = current_z / realized_vol if realized_vol != 0 else 0.0
 
-        lag1_autocorr = float(rv_merged["ratio"].autocorr(lag=1)) if len(rv_merged) > 3 else 0.0
         half_life = half_life_proxy(
             security, compare_obj, start_date=rv_start_date, end_date=rv_end_date
         )

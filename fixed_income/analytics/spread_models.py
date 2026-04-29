@@ -34,11 +34,17 @@ def regress_credit_benchmark_duration(
     """
     minimum = max(20, lookback_days // 3)
     if len(frame) < minimum:
-        return empty_model("Not enough observations for benchmark and spread regression.", len(frame), lookback_days)
+        return empty_model(
+            "Not enough observations for benchmark and spread regression.",
+            len(frame),
+            lookback_days,
+        )
 
     filtered = filter_outliers(frame)
     if len(filtered) < minimum:
-        return empty_model("Not enough observations after outlier filtering.", len(filtered), len(filtered))
+        return empty_model(
+            "Not enough observations after outlier filtering.", len(filtered), len(filtered)
+        )
 
     y = filtered["etf_return"].to_numpy(dtype=float)
     x = filtered.loc[:, ["benchmark_return", "spread_change_bps"]].to_numpy(dtype=float)
@@ -67,11 +73,17 @@ def regress_credit_rate_tenor_duration(
     """
     minimum = max(20, lookback_days // 3)
     if len(frame) < minimum:
-        return empty_model("Not enough observations for rate-tenor and spread regression.", len(frame), lookback_days)
+        return empty_model(
+            "Not enough observations for rate-tenor and spread regression.",
+            len(frame),
+            lookback_days,
+        )
 
     filtered = filter_outliers(frame)
     if len(filtered) < minimum:
-        return empty_model("Not enough observations after outlier filtering.", len(filtered), len(filtered))
+        return empty_model(
+            "Not enough observations after outlier filtering.", len(filtered), len(filtered)
+        )
 
     y = filtered["etf_return"].to_numpy(dtype=float)
     x = filtered.loc[:, [rate_series_id, "spread_change_bps"]].to_numpy(dtype=float)

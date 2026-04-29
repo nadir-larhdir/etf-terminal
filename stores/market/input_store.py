@@ -25,20 +25,32 @@ class InputStore:
         desk_note: str,
     ) -> None:
         """Append a single desk-input row for the given ticker and date."""
-        df = pd.DataFrame([{
-            "ticker": ticker,
-            "date": date,
-            "flow_usd_mm": flow_usd_mm,
-            "premium_discount_pct": premium_discount_pct,
-            "desk_note": desk_note,
-            "updated_at": datetime.utcnow().isoformat(),
-        }])
-        df.to_sql("security_inputs", self.engine, if_exists="append", index=False, **pandas_to_sql_kwargs(self.engine))
+        df = pd.DataFrame(
+            [
+                {
+                    "ticker": ticker,
+                    "date": date,
+                    "flow_usd_mm": flow_usd_mm,
+                    "premium_discount_pct": premium_discount_pct,
+                    "desk_note": desk_note,
+                    "updated_at": datetime.utcnow().isoformat(),
+                }
+            ]
+        )
+        df.to_sql(
+            "security_inputs",
+            self.engine,
+            if_exists="append",
+            index=False,
+            **pandas_to_sql_kwargs(self.engine),
+        )
 
     def delete_ticker(self, ticker: str) -> None:
         """Remove all desk-input rows for the given ticker."""
         with self.engine.begin() as conn:
             conn.execute(
-                text(f"DELETE FROM {qualified_table(self.engine, 'security_inputs')} WHERE ticker = :ticker"),
+                text(
+                    f"DELETE FROM {qualified_table(self.engine, 'security_inputs')} WHERE ticker = :ticker"
+                ),
                 {"ticker": ticker},
             )

@@ -1,6 +1,7 @@
 """Analytics tab: duration, DV01, spread beta, volume bars, and current-read narrative panel."""
 
 import logging
+
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -308,18 +309,11 @@ class AnalyticsTab:
         bottom_border = f"border-bottom:2px solid {border_color};" if show_bottom_border else ""
         st.markdown(
             (
-                "<div class='bb-highlight-metric' style='padding:0.25rem 0 0.85rem 0;{bottom_border}min-height:7.4rem;'>"
-                "<div class='bb-highlight-metric-label' style='font-size:0.68rem;letter-spacing:0.8px;text-transform:uppercase;color:#707A68;font-weight:600;'>{label}</div>"
-                "<div class='bb-highlight-metric-value' style='color:{color};font-size:3.35rem;font-weight:800;line-height:1.02;margin-top:0.18rem;'>{value}</div>"
-                "{footer_block}"
+                f"<div class='bb-highlight-metric' style='padding:0.25rem 0 0.85rem 0;{bottom_border}min-height:7.4rem;'>"
+                f"<div class='bb-highlight-metric-label' style='font-size:0.68rem;letter-spacing:0.8px;text-transform:uppercase;color:#707A68;font-weight:600;'>{label}</div>"
+                f"<div class='bb-highlight-metric-value' style='color:{color};font-size:3.35rem;font-weight:800;line-height:1.02;margin-top:0.18rem;'>{value}</div>"
+                f"{footer_block}"
                 "</div>"
-            ).format(
-                label=label,
-                value=value,
-                color=color,
-                border_color=border_color,
-                footer_block=footer_block,
-                bottom_border=bottom_border,
             ),
             unsafe_allow_html=True,
         )

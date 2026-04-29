@@ -38,7 +38,10 @@ def classify_bucket(security) -> str:
         (("municipal", "muni"), "Muni"),
         (("high yield", "junk"), "High Yield"),
         (("investment grade", "corporate bond", "credit"), "Investment Grade Credit"),
-        (("cash", "ultra short", "1-3 month", "1-3 year", "short treasury"), "Short Duration / Cash-like"),
+        (
+            ("cash", "ultra short", "1-3 month", "1-3 year", "short treasury"),
+            "Short Duration / Cash-like",
+        ),
         (("treasury",), "Treasury"),
     )
     for keywords, bucket in _KEYWORD_MAP:

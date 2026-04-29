@@ -3,6 +3,7 @@ from pathlib import Path
 
 import streamlit as st
 from PIL import Image
+
 from dashboard.dashboard_app import run_app
 
 APP_ICON = Path(__file__).parent / "dashboard" / "assets" / "favicon.png"

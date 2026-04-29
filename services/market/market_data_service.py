@@ -75,11 +75,15 @@ class MarketDataService:
 
         # Fetch a single date window covering all existing tickers at once.
         start_dates = {
-            t: (pd.to_datetime(latest_dates[t]).date() - timedelta(days=max(overlap_days, 0))).isoformat()
+            t: (
+                pd.to_datetime(latest_dates[t]).date() - timedelta(days=max(overlap_days, 0))
+            ).isoformat()
             for t in existing_tickers
         }
         end_date = (today + timedelta(days=1)).isoformat()
-        raw = self._fetch_history(tickers=existing_tickers, start=min(start_dates.values()), end=end_date)
+        raw = self._fetch_history(
+            tickers=existing_tickers, start=min(start_dates.values()), end=end_date
+        )
 
         for ticker in existing_tickers:
             frame = self._build_price_frame(raw, ticker)
@@ -108,7 +112,13 @@ class MarketDataService:
         frames: list[pd.DataFrame] = []
         with ThreadPoolExecutor(max_workers=min(8, len(tickers))) as executor:
             futures = {
-                executor.submit(self.fmp_client.get_historical_price_eod_full, t, period=period, start=start, end=end): t
+                executor.submit(
+                    self.fmp_client.get_historical_price_eod_full,
+                    t,
+                    period=period,
+                    start=start,
+                    end=end,
+                ): t
                 for t in tickers
             }
             for future in as_completed(futures):
@@ -116,7 +126,11 @@ class MarketDataService:
                 if not frame.empty:
                     frames.append(frame)
 
-        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=_EMPTY_PRICE_COLUMNS)
+        return (
+            pd.concat(frames, ignore_index=True)
+            if frames
+            else pd.DataFrame(columns=_EMPTY_PRICE_COLUMNS)
+        )
 
     def _build_price_frame(self, raw: pd.DataFrame, ticker: str) -> pd.DataFrame:
         """Slice the combined raw frame for one ticker and stamp source/updated_at."""
@@ -130,7 +144,9 @@ class MarketDataService:
         frame["updated_at"] = datetime.utcnow().isoformat()
         return frame
 
-    def _persist_price_frame(self, ticker: str, frame: pd.DataFrame, *, replace_existing: bool) -> bool:
+    def _persist_price_frame(
+        self, ticker: str, frame: pd.DataFrame, *, replace_existing: bool
+    ) -> bool:
         """Write a price frame to the store; returns False when the frame is empty."""
         if frame.empty:
             return False
