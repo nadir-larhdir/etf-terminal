@@ -75,3 +75,43 @@ def test_build_metadata_row_sets_issuer_from_long_name_and_duration(monkeypatch)
 
     assert row["issuer"] == "iShares"
     assert row["duration"] == 1.9
+
+
+def test_build_metadata_row_uses_internal_category_overrides(monkeypatch) -> None:
+    monkeypatch.setattr(
+        enrich_metadata,
+        "get_etf_description",
+        lambda ticker: {
+            "ticker": ticker,
+            "long_name": f"{ticker} Fixed Income ETF",
+            "description": "Fixed income ETF.",
+            "category": "Municipal",
+            "benchmark_index": None,
+            "issuer": "Issuer",
+            "expense_ratio": None,
+            "total_assets": None,
+            "currency": "USD",
+            "exchange": "NYSE",
+            "quote_type": "etf",
+        },
+    )
+
+    expected = {
+        "BND": ("Core Bond", None),
+        "IUSB": ("Core Bond", None),
+        "FLRN": ("Floating Rate", None),
+        "STIP": ("Inflation-Linked", None),
+        "TIP": ("Inflation-Linked", None),
+        "HYD": ("HY Credit", None),
+        "EDV": ("UST Long", "Treasury STRIPS"),
+    }
+
+    for ticker, (category, duration_bucket) in expected.items():
+        row = enrich_metadata.build_metadata_row(
+            ticker,
+            existing_row={"category": "Municipal", "duration_bucket": "Long Duration"},
+        )
+
+        assert row["category"] == category
+        if duration_bucket is not None:
+            assert row["duration_bucket"] == duration_bucket

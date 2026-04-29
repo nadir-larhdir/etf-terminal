@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from xml.etree import ElementTree
 
@@ -71,10 +72,8 @@ class NewsFeedService:
                     "published_at": pub_date.isoformat() if pub_date is not None else None,
                 }
             )
-            if len(items) >= limit:
-                break
 
-        return items
+        return sorted(items, key=self._published_timestamp, reverse=True)[:limit]
 
     def _is_relevant_headline(self, feed_key: str, title: str, source: str) -> bool:
         """Return True when a headline passes promotional filtering and matches bucket keywords."""
@@ -88,3 +87,16 @@ class NewsFeedService:
             return parsedate_to_datetime(pub_date)
         except (TypeError, ValueError, IndexError, OverflowError):
             return None
+
+    def _published_timestamp(self, item: dict) -> float:
+        """Return a sortable timestamp for a news item, with undated items last."""
+        published_at = item.get("published_at")
+        if not published_at:
+            return float("-inf")
+        try:
+            dt = datetime.fromisoformat(str(published_at))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+            return dt.timestamp()
+        except (TypeError, ValueError, OSError):
+            return float("-inf")

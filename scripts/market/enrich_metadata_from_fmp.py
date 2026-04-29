@@ -2,7 +2,7 @@
 
 import argparse
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 from config import DEFAULT_TICKERS, FMP_API_KEY, FMP_BASE_URL, normalize_asset_class
 from db.connection import get_engine
@@ -16,12 +16,15 @@ from stores.market import MetadataStore
 INTERNAL_METADATA = {
     "BND": {
         "benchmark_index": "Bloomberg U.S. Aggregate Float Adjusted Index",
+        "category": "Core Bond",
     },
     "BSV": {
         "benchmark_index": "Bloomberg U.S. 1-5 Year Government/Credit Float Adjusted Index",
     },
     "EDV": {
         "benchmark_index": "Bloomberg U.S. Treasury STRIPS 20-30 Year Equal Par Bond Index",
+        "duration_bucket": "Treasury STRIPS",
+        "category": "UST Long",
     },
     "EMB": {
         "benchmark_index": "JPMorgan EMBI Global Core Index",
@@ -31,12 +34,14 @@ INTERNAL_METADATA = {
     },
     "FLRN": {
         "benchmark_index": "Bloomberg U.S. Dollar Floating Rate Note < 5 Years Index",
+        "category": "Floating Rate",
     },
     "GOVT": {
         "benchmark_index": "ICE U.S. Treasury Core Bond Index",
     },
     "HYD": {
         "benchmark_index": "Bloomberg Municipal High Yield Index",
+        "category": "HY Credit",
     },
     "IEI": {
         "benchmark_index": "ICE U.S. Treasury 3-7 Year Bond Index",
@@ -46,6 +51,7 @@ INTERNAL_METADATA = {
     },
     "IUSB": {
         "benchmark_index": "Bloomberg U.S. Universal Float Adjusted Index",
+        "category": "Core Bond",
     },
     "JNK": {
         "benchmark_index": "Bloomberg High Yield Very Liquid Index",
@@ -82,9 +88,11 @@ INTERNAL_METADATA = {
     },
     "STIP": {
         "benchmark_index": "Bloomberg U.S. 0-5 Year TIPS Index",
+        "category": "Inflation-Linked",
     },
     "TIP": {
         "benchmark_index": "Bloomberg U.S. TIPS Index",
+        "category": "Inflation-Linked",
     },
     "VCIT": {
         "benchmark_index": "Bloomberg U.S. 5-10 Year Corporate Bond Index",
@@ -250,6 +258,7 @@ def derive_asset_class(search_values: list[str]) -> str:
 
 
 _DURATION_BUCKET_RULES: list[tuple[tuple[str, ...], str]] = [
+    (("strips", "zero-coupon", "zero coupon"), "Treasury STRIPS"),
     (("0-5", "1-3", "ultra short", "short-term"), "Short Duration"),
     (("3-7", "7-10", "intermediate"), "Intermediate Duration"),
     (("20+", "long", "extended duration"), "Long Duration"),
@@ -351,7 +360,7 @@ def build_metadata_row(
         ),
         "quote_type": _choose_preferred(fmp_meta.get("quote_type"), existing.get("quote_type")),
         "source": "fmp_enriched_merged",
-        "updated_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
 
 
