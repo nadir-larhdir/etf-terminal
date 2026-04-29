@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 import requests
@@ -26,9 +26,10 @@ _OHLCV_COLUMNS = ["open", "high", "low", "close", "adj_close", "volume"]
 class FMPClient:
     """Fetch ETF end-of-day prices, profile data, and holdings from Financial Modeling Prep."""
 
-    def __init__(self, api_key: str, base_url: str):
+    def __init__(self, api_key: str, base_url: str, session: requests.Session | None = None):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
+        self.session = session or requests.Session()
 
     # ------------------------------------------------------------------
     # Public endpoints
@@ -53,36 +54,9 @@ class FMPClient:
         if not rows:
             return pd.DataFrame(columns=["date", *_OHLCV_COLUMNS, "ticker"])
 
-        frame = pd.DataFrame(rows).rename(columns={"symbol": "ticker", "adjClose": "adj_close"})
-        for col in _OHLCV_COLUMNS:
-            if col not in frame.columns:
-                frame[col] = (
-                    frame["close"] if col == "adj_close" and "close" in frame.columns else 0.0
-                )
+        frame = self._normalise_price_rows(rows, symbol)
 
-        frame["ticker"] = symbol.upper()
-        frame["date"] = pd.to_datetime(frame["date"]).dt.strftime("%Y-%m-%d")
-        for col in _OHLCV_COLUMNS:
-            frame[col] = pd.to_numeric(frame[col], errors="coerce").astype(float)
-
-        frame = (
-            frame[["date", *_OHLCV_COLUMNS, "ticker"]]
-            .dropna(subset=["date", *_OHLCV_COLUMNS])
-            .sort_values("date")
-            .reset_index(drop=True)
-        )
-
-        if start is not None:
-            frame = frame.loc[frame["date"] >= str(start)].copy()
-        elif period is not None:
-            cutoff = self._period_cutoff(period)
-            if cutoff is not None:
-                frame = frame.loc[frame["date"] >= cutoff].copy()
-
-        if end is not None:
-            frame = frame.loc[frame["date"] < str(end)].copy()
-
-        return frame.reset_index(drop=True)
+        return self._trim_price_frame(frame, period=period, start=start, end=end)
 
     def get_security_profile(self, symbol: str) -> dict:
         """Return the FMP profile record for a symbol (company name, type, description, etc.)."""
@@ -111,13 +85,51 @@ class FMPClient:
 
     def _request_json(self, endpoint: str, params: dict) -> dict | list:
         """Execute a GET request and return the parsed JSON response."""
-        response = requests.get(
+        response = self.session.get(
             f"{self.base_url}/{endpoint.lstrip('/')}",
             params={**params, "apikey": self.api_key},
             timeout=30,
         )
         response.raise_for_status()
         return response.json()
+
+    def _normalise_price_rows(self, rows: list[dict], symbol: str) -> pd.DataFrame:
+        """Return FMP price rows in the store-ready column shape."""
+        frame = pd.DataFrame(rows).rename(columns={"symbol": "ticker", "adjClose": "adj_close"})
+        for col in _OHLCV_COLUMNS:
+            if col not in frame.columns:
+                frame[col] = (
+                    frame["close"] if col == "adj_close" and "close" in frame.columns else 0.0
+                )
+        if "close" in frame.columns:
+            frame["adj_close"] = frame["adj_close"].fillna(frame["close"])
+
+        frame["ticker"] = symbol.upper()
+        frame["date"] = pd.to_datetime(frame["date"]).dt.strftime("%Y-%m-%d")
+        frame[_OHLCV_COLUMNS] = frame[_OHLCV_COLUMNS].apply(pd.to_numeric, errors="coerce")
+        return (
+            frame[["date", *_OHLCV_COLUMNS, "ticker"]]
+            .dropna(subset=["date", *_OHLCV_COLUMNS])
+            .sort_values("date")
+            .reset_index(drop=True)
+        )
+
+    def _trim_price_frame(
+        self,
+        frame: pd.DataFrame,
+        *,
+        period: str | None,
+        start: str | None,
+        end: str | None,
+    ) -> pd.DataFrame:
+        """Apply period/start/end filters to a normalized price frame."""
+        if start is not None:
+            frame = frame.loc[frame["date"] >= str(start)]
+        elif period is not None and (cutoff := self._period_cutoff(period)) is not None:
+            frame = frame.loc[frame["date"] >= cutoff]
+        if end is not None:
+            frame = frame.loc[frame["date"] < str(end)]
+        return frame.reset_index(drop=True)
 
     def _extract_rows(self, payload: dict | list) -> list[dict]:
         """Unwrap a list of rows from FMP's varied response shapes."""
@@ -143,4 +155,4 @@ class FMPClient:
         lookback = _PERIOD_DAY_MAP.get(str(period).strip().lower())
         if lookback is None:
             return None
-        return (datetime.utcnow().date() - timedelta(days=lookback)).isoformat()
+        return (datetime.now(UTC).date() - timedelta(days=lookback)).isoformat()

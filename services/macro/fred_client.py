@@ -9,9 +9,10 @@ import requests
 class FredClient:
     """Fetch macroeconomic time series and metadata from the FRED REST API."""
 
-    def __init__(self, api_key: str, base_url: str):
+    def __init__(self, api_key: str, base_url: str, session: requests.Session | None = None):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
+        self.session = session or requests.Session()
 
     def get_series(
         self,
@@ -33,13 +34,7 @@ class FredClient:
         if end is not None:
             params["observation_end"] = str(end)
 
-        response = requests.get(
-            f"{self.base_url}/series/observations",
-            params=params,
-            timeout=30,
-        )
-        response.raise_for_status()
-        payload = response.json()
+        payload = self._request_json("series/observations", params)
         observations = payload.get("observations", []) if isinstance(payload, dict) else []
 
         if not observations:
@@ -57,17 +52,14 @@ class FredClient:
 
     def get_series_metadata(self, series_id: str) -> dict[str, str]:
         """Return title, frequency, and units for a FRED series from the /series endpoint."""
-        response = requests.get(
-            f"{self.base_url}/series",
-            params={
+        payload = self._request_json(
+            "series",
+            {
                 "series_id": series_id,
                 "api_key": self.api_key,
                 "file_type": "json",
             },
-            timeout=30,
         )
-        response.raise_for_status()
-        payload = response.json()
         series_rows = payload.get("seriess", []) if isinstance(payload, dict) else []
         if not series_rows:
             return {}
@@ -78,3 +70,13 @@ class FredClient:
             "frequency": str(row.get("frequency", "")).strip(),
             "units": str(row.get("units", "")).strip(),
         }
+
+    def _request_json(self, endpoint: str, params: dict) -> dict | list:
+        """Execute a FRED GET request and return decoded JSON."""
+        response = self.session.get(
+            f"{self.base_url}/{endpoint.lstrip('/')}",
+            params=params,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()

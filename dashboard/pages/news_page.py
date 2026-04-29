@@ -19,7 +19,7 @@ from dashboard.cache import (
     cached_latest_feature_values,
 )
 from dashboard.perf import timed_block
-from services.news import NewsFeedService
+from services.news import NewsFeedService, classify_bucket
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -181,73 +181,6 @@ _THEME_ICON_SVGS: dict[str, str] = {
             <path d="M12 4l8 4H4z"/>
         </svg>
     """,
-}
-
-_FIXED_INCOME_ETF_TERMS: tuple[str, ...] = (
-    "bond",
-    "fixed income",
-    "treasury",
-    "corporate",
-    "credit",
-    "income",
-    "high yield",
-    "investment grade",
-    "municipal",
-    "muni",
-    "duration",
-    "lqd",
-    "hyg",
-    "jnk",
-    "tlt",
-    "agg",
-    "bnd",
-    "vcit",
-    "igsb",
-    "istb",
-)
-
-# Keyword → bucket mapping for classifier
-_BUCKET_KEYWORDS: dict[str, tuple[str, ...]] = {
-    "policy": (
-        "fomc",
-        "federal reserve",
-        "central bank",
-        "boe",
-        "ecb",
-        "rate decision",
-        "rate cut",
-        "rate hike",
-    ),
-    "inflation": ("inflation", "cpi", "pce", "breakeven", "tips", "real rate"),
-    "rates": ("treasury", "yield", "curve", "auction", "duration", "dgs"),
-    "credit": (
-        "credit",
-        "spread",
-        "spreads",
-        "compression",
-        "widening",
-        "tightening",
-        "investment grade",
-        "high yield",
-        "leveraged loan",
-        "junk",
-        "corporate bond",
-        "default swap",
-        "cds",
-        "cdx",
-        "oas",
-    ),
-    "macro": (
-        "gdp",
-        "payroll",
-        "unemployment",
-        "labor",
-        "retail sales",
-        "economy",
-        "economic",
-        "china",
-        "trade",
-    ),
 }
 
 # Features loaded for sentiment + snapshot bar
@@ -429,17 +362,6 @@ def _load_market_movers(cache_key: str, _price_store) -> dict[str, dict]:
 # ---------------------------------------------------------------------------
 
 
-def _classify_bucket(title: str) -> str:
-    """Classify a headline into the most specific matching bucket."""
-    lower = title.lower()
-    if "etf" in lower and any(term in lower for term in _FIXED_INCOME_ETF_TERMS):
-        return "etfs"
-    for bucket, keywords in _BUCKET_KEYWORDS.items():
-        if any(kw in lower for kw in keywords):
-            return bucket
-    return "macro"
-
-
 def _svg_data_uri(svg: str) -> str:
     """Return a CSS-safe data URI for a compact inline SVG icon."""
     return "data:image/svg+xml," + quote(re.sub(r"\s+", " ", svg.strip()), safe=":/?&=,;-.%")
@@ -530,7 +452,8 @@ def _dedupe_items(feed_data: dict[str, dict]) -> list[dict]:
             if key in seen:
                 continue
             seen.add(key)
-            items.append({**item, "bucket": _classify_bucket(item.get("title", ""))})
+            bucket_name = item.get("bucket") or classify_bucket(item.get("title", ""))
+            items.append({**item, "bucket": bucket_name})
     return items
 
 

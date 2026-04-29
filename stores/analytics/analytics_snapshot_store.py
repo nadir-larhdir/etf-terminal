@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pandas as pd
 from sqlalchemy import text
@@ -22,7 +22,7 @@ class AnalyticsSnapshotStore:
         """Insert or update a single analytics snapshot for the given date."""
         payload = snapshot.to_record()
         payload["as_of_date"] = as_of_date
-        payload["updated_at"] = datetime.utcnow().isoformat()
+        payload["updated_at"] = datetime.now(UTC).isoformat()
         statement = f"""
         INSERT INTO {qualified_table(self.engine, 'analytics_snapshots')} (
             symbol, as_of_date, asset_bucket, benchmark_used, spread_proxy_used,
