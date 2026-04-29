@@ -7,7 +7,9 @@ from sqlalchemy import text
 
 from db.sql import pandas_to_sql_kwargs, qualified_table
 from stores.query_utils import (
+    append_date_filters,
     index_history_frame,
+    latest_date_query,
     latest_dates_map,
     pivot_time_series,
     sql_in_clause_params,
@@ -71,7 +73,7 @@ class MacroStore:
 
     def get_latest_stored_dates(self, series_ids: list[str] | None = None) -> dict[str, str]:
         """Return a mapping of series_id → latest stored date string."""
-        query = f"SELECT series_id, MAX(date) AS latest_date FROM {qualified_table(self.engine, 'macro_data')}"
+        query = latest_date_query(qualified_table(self.engine, "macro_data"), "series_id")
         params: dict = {}
         if series_ids:
             placeholders, params = sql_in_clause_params("series_id", series_ids)
@@ -94,12 +96,7 @@ class MacroStore:
         WHERE series_id = :series_id
         """
         params: dict = {"series_id": series_id}
-        if start_date is not None:
-            query += " AND date >= :start_date"
-            params["start_date"] = str(start_date)
-        if end_date is not None:
-            query += " AND date <= :end_date"
-            params["end_date"] = str(end_date)
+        query, params = append_date_filters(query, params, start_date=start_date, end_date=end_date)
         query += " ORDER BY date"
         with self.engine.connect() as conn:
             df = pd.read_sql(text(query), conn, params=params)
@@ -134,12 +131,7 @@ class MacroStore:
         if series_ids:
             placeholders, params = sql_in_clause_params("series_id", series_ids)
             query += f" AND series_id IN ({placeholders})"
-        if start_date is not None:
-            query += " AND date >= :start_date"
-            params["start_date"] = str(start_date)
-        if end_date is not None:
-            query += " AND date <= :end_date"
-            params["end_date"] = str(end_date)
+        query, params = append_date_filters(query, params, start_date=start_date, end_date=end_date)
         with self.engine.connect() as conn:
             df = pd.read_sql(text(query), conn, params=params)
         return pivot_time_series(df, column_column="series_id")

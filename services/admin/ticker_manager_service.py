@@ -44,7 +44,13 @@ class TickerManagerService:
     """Validate, add, and remove ETFs across the securities, metadata, and price tables."""
 
     def __init__(
-        self, security_store, price_store, metadata_store, input_store, market_data_service
+        self,
+        security_store,
+        price_store,
+        metadata_store,
+        input_store,
+        market_data_service,
+        metadata_builder=None,
     ):
         self.security_store = security_store
         self.price_store = price_store
@@ -52,14 +58,13 @@ class TickerManagerService:
         self.input_store = input_store
         self.market_data_service = market_data_service
         self.fmp_client = FMPClient(api_key=FMP_API_KEY, base_url=FMP_BASE_URL)
+        self.metadata_builder = metadata_builder or self._default_metadata_builder
 
     def inspect_ticker(self, ticker: str, asset_class_override: str | None = None) -> TickerProfile:
         """Fetch FMP metadata for a ticker and validate it as a fixed-income ETF.
 
         Raises ValueError if FMP returns nothing or the ticker does not match FI keywords.
         """
-        from scripts.market.enrich_metadata_from_fmp import build_metadata_row
-
         normalized = ticker.strip().upper()
         info = self.fmp_client.get_security_profile(normalized)
 
@@ -85,7 +90,7 @@ class TickerManagerService:
                 "Ticker exists but does not look like a fixed income ETF based on Financial Modeling Prep metadata."
             )
 
-        metadata_row = build_metadata_row(normalized)
+        metadata_row = self.metadata_builder(normalized)
         asset_class = normalize_asset_class(
             asset_class_override or self._derive_asset_class(metadata_row)
         )
@@ -140,6 +145,12 @@ class TickerManagerService:
     def _search_blob(self, values: list[str]) -> str:
         """Concatenate and lowercase a list of strings for keyword matching."""
         return " ".join(v.lower() for v in values if v)
+
+    def _default_metadata_builder(self, ticker: str) -> dict:
+        """Build metadata using the enrichment script's production helper."""
+        from scripts.market.enrich_metadata_from_fmp import build_metadata_row
+
+        return build_metadata_row(ticker)
 
     def _derive_asset_class(self, metadata_row: dict) -> str:
         """Infer an asset class label from metadata text fields using keyword matching."""

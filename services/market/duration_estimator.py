@@ -60,8 +60,9 @@ def issuer_from_long_name(long_name: str | None) -> str | None:
 
 
 class SecurityDurationEstimator:
-    def __init__(self, engine):
+    def __init__(self, engine, session: requests.Session | None = None):
         self.engine = engine
+        self.session = session or requests.Session()
         self._duration_cache: dict[str, float | None] = {}
 
     def estimate_duration(self, ticker: str) -> float | None:
@@ -87,7 +88,7 @@ class SecurityDurationEstimator:
     def _fetch_ishares_duration(self, ticker: str) -> float | None:
         pid, slug = ISHARES_ETFS[ticker]
         url = ISHARES_HOLDINGS_URL.format(pid=pid, slug=slug, ticker=ticker)
-        response = requests.get(url, timeout=30)
+        response = self.session.get(url, timeout=30)
         response.raise_for_status()
 
         frame = pd.read_csv(StringIO(response.text), skiprows=9, header=0)

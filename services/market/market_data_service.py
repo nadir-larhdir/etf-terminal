@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
@@ -31,6 +31,7 @@ class MarketDataService:
 
         If replace_existing is True, existing rows for each ticker are deleted first.
         """
+        tickers = self._normalise_tickers(tickers)
         raw = self._fetch_history(tickers=tickers, period=period)
         for ticker in tickers:
             frame = self._build_price_frame(raw, ticker)
@@ -42,6 +43,7 @@ class MarketDataService:
 
     def sync_missing_ticker_history(self, tickers: list[str], period: str = "1y") -> list[str]:
         """Initialise price history only for tickers that have no stored rows yet."""
+        tickers = self._normalise_tickers(tickers)
         existing = self.price_store.get_existing_tickers(tickers)
         missing = [t for t in tickers if t not in existing]
         if missing:
@@ -59,8 +61,9 @@ class MarketDataService:
         Uses a shared earliest-start fetch to minimise API round trips, then
         filters each ticker's rows before persisting. Returns a status dict.
         """
+        tickers = self._normalise_tickers(tickers)
         latest_dates = self.price_store.get_latest_stored_dates(tickers)
-        today = datetime.utcnow().date()
+        today = datetime.now(UTC).date()
         statuses: dict[str, str] = {}
 
         new_tickers = [t for t in tickers if latest_dates.get(t) is None]
@@ -106,6 +109,7 @@ class MarketDataService:
         end: str | None = None,
     ) -> pd.DataFrame:
         """Fetch price history for multiple tickers concurrently and return a combined frame."""
+        tickers = self._normalise_tickers(tickers)
         if not tickers:
             return pd.DataFrame(columns=_EMPTY_PRICE_COLUMNS)
 
@@ -141,7 +145,7 @@ class MarketDataService:
             return frame
         frame["date"] = pd.to_datetime(frame["date"]).dt.strftime("%Y-%m-%d")
         frame["source"] = "fmp"
-        frame["updated_at"] = datetime.utcnow().isoformat()
+        frame["updated_at"] = datetime.now(UTC).isoformat()
         return frame
 
     def _persist_price_frame(
@@ -155,3 +159,7 @@ class MarketDataService:
         else:
             self.price_store.upsert_prices(frame)
         return True
+
+    def _normalise_tickers(self, tickers: list[str]) -> list[str]:
+        """Return unique uppercase tickers in input order."""
+        return list(dict.fromkeys(ticker.strip().upper() for ticker in tickers if ticker.strip()))

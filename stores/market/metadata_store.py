@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pandas as pd
 from sqlalchemy import text
@@ -45,7 +45,7 @@ class MetadataStore:
             return
         df = pd.DataFrame(rows)
         if "updated_at" not in df.columns:
-            df["updated_at"] = datetime.utcnow().isoformat()
+            df["updated_at"] = datetime.now(UTC).isoformat()
         for col in self.BASE_COLUMNS:
             if col not in df.columns:
                 df[col] = None

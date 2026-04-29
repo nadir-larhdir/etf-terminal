@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pandas as pd
 from sqlalchemy import text
@@ -33,7 +33,7 @@ class InputStore:
                     "flow_usd_mm": flow_usd_mm,
                     "premium_discount_pct": premium_discount_pct,
                     "desk_note": desk_note,
-                    "updated_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.now(UTC).isoformat(),
                 }
             ]
         )

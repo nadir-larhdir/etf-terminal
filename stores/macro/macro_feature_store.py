@@ -6,7 +6,7 @@ import pandas as pd
 from sqlalchemy import text
 
 from db.sql import qualified_table
-from stores.query_utils import pivot_time_series, sql_in_clause_params
+from stores.query_utils import append_date_filters, pivot_time_series, sql_in_clause_params
 
 
 class MacroFeatureStore:
@@ -49,12 +49,7 @@ class MacroFeatureStore:
         """Delete feature rows optionally bounded by a date range."""
         query = f"DELETE FROM {qualified_table(self.engine, 'macro_features')} WHERE 1 = 1"
         params: dict = {}
-        if start_date is not None:
-            query += " AND date >= :start_date"
-            params["start_date"] = str(start_date)
-        if end_date is not None:
-            query += " AND date <= :end_date"
-            params["end_date"] = str(end_date)
+        query, params = append_date_filters(query, params, start_date=start_date, end_date=end_date)
         with self.engine.begin() as conn:
             conn.execute(text(query), params)
 
@@ -113,12 +108,7 @@ class MacroFeatureStore:
         if feature_names:
             placeholders, params = sql_in_clause_params("feature", feature_names)
             query += f" AND feature_name IN ({placeholders})"
-        if start_date is not None:
-            query += " AND date >= :start_date"
-            params["start_date"] = str(start_date)
-        if end_date is not None:
-            query += " AND date <= :end_date"
-            params["end_date"] = str(end_date)
+        query, params = append_date_filters(query, params, start_date=start_date, end_date=end_date)
         with self.engine.connect() as conn:
             df = pd.read_sql(text(query), conn, params=params)
         return pivot_time_series(df, column_column="feature_name")

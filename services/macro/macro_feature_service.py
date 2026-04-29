@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -297,7 +297,7 @@ class MacroFeatureService:
             lambda name: FEATURE_METADATA[name][1]
         )
         flattened["source"] = "derived"
-        flattened["last_updated_at"] = datetime.utcnow().isoformat()
+        flattened["last_updated_at"] = datetime.now(UTC).isoformat()
         return flattened[self.OUTPUT_COLUMNS]
 
     def incremental_start_dates(

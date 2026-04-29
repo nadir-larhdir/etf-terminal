@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from email.utils import parsedate_to_datetime
 from xml.etree import ElementTree
 
 import requests
 
 from config import NEWS_FEEDS
+from services.news.taxonomy import classify_bucket, is_promotional, matches_feed
 
 
 class NewsFeedService:
@@ -17,108 +19,33 @@ class NewsFeedService:
     relevant fixed-income headlines reach the dashboard.
     """
 
-    PROMOTIONAL_PATTERNS = (
-        "which is the better",
-        "which is better",
-        "the best ones",
-        "best ",
-        "top ",
-        "should you buy",
-        "buy now",
-        "investors are flocking",
-        "why this etf",
-        "why this stock",
-        "motley fool",
-    )
-
-    BUCKET_KEYWORDS = {
-        "rates": (
-            "treasury",
-            "yield",
-            "yields",
-            "curve",
-            "bond market",
-            "duration",
-            "auction",
-            "rates",
-            "fed",
-            "fomc",
-        ),
-        "credit": (
-            "credit",
-            "spread",
-            "spreads",
-            "spread compression",
-            "spread widening",
-            "spread tightening",
-            "compression",
-            "widening",
-            "tightening",
-            "investment grade",
-            "high yield",
-            "leveraged loan",
-            "default swap",
-            "cds",
-            "cdx",
-            "oas",
-            "junk bond",
-            "corporate bond",
-        ),
-        "etfs": (
-            "fixed income etf",
-            "treasury etf",
-            "corporate bond etf",
-            "bond etf",
-            "municipal bond etf",
-            "high yield etf",
-            "investment grade etf",
-            "income bond etf",
-            "fund flow",
-            "lqd",
-            "hyg",
-            "jnk",
-            "vcit",
-            "igtb",
-            "igsb",
-            "istb",
-            "tlt",
-            "agg",
-            "bnd",
-        ),
-        "macro": (
-            "inflation",
-            "cpi",
-            "pce",
-            "payroll",
-            "unemployment",
-            "labor",
-            "gdp",
-            "economy",
-            "economic",
-            "fed",
-            "rates",
-            "treasury",
-            "macro",
-        ),
-    }
-
-    def __init__(self, feeds: dict | None = None):
+    def __init__(self, feeds: dict | None = None, session: requests.Session | None = None):
         self.feeds = feeds or NEWS_FEEDS
+        self.session = session or requests.Session()
 
     def fetch_all(self, limit_per_feed: int = 5) -> dict[str, dict]:
-        """Fetch all configured feeds and return a keyed dict of label + items."""
-        return {
-            feed_key: {
-                "label": feed_config["label"],
-                "items": self.fetch_feed(feed_key, limit=limit_per_feed),
-            }
+        """Fetch all configured feeds concurrently and return label + items by feed key."""
+        result = {
+            feed_key: {"label": feed_config["label"], "items": []}
             for feed_key, feed_config in self.feeds.items()
         }
+        if not result:
+            return result
+
+        max_workers = min(4, len(result))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(self.fetch_feed, feed_key, limit_per_feed): feed_key
+                for feed_key in result
+            }
+            for future in as_completed(futures):
+                result[futures[future]]["items"] = future.result()
+        return result
 
     def fetch_feed(self, feed_key: str, limit: int = 5) -> list[dict]:
         """Fetch a single RSS feed and return up to limit filtered headline dicts."""
         feed_config = self.feeds[feed_key]
-        response = requests.get(feed_config["url"], timeout=20)
+        response = self.session.get(feed_config["url"], timeout=20)
         response.raise_for_status()
 
         root = ElementTree.fromstring(response.content)
@@ -140,6 +67,7 @@ class NewsFeedService:
                     "title": title,
                     "link": link,
                     "source": source or "News Feed",
+                    "bucket": classify_bucket(title),
                     "published_at": pub_date.isoformat() if pub_date is not None else None,
                 }
             )
@@ -150,17 +78,7 @@ class NewsFeedService:
 
     def _is_relevant_headline(self, feed_key: str, title: str, source: str) -> bool:
         """Return True when a headline passes promotional filtering and matches bucket keywords."""
-        title_lower = title.lower()
-        source_lower = source.lower()
-        combined = f"{title_lower} {source_lower}"
-
-        if any(pattern in combined for pattern in self.PROMOTIONAL_PATTERNS):
-            return False
-        if "motley fool" in source_lower and "etf" in title_lower:
-            return False
-
-        keywords = self.BUCKET_KEYWORDS.get(feed_key, ())
-        return any(keyword in title_lower for keyword in keywords)
+        return not is_promotional(title, source) and matches_feed(feed_key, title)
 
     def _parse_pub_date(self, pub_date: str | None):
         """Parse an RFC-2822 pubDate string into a datetime, returning None on failure."""

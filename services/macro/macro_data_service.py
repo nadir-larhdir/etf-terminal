@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
@@ -42,8 +43,7 @@ class MacroDataService:
     ) -> None:
         """Fetch and write a full or partial history window for each series."""
         self._require_store()
-        for series_id in series_ids:
-            frame = self._fetch_series_frame(series_id, start=start, end=end)
+        for series_id, frame in self._fetch_series_frames(series_ids, start=start, end=end):
             self._write_series_frame(series_id, frame, replace_existing=replace_existing)
 
     def sync_incremental_updates(
@@ -56,29 +56,24 @@ class MacroDataService:
         """Fetch only new observations for each series, initialising missing ones from default_start."""
         self._require_store()
         latest_dates = self.macro_store.get_latest_stored_dates(series_ids)
-        effective_end = end or datetime.utcnow().date().isoformat()
+        effective_end = end or datetime.now(UTC).date().isoformat()
         statuses: dict[str, str] = {}
 
-        for series_id in series_ids:
+        fetch_plan = {
+            series_id: self._series_fetch_start(
+                latest_dates.get(series_id), default_start, overlap_days
+            )
+            for series_id in series_ids
+        }
+        for series_id, frame in self._fetch_planned_series_frames(fetch_plan, end=effective_end):
+            start_date = fetch_plan[series_id]
             latest_date = latest_dates.get(series_id)
-            if latest_date is None:
-                frame = self._fetch_series_frame(series_id, start=default_start, end=effective_end)
-                if frame.empty:
-                    statuses[series_id] = "no_rows_returned"
-                    continue
-                self._write_series_frame(series_id, frame, replace_existing=False)
-                statuses[series_id] = f"initialized_from_{default_start}"
-                continue
-
-            start_date = (
-                pd.to_datetime(latest_date).date() - timedelta(days=max(overlap_days, 0))
-            ).isoformat()
-            frame = self._fetch_series_frame(series_id, start=start_date, end=effective_end)
             if frame.empty:
-                statuses[series_id] = "no_new_rows"
+                statuses[series_id] = "no_rows_returned" if latest_date is None else "no_new_rows"
                 continue
             self._write_series_frame(series_id, frame, replace_existing=False)
-            statuses[series_id] = f"updated_from_{start_date}"
+            status_prefix = "initialized_from" if latest_date is None else "updated_from"
+            statuses[series_id] = f"{status_prefix}_{start_date}"
 
         return statuses
 
@@ -119,7 +114,7 @@ class MacroDataService:
         frame["units"] = details["units"]
         frame["source"] = "fred"
         frame["is_active"] = 1
-        frame["last_updated_at"] = datetime.utcnow().isoformat()
+        frame["last_updated_at"] = datetime.now(UTC).isoformat()
         return frame[self.BASE_COLUMNS]
 
     def _fetch_series_frame(
@@ -128,6 +123,45 @@ class MacroDataService:
         """Fetch and enrich a single FRED series frame."""
         raw = self.fred.get_series(series_id, start=start, end=end)
         return self._build_series_frame(raw, series_id)
+
+    def _fetch_series_frames(
+        self, series_ids: list[str], *, start: str | None, end: str | None
+    ) -> list[tuple[str, pd.DataFrame]]:
+        """Fetch series frames concurrently while preserving input order."""
+        return self._fetch_planned_series_frames(
+            {series_id: start for series_id in series_ids},
+            end=end,
+        )
+
+    def _fetch_planned_series_frames(
+        self,
+        fetch_plan: dict[str, str | None],
+        *,
+        end: str | None,
+    ) -> list[tuple[str, pd.DataFrame]]:
+        """Fetch each series using its planned start date, returning frames in plan order."""
+        frames: dict[str, pd.DataFrame] = {}
+        max_workers = min(8, len(fetch_plan)) or 1
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    self._fetch_series_frame, series_id, start=start, end=end
+                ): series_id
+                for series_id, start in fetch_plan.items()
+            }
+            for future in as_completed(futures):
+                frames[futures[future]] = future.result()
+        return [(series_id, frames[series_id]) for series_id in fetch_plan]
+
+    def _series_fetch_start(
+        self, latest_date: str | None, default_start: str | None, overlap_days: int
+    ) -> str | None:
+        """Return the start date for an incremental series fetch."""
+        if latest_date is None:
+            return default_start
+        return (
+            pd.to_datetime(latest_date).date() - timedelta(days=max(overlap_days, 0))
+        ).isoformat()
 
     def _write_series_frame(
         self, series_id: str, frame: pd.DataFrame, *, replace_existing: bool

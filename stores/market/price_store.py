@@ -6,7 +6,13 @@ import pandas as pd
 from sqlalchemy import text
 
 from db.sql import pandas_to_sql_kwargs, qualified_table
-from stores.query_utils import index_history_frame, latest_dates_map, sql_in_clause_params
+from stores.query_utils import (
+    append_date_filters,
+    index_history_frame,
+    latest_date_query,
+    latest_dates_map,
+    sql_in_clause_params,
+)
 
 
 class PriceStore:
@@ -110,7 +116,7 @@ class PriceStore:
         return set(df["ticker"].tolist()) if not df.empty else set()
 
     def _latest_stored_dates(self, tickers: tuple[str, ...] | None) -> dict[str, str]:
-        query = f"SELECT ticker, MAX(date) AS latest_date FROM {qualified_table(self.engine, 'price_history')}"
+        query = latest_date_query(qualified_table(self.engine, "price_history"), "ticker")
         params: dict = {}
         if tickers:
             placeholders, params = sql_in_clause_params("ticker", tickers)
@@ -127,12 +133,7 @@ class PriceStore:
         WHERE ticker = :ticker
         """
         params: dict = {"ticker": ticker}
-        if start_date is not None:
-            query += " AND date >= :start_date"
-            params["start_date"] = str(start_date)
-        if end_date is not None:
-            query += " AND date <= :end_date"
-            params["end_date"] = str(end_date)
+        query, params = append_date_filters(query, params, start_date=start_date, end_date=end_date)
         query += " ORDER BY date"
         with self.engine.connect() as conn:
             df = pd.read_sql(text(query), conn, params=params)
@@ -151,12 +152,7 @@ class PriceStore:
         FROM {qualified_table(self.engine, 'price_history')}
         WHERE ticker IN ({placeholders})
         """
-        if start_date is not None:
-            query += " AND date >= :start_date"
-            params["start_date"] = str(start_date)
-        if end_date is not None:
-            query += " AND date <= :end_date"
-            params["end_date"] = str(end_date)
+        query, params = append_date_filters(query, params, start_date=start_date, end_date=end_date)
         query += " ORDER BY ticker, date"
         with self.engine.connect() as conn:
             return pd.read_sql(text(query), conn, params=params)

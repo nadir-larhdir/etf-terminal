@@ -14,6 +14,29 @@ def sql_in_clause_params(
     return placeholders, params
 
 
+def append_date_filters(
+    query: str,
+    params: dict,
+    *,
+    start_date=None,
+    end_date=None,
+    column: str = "date",
+) -> tuple[str, dict]:
+    """Append optional inclusive date filters to a SQL query and params dict."""
+    if start_date is not None:
+        query += f" AND {column} >= :start_date"
+        params["start_date"] = str(start_date)
+    if end_date is not None:
+        query += f" AND {column} <= :end_date"
+        params["end_date"] = str(end_date)
+    return query, params
+
+
+def latest_date_query(table: str, key_column: str) -> str:
+    """Build a grouped latest-date SQL query for table/key pairs."""
+    return f"SELECT {key_column}, MAX(date) AS latest_date FROM {table}"
+
+
 def latest_dates_map(
     df: pd.DataFrame, *, key_column: str, date_column: str = "latest_date"
 ) -> dict[str, str]:
