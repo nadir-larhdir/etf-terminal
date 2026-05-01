@@ -5,15 +5,9 @@ from typing import Any
 
 
 @dataclass(frozen=True)
-class DurationModelSelection:
+class RiskProxySelection:
     asset_bucket: str
-    duration_model_type: str
-    treasury_benchmark_symbol: str | None
     spread_proxy_series_id: str | None
-    rate_proxy_description: str
-    confidence_level: str
-    notes: str
-    used_fallback: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -23,11 +17,6 @@ class DurationModelSelection:
 class RateRiskEstimate:
     estimated_duration: float | None
     dv01_per_share: float | None
-    regression_r2: float | None
-    benchmark_beta: float | None
-    benchmark_used: str | None
-    rate_proxy_used: str
-    lookback_days_used: int | None
     observations_used: int | None
 
 
@@ -42,7 +31,7 @@ class SpreadRiskEstimate:
 
 
 @dataclass(frozen=True)
-class SecurityAnalyticsSnapshot:
+class ETFAnalyticsSnapshot:
     ticker: str
     asset_bucket: str
     model_type_used: str
@@ -59,28 +48,12 @@ class SecurityAnalyticsSnapshot:
     computed_from_end_date: str | None = None
 
     @property
-    def benchmark_used(self) -> str | None:
-        return self.rate_risk.benchmark_used
-
-    @property
-    def rate_proxy_used(self) -> str:
-        return self.rate_risk.rate_proxy_used
-
-    @property
     def estimated_duration(self) -> float | None:
         return self.rate_risk.estimated_duration
 
     @property
     def dv01_per_share(self) -> float | None:
         return self.rate_risk.dv01_per_share
-
-    @property
-    def rate_model_r2(self) -> float | None:
-        return self.rate_risk.regression_r2
-
-    @property
-    def treasury_beta(self) -> float | None:
-        return self.rate_risk.benchmark_beta
 
     def _spread_value(self, field_name: str):
         return None if self.spread_risk is None else getattr(self.spread_risk, field_name)
@@ -110,22 +83,17 @@ class SecurityAnalyticsSnapshot:
             "symbol": self.ticker,
             "as_of_date": self.as_of_date,
             "asset_bucket": self.asset_bucket,
-            "benchmark_used": self.benchmark_used,
             "spread_proxy_used": self.spread_proxy_used,
             "estimated_duration": self.estimated_duration,
             "rate_dv01_per_share": self.dv01_per_share,
-            "benchmark_beta": self.treasury_beta,
             "cs01_proxy_per_share": self.spread_dv01_proxy_per_share,
             "spread_beta_per_bp": self.spread_beta_per_bp,
             "equity_beta": self.equity_beta,
-            "rate_model_r2": self.rate_model_r2,
             "spread_model_r2": self.spread_model_r2,
             "confidence_level": self.confidence_level,
             "model_type": self.model_type_used,
-            "rate_proxy_used": self.rate_proxy_used,
             "notes": self.notes,
             "reason": self.reason,
-            "lookback_days_used": self.rate_risk.lookback_days_used,
             "observations_used": self.observations_used,
             "updated_at": self.updated_at,
             "model_version": self.model_version,
@@ -134,7 +102,7 @@ class SecurityAnalyticsSnapshot:
         }
 
     @classmethod
-    def from_record(cls, row: dict[str, Any]) -> SecurityAnalyticsSnapshot:
+    def from_record(cls, row: dict[str, Any]) -> ETFAnalyticsSnapshot:
         return cls(
             ticker=str(row["symbol"]),
             asset_bucket=str(row.get("asset_bucket") or "Unknown"),
@@ -145,11 +113,6 @@ class SecurityAnalyticsSnapshot:
             rate_risk=RateRiskEstimate(
                 estimated_duration=row.get("estimated_duration"),
                 dv01_per_share=row.get("rate_dv01_per_share"),
-                regression_r2=row.get("rate_model_r2"),
-                benchmark_beta=row.get("benchmark_beta"),
-                benchmark_used=row.get("benchmark_used"),
-                rate_proxy_used=str(row.get("rate_proxy_used") or ""),
-                lookback_days_used=row.get("lookback_days_used"),
                 observations_used=row.get("observations_used"),
             ),
             spread_risk=(

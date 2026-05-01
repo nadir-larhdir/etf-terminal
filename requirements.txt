@@ -7,3 +7,4 @@ psycopg[binary]
 plotly
 requests
 python-dotenv
+beautifulsoup4

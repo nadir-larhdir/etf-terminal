@@ -5,14 +5,14 @@ import logging
 
 from config import DEFAULT_TICKERS, FRED_API_KEY, FRED_BASE_URL
 from db.connection import get_engine
-from fixed_income.analytics.duration_estimator import SecurityDurationEstimator
+from fixed_income.analytics.duration_estimator import ETFDurationEstimator
 from scripts.analytics.precompute_analytics import run_precompute_analytics
 from scripts.logging_utils import configure_logging
 from scripts.market.enrich_metadata_from_fmp import build_metadata_row
 from services.macro import DEFAULT_MACRO_SERIES, FredClient, MacroDataService, MacroFeatureService
 from services.market import MarketDataService
 from stores.macro import MacroFeatureStore, MacroStore
-from stores.market import MetadataStore, PriceStore, SecurityStore
+from stores.market import ETFUniverseStore, MetadataStore, PriceStore
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +108,7 @@ def _latest_feature_date(
 
 def _refresh_metadata(metadata_store: MetadataStore, tickers: list[str]) -> int:
     """Fetch and upsert FMP metadata for each ticker; return the row count."""
-    duration_estimator = SecurityDurationEstimator(metadata_store.engine)
+    duration_estimator = ETFDurationEstimator(metadata_store.engine)
     rows = []
     for ticker in tickers:
         existing = metadata_store.get_ticker_metadata(ticker)
@@ -123,13 +123,13 @@ def _refresh_metadata(metadata_store: MetadataStore, tickers: list[str]) -> int:
     return len(rows)
 
 
-def _refresh_universe(security_store: SecurityStore) -> int:
-    """Upsert the configured DEFAULT_TICKERS universe into the securities table; return row count."""
+def _refresh_universe(etf_universe_store: ETFUniverseStore) -> int:
+    """Upsert the configured DEFAULT_TICKERS universe into the etf_universe table; return row count."""
     rows = [
         {"ticker": ticker, "name": meta["name"], "asset_class": meta["asset_class"], "active": 1}
         for ticker, meta in DEFAULT_TICKERS.items()
     ]
-    security_store.upsert_securities(rows, update_existing=True)
+    etf_universe_store.upsert_etfs(rows, update_existing=True)
     return len(rows)
 
 
@@ -140,13 +140,13 @@ def main() -> None:
     run_analytics = not args.skip_analytics
 
     engine = get_engine(data_backend=args.backend, app_env=args.app_env)
-    security_store = SecurityStore(engine)
+    etf_universe_store = ETFUniverseStore(engine)
     price_store = PriceStore(engine)
     metadata_store = MetadataStore(engine)
     macro_store = MacroStore(engine)
     macro_feature_store = MacroFeatureStore(engine)
 
-    active = security_store.list_active_securities()
+    active = etf_universe_store.list_active_etfs()
     tickers = active["ticker"].astype(str).tolist() if not active.empty else []
     series_ids = list(DEFAULT_MACRO_SERIES.keys())
 
@@ -157,9 +157,9 @@ def main() -> None:
 
     total_steps = 6 if run_analytics else 5
 
-    logger.info("Step 1/%s: syncing configured securities universe...", total_steps)
-    universe_rows = _refresh_universe(security_store)
-    active = security_store.list_active_securities()
+    logger.info("Step 1/%s: syncing configured ETF universe...", total_steps)
+    universe_rows = _refresh_universe(etf_universe_store)
+    active = etf_universe_store.list_active_etfs()
     tickers = active["ticker"].astype(str).tolist() if not active.empty else []
 
     logger.info("Step 2/%s: refreshing ETF prices...", total_steps)
@@ -205,7 +205,7 @@ def main() -> None:
         )
 
     logger.info("Refresh summary")
-    logger.info(" - securities universe rows synced: %s", universe_rows)
+    logger.info(" - ETF universe rows synced: %s", universe_rows)
     logger.info(" - latest ETF price date: %s", _latest_price_date(price_store, tickers))
     logger.info(" - latest macro date: %s", _latest_macro_date(macro_store, series_ids))
     logger.info(" - latest feature date: %s", _latest_feature_date(macro_feature_store))

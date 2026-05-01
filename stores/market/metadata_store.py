@@ -11,7 +11,7 @@ from db.sql import qualified_table
 
 
 class MetadataStore:
-    """Persist and retrieve security metadata (issuer, duration, AUM, etc.)."""
+    """Persist and retrieve ETF metadata (issuer, duration, AUM, etc.)."""
 
     BASE_COLUMNS = [
         "ticker",
@@ -55,7 +55,7 @@ class MetadataStore:
                 df[col] = None
         df = df[self.BASE_COLUMNS]
         statement = f"""
-        INSERT INTO {qualified_table(self.engine, 'security_metadata')} (
+        INSERT INTO {qualified_table(self.engine, 'etf_metadata')} (
             ticker, conid, long_name, description, issuer, duration,
             yield_to_maturity, oas, years_to_maturity, convexity,
             benchmark_index, category, duration_bucket, currency, exchange,
@@ -89,7 +89,7 @@ class MetadataStore:
         with self.engine.begin() as conn:
             conn.execute(
                 text(
-                    f"DELETE FROM {qualified_table(self.engine, 'security_metadata')} WHERE ticker = :ticker"
+                    f"DELETE FROM {qualified_table(self.engine, 'etf_metadata')} WHERE ticker = :ticker"
                 ),
                 {"ticker": ticker},
             )
@@ -113,14 +113,14 @@ class MetadataStore:
     def _existing_tickers(self) -> set[str]:
         with self.engine.connect() as conn:
             df = pd.read_sql(
-                text(f"SELECT ticker FROM {qualified_table(self.engine, 'security_metadata')}"),
+                text(f"SELECT ticker FROM {qualified_table(self.engine, 'etf_metadata')}"),
                 conn,
             )
         return set(df["ticker"].tolist()) if not df.empty else set()
 
     def _ticker_metadata(self, ticker: str) -> dict | None:
         query = text(f"""
-            SELECT * FROM {qualified_table(self.engine, 'security_metadata')}
+            SELECT * FROM {qualified_table(self.engine, 'etf_metadata')}
             WHERE ticker = :ticker LIMIT 1
         """)
         with self.engine.connect() as conn:

@@ -18,7 +18,7 @@ class FakeStore:
         self.rows = []
         self.deleted: list[str] = []
 
-    def upsert_securities(self, rows, update_existing: bool = True) -> None:
+    def upsert_etfs(self, rows, update_existing: bool = True) -> None:
         self.rows.extend(rows)
 
     def upsert_metadata(self, rows) -> None:
@@ -39,11 +39,11 @@ class FakeMarketDataService:
 
 
 def test_ticker_manager_uses_injected_metadata_builder_for_add() -> None:
-    security_store = FakeStore()
+    etf_universe_store = FakeStore()
     metadata_store = FakeStore()
     market_data_service = FakeMarketDataService()
     manager = TickerManagerService(
-        security_store=security_store,
+        etf_universe_store=etf_universe_store,
         price_store=FakeStore(),
         metadata_store=metadata_store,
         market_data_service=market_data_service,
@@ -60,6 +60,6 @@ def test_ticker_manager_uses_injected_metadata_builder_for_add() -> None:
 
     assert profile.ticker == "TEST"
     assert profile.asset_class == "IG Credit"
-    assert security_store.rows[0]["ticker"] == "TEST"
+    assert etf_universe_store.rows[0]["ticker"] == "TEST"
     assert metadata_store.rows[0]["ticker"] == "TEST"
     assert market_data_service.synced == [(["TEST"], "30d", False)]

@@ -1,3 +1,3 @@
-from fixed_income.instruments.security import Security
+from fixed_income.etfs import ETF
 
-__all__ = ["Security"]
+__all__ = ["ETF"]

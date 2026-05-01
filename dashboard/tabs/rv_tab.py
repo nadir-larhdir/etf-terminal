@@ -14,7 +14,7 @@ from dashboard.components.controls import DashboardControls
 from dashboard.components.info_panel import InfoPanel
 from dashboard.perf import timed_block
 from dashboard.styles.table_styles import DashboardTable
-from fixed_income.instruments.security import Security
+from fixed_income.etfs import ETF
 from fixed_income.rv.hedge_models import beta_stability as hedge_beta_stability
 from fixed_income.rv.pair_analytics import (
     beta_metrics,
@@ -49,7 +49,7 @@ def _cached_screener_rows(
     """Cache the expensive pair-stat recomputation across reruns for the same window."""
 
     screener_rows = []
-    base_security = Security(selected_security)
+    base_security = ETF(selected_security)
     base_security.set_history(_security_history)
 
     for candidate in candidate_tickers:
@@ -57,7 +57,7 @@ def _cached_screener_rows(
         if candidate_hist.empty:
             continue
 
-        candidate_security = Security(candidate)
+        candidate_security = ETF(candidate)
         candidate_security.set_history(candidate_hist)
         candidate_merged = filtered_prices(
             base_security,
@@ -128,7 +128,7 @@ class RVTab:
             return "CHEAP", "-1σ"
         return "NEUTRAL", ""
 
-    def render(self, security: Security, tickers) -> None:
+    def render(self, security: ETF, tickers) -> None:
         """Render the RV Analysis tab: pair metrics, signal narrative, charts, screener, and history."""
         st.subheader("RV Analysis")
         hist = security.history
@@ -143,7 +143,7 @@ class RVTab:
                 key=f"rv_compare_{selected_security}",
             )
 
-        compare_obj = Security(compare_security)
+        compare_obj = ETF(compare_security)
         cache_key = app_cache_key(self.price_store.engine)
         with timed_block("rv.load_compare_history"):
             compare_hist = cached_price_history(

@@ -1,6 +1,6 @@
 from stores.analytics import AnalyticsSnapshotStore
 from stores.macro import MacroFeatureStore, MacroStore
-from stores.market import MetadataStore, PriceStore, SecurityStore
+from stores.market import ETFUniverseStore, MetadataStore, PriceStore
 
 __all__ = [
     "AnalyticsSnapshotStore",
@@ -8,5 +8,5 @@ __all__ = [
     "MacroStore",
     "MetadataStore",
     "PriceStore",
-    "SecurityStore",
+    "ETFUniverseStore",
 ]

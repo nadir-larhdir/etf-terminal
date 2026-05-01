@@ -1,4 +1,4 @@
-"""Read/write the active ETF universe in the securities table."""
+"""Read/write the active ETF universe in the etf_universe table."""
 
 from __future__ import annotations
 
@@ -9,8 +9,8 @@ from db.schema import create_tables
 from db.sql import pandas_to_sql_kwargs, qualified_table, schema_name
 
 
-class SecurityStore:
-    """Persist and manage the active ETF universe stored in the securities table."""
+class ETFUniverseStore:
+    """Persist and manage the active ETF universe stored in the etf_universe table."""
 
     def __init__(self, engine):
         self.engine = engine
@@ -20,21 +20,21 @@ class SecurityStore:
     # Writes
     # ------------------------------------------------------------------
 
-    def replace_securities_universe(self, rows: list[dict]) -> None:
-        """Delete all existing securities and insert the provided rows wholesale."""
+    def replace_etf_universe(self, rows: list[dict]) -> None:
+        """Delete all existing etf_universe and insert the provided rows wholesale."""
         self._ensure_schema()
         with self.engine.begin() as conn:
-            conn.execute(text(f"DELETE FROM {qualified_table(self.engine, 'securities')}"))
+            conn.execute(text(f"DELETE FROM {qualified_table(self.engine, 'etf_universe')}"))
             pd.DataFrame(rows).to_sql(
-                "securities",
+                "etf_universe",
                 conn,
                 if_exists="append",
                 index=False,
                 **pandas_to_sql_kwargs(self.engine),
             )
 
-    def upsert_securities(self, rows: list[dict], update_existing: bool = True) -> None:
-        """Insert securities, optionally updating name/asset_class on conflict."""
+    def upsert_etfs(self, rows: list[dict], update_existing: bool = True) -> None:
+        """Insert etf_universe, optionally updating name/asset_class on conflict."""
         if not rows:
             return
         self._ensure_schema()
@@ -44,7 +44,7 @@ class SecurityStore:
             else "DO NOTHING"
         )
         statement = f"""
-        INSERT INTO {qualified_table(self.engine, 'securities')} (ticker, name, asset_class, active)
+        INSERT INTO {qualified_table(self.engine, 'etf_universe')} (ticker, name, asset_class, active)
         VALUES (:ticker, :name, :asset_class, :active)
         ON CONFLICT(ticker) {on_conflict}
         """
@@ -61,12 +61,12 @@ class SecurityStore:
             conn.execute(text(statement), payload)
 
     def delete_ticker(self, ticker: str) -> None:
-        """Remove a ticker from the securities table."""
+        """Remove a ticker from the etf_universe table."""
         self._ensure_schema()
         with self.engine.begin() as conn:
             conn.execute(
                 text(
-                    f"DELETE FROM {qualified_table(self.engine, 'securities')} WHERE ticker = :ticker"
+                    f"DELETE FROM {qualified_table(self.engine, 'etf_universe')} WHERE ticker = :ticker"
                 ),
                 {"ticker": ticker},
             )
@@ -76,39 +76,39 @@ class SecurityStore:
     # ------------------------------------------------------------------
 
     def get_existing_tickers(self) -> set[str]:
-        """Return the set of all tickers currently in the securities table."""
+        """Return the set of all tickers currently in the etf_universe table."""
         self._ensure_schema()
         with self.engine.connect() as conn:
             df = pd.read_sql(
-                text(f"SELECT ticker FROM {qualified_table(self.engine, 'securities')}"), conn
+                text(f"SELECT ticker FROM {qualified_table(self.engine, 'etf_universe')}"), conn
             )
         return set(df["ticker"].tolist()) if not df.empty else set()
 
-    def list_active_securities(self) -> pd.DataFrame:
-        """Return a DataFrame of all active (active=1) securities ordered by ticker."""
+    def list_active_etfs(self) -> pd.DataFrame:
+        """Return a DataFrame of all active (active=1) etf_universe ordered by ticker."""
         self._ensure_schema()
-        return self._active_securities().copy()
+        return self._active_etfs().copy()
 
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _active_securities(self) -> pd.DataFrame:
+    def _active_etfs(self) -> pd.DataFrame:
         query = text(
-            f"SELECT * FROM {qualified_table(self.engine, 'securities')} WHERE active = 1 ORDER BY ticker"
+            f"SELECT * FROM {qualified_table(self.engine, 'etf_universe')} WHERE active = 1 ORDER BY ticker"
         )
         with self.engine.connect() as conn:
             return pd.read_sql(query, conn)
 
     def _has_primary_key_on_ticker(self) -> bool:
-        """Return True if the securities table already has ticker as its primary key."""
+        """Return True if the etf_universe table already has ticker as its primary key."""
         if self.engine.dialect.name != "sqlite":
             inspector = inspect(self.engine)
             active_schema = schema_name(self.engine)
-            pk = inspector.get_pk_constraint("securities", schema=active_schema)
+            pk = inspector.get_pk_constraint("etf_universe", schema=active_schema)
             return pk.get("constrained_columns") == ["ticker"]
 
-        query = text("PRAGMA table_info(securities)")
+        query = text("PRAGMA table_info(etf_universe)")
         with self.engine.connect() as conn:
             rows = conn.execute(query).mappings().all()
         return any(row["name"] == "ticker" and int(row["pk"] or 0) == 1 for row in rows)
@@ -124,19 +124,19 @@ class SecurityStore:
             self._schema_ready = True
             return
 
-        # Rebuild securities table with the correct primary key constraint.
+        # Rebuild etf_universe table with the correct primary key constraint.
         with self.engine.begin() as conn:
             conn.exec_driver_sql(
                 "CREATE TABLE IF NOT EXISTS securities__backup AS "
-                "SELECT ticker, name, asset_class, active FROM securities"
+                "SELECT ticker, name, asset_class, active FROM etf_universe"
             )
-            conn.exec_driver_sql("DROP TABLE IF EXISTS securities")
+            conn.exec_driver_sql("DROP TABLE IF EXISTS etf_universe")
 
         create_tables(self.engine)
 
         with self.engine.begin() as conn:
             conn.execute(text(f"""
-                INSERT INTO {qualified_table(self.engine, 'securities')} (ticker, name, asset_class, active)
+                INSERT INTO {qualified_table(self.engine, 'etf_universe')} (ticker, name, asset_class, active)
                 SELECT ticker, name, asset_class, COALESCE(active, 1)
                 FROM securities__backup
                 WHERE ticker IS NOT NULL

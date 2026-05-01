@@ -7,27 +7,29 @@ import pandas as pd
 
 from fixed_income.analytics.factor_data import spread_changes_bps
 from fixed_income.analytics.result_models import (
+    ETFAnalyticsSnapshot,
     RateRiskEstimate,
-    SecurityAnalyticsSnapshot,
     SpreadRiskEstimate,
 )
 from fixed_income.analytics.spread_models import ewma_blend, regress_spread_beta
 from fixed_income.config.model_settings import ANALYTICS_MODEL_VERSION
 from fixed_income.config.spread_proxy_rules import SPREAD_PROXY_BY_BUCKET
-from fixed_income.instruments.security import Security
+from fixed_income.etfs import ETF
 
 LOGGER = logging.getLogger(__name__)
+METADATA_DURATION_MODEL_TYPE = "provider_metadata"
+METADATA_DURATION_CONFIDENCE = "high"
 
 
 class FixedIncomeAnalyticsService:
     """Build ETF analytics from provider metadata and spread-risk regressions."""
 
     def __init__(
-        self, price_store, macro_store, duration_selector, analytics_snapshot_store=None
+        self, price_store, macro_store, risk_proxy_selector, analytics_snapshot_store=None
     ) -> None:
         self.price_store = price_store
         self.macro_store = macro_store
-        self.duration_selector = duration_selector
+        self.risk_proxy_selector = risk_proxy_selector
         self.analytics_snapshot_store = analytics_snapshot_store
 
     def model_settings_key(self) -> str:
@@ -42,28 +44,28 @@ class FixedIncomeAnalyticsService:
         latest_dates = self.macro_store.get_latest_stored_dates(series_ids)
         return max(latest_dates.values()) if latest_dates else None
 
-    def get_latest_snapshot(self, symbol: str) -> SecurityAnalyticsSnapshot | None:
+    def get_latest_snapshot(self, symbol: str) -> ETFAnalyticsSnapshot | None:
         if self.analytics_snapshot_store is None:
             return None
         return self.analytics_snapshot_store.get_latest_snapshot(symbol)
 
-    def persist_snapshot(self, snapshot: SecurityAnalyticsSnapshot, *, as_of_date: str) -> None:
+    def persist_snapshot(self, snapshot: ETFAnalyticsSnapshot, *, as_of_date: str) -> None:
         if self.analytics_snapshot_store is None:
             return
         self.analytics_snapshot_store.upsert_snapshot(snapshot, as_of_date=as_of_date)
 
-    def analyze_security(self, security: Security) -> SecurityAnalyticsSnapshot:
-        factor_bundle = self.load_factor_bundle(security)
-        return self.analyze_factor_bundle(security, factor_bundle)
+    def analyze_etf(self, etf: ETF) -> ETFAnalyticsSnapshot:
+        factor_bundle = self.load_etf_factor_bundle(etf)
+        return self.analyze_factor_bundle(etf, factor_bundle)
 
-    def load_factor_bundle(self, security: Security) -> dict[str, object]:
-        returns = security.log_returns().rename("etf_return")
+    def load_etf_factor_bundle(self, etf: ETF) -> dict[str, object]:
+        returns = etf.log_returns().rename("etf_return")
         start_date = (
             None
             if returns.empty
             else (returns.index.max() - pd.Timedelta(days=260)).date().isoformat()
         )
-        selection = self.duration_selector.select_for_security(security)
+        selection = self.risk_proxy_selector.select_for_etf(etf)
 
         spread_series_map: dict[str, pd.Series] = {}
         if start_date and selection.spread_proxy_series_id:
@@ -75,34 +77,32 @@ class FixedIncomeAnalyticsService:
 
         return {
             "returns": returns,
-            "latest_price": security.last_price(),
+            "latest_price": etf.last_price(),
             "start_date": start_date,
             "selection": selection,
             "spread_series": spread_series_map,
         }
 
     def analyze_factor_bundle(
-        self, security: Security, factor_bundle: dict[str, object]
-    ) -> SecurityAnalyticsSnapshot:
+        self, etf: ETF, factor_bundle: dict[str, object]
+    ) -> ETFAnalyticsSnapshot:
         returns = factor_bundle["returns"]
         latest_price = factor_bundle["latest_price"]
-        selection = factor_bundle.get("selection") or self.duration_selector.select_for_security(
-            security
-        )
-        as_of_date = self._security_as_of_date(security)
-        estimated_duration = self._metadata_duration(security)
+        selection = factor_bundle.get("selection") or self.risk_proxy_selector.select_for_etf(etf)
+        as_of_date = self._etf_as_of_date(etf)
+        estimated_duration = self._metadata_duration(etf)
 
         if returns.empty or latest_price is None:
             return self._empty_snapshot(
-                security,
+                etf,
                 "Insufficient ETF price history.",
                 selection=selection,
                 as_of_date=as_of_date,
             )
         if estimated_duration is None:
             return self._empty_snapshot(
-                security,
-                "Provider duration is missing from security metadata.",
+                etf,
+                "Provider duration is missing from ETF metadata.",
                 selection=selection,
                 as_of_date=as_of_date,
             )
@@ -115,22 +115,17 @@ class FixedIncomeAnalyticsService:
         )
         observations_used = None if spread_estimate is None else spread_estimate.observations_used
 
-        LOGGER.info("Analytics live compute for %s (as_of=%s)", security.ticker, as_of_date)
-        return SecurityAnalyticsSnapshot(
-            ticker=security.ticker,
+        LOGGER.info("Analytics live compute for %s (as_of=%s)", etf.ticker, as_of_date)
+        return ETFAnalyticsSnapshot(
+            ticker=etf.ticker,
             asset_bucket=selection.asset_bucket,
-            model_type_used=selection.duration_model_type,
-            confidence_level=selection.confidence_level,
-            notes=selection.notes,
+            model_type_used=METADATA_DURATION_MODEL_TYPE,
+            confidence_level=METADATA_DURATION_CONFIDENCE,
+            notes=self._snapshot_notes(selection.spread_proxy_series_id),
             reason=None,
             rate_risk=RateRiskEstimate(
                 estimated_duration=estimated_duration,
                 dv01_per_share=estimated_duration * latest_price * 0.0001,
-                regression_r2=None,
-                benchmark_beta=None,
-                benchmark_used=None,
-                rate_proxy_used=selection.rate_proxy_description,
-                lookback_days_used=None,
                 observations_used=observations_used,
             ),
             spread_risk=spread_estimate,
@@ -141,8 +136,8 @@ class FixedIncomeAnalyticsService:
             computed_from_end_date=as_of_date,
         )
 
-    def _metadata_duration(self, security: Security) -> float | None:
-        metadata = security.metadata or {}
+    def _metadata_duration(self, etf: ETF) -> float | None:
+        metadata = etf.metadata or {}
         raw_value = metadata.get("duration")
         if raw_value in (None, "", "N/A"):
             return None
@@ -205,29 +200,24 @@ class FixedIncomeAnalyticsService:
 
     def _empty_snapshot(
         self,
-        security: Security,
+        etf: ETF,
         reason: str,
         *,
         selection=None,
         as_of_date: str | None = None,
-    ) -> SecurityAnalyticsSnapshot:
-        selection = selection or self.duration_selector.select_for_security(security)
-        as_of_date = as_of_date or self._security_as_of_date(security)
-        return SecurityAnalyticsSnapshot(
-            ticker=security.ticker,
+    ) -> ETFAnalyticsSnapshot:
+        selection = selection or self.risk_proxy_selector.select_for_etf(etf)
+        as_of_date = as_of_date or self._etf_as_of_date(etf)
+        return ETFAnalyticsSnapshot(
+            ticker=etf.ticker,
             asset_bucket=selection.asset_bucket,
-            model_type_used=selection.duration_model_type,
-            confidence_level=selection.confidence_level,
-            notes=selection.notes,
+            model_type_used=METADATA_DURATION_MODEL_TYPE,
+            confidence_level=METADATA_DURATION_CONFIDENCE,
+            notes=self._snapshot_notes(selection.spread_proxy_series_id),
             reason=reason,
             rate_risk=RateRiskEstimate(
                 estimated_duration=None,
                 dv01_per_share=None,
-                regression_r2=None,
-                benchmark_beta=None,
-                benchmark_used=None,
-                rate_proxy_used=selection.rate_proxy_description,
-                lookback_days_used=None,
                 observations_used=None,
             ),
             spread_risk=(
@@ -249,7 +239,13 @@ class FixedIncomeAnalyticsService:
             computed_from_end_date=as_of_date,
         )
 
-    def _security_as_of_date(self, security: Security) -> str | None:
-        if security.history.empty:
+    def _etf_as_of_date(self, etf: ETF) -> str | None:
+        if etf.history.empty:
             return None
-        return pd.Timestamp(security.history.index.max()).date().isoformat()
+        return pd.Timestamp(etf.history.index.max()).date().isoformat()
+
+    def _snapshot_notes(self, spread_proxy_series_id: str | None) -> str:
+        notes = "Duration is sourced from issuer metadata."
+        if spread_proxy_series_id:
+            notes = f"{notes} Spread beta uses {spread_proxy_series_id} changes."
+        return notes

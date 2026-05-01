@@ -10,7 +10,7 @@ from dashboard.components.charts import (
 from dashboard.components.controls import DashboardControls
 from dashboard.components.info_panel import InfoPanel
 from dashboard.styles.table_styles import DashboardTable
-from fixed_income.instruments.security import Security
+from fixed_income.etfs import ETF
 
 
 class OverviewTab:
@@ -35,7 +35,7 @@ class OverviewTab:
             unsafe_allow_html=True,
         )
 
-    def render(self, security: Security) -> None:
+    def render(self, security: ETF) -> None:
         """Render the Overview tab: window summary note, price chart, volume chart, and history expander."""
         st.subheader("Overview")
 

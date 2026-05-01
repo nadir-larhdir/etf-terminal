@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from config import DEFAULT_TICKERS, FMP_API_KEY, FMP_BASE_URL, normalize_asset_class
 from db.connection import get_engine
 from fixed_income.analytics.duration_estimator import (
-    SecurityDurationEstimator,
+    ETFDurationEstimator,
     issuer_from_long_name,
 )
 from scripts.logging_utils import configure_logging
@@ -277,7 +277,7 @@ def build_metadata_row(
     ticker: str,
     existing_row: dict | None = None,
     *,
-    duration_estimator: SecurityDurationEstimator | None = None,
+    duration_estimator: ETFDurationEstimator | None = None,
 ) -> dict:
     """Build a complete metadata dict for a ticker by merging FMP, internal, and existing data.
 
@@ -411,7 +411,7 @@ if __name__ == "__main__":
 
     engine = get_engine(data_backend=args.backend, app_env=args.app_env)
     metadata_store = MetadataStore(engine)
-    duration_estimator = SecurityDurationEstimator(engine)
+    duration_estimator = ETFDurationEstimator(engine)
     tickers = parse_ticker_list(args.tickers)
 
     if args.mode == "missing-only":
@@ -433,4 +433,4 @@ if __name__ == "__main__":
             logger.warning("Failed metadata enrichment for %s: %s", ticker, exc)
 
     metadata_store.upsert_metadata(rows)
-    logger.info("Security metadata enrichment complete.")
+    logger.info("ETF metadata enrichment complete.")

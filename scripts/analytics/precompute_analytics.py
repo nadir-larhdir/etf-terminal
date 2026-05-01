@@ -1,21 +1,21 @@
-"""Precompute and persist fixed-income analytics snapshots for all active securities."""
+"""Precompute and persist fixed-income analytics snapshots for all active ETFs."""
 
 import argparse
 import logging
 
 from db.connection import get_engine
 from fixed_income.analytics import (
-    DurationModelSelector,
     FixedIncomeAnalyticsService,
+    RiskProxySelector,
     is_snapshot_stale,
     snapshot_age_hours,
 )
-from fixed_income.analytics.result_models import SecurityAnalyticsSnapshot
-from fixed_income.instruments.security import Security
+from fixed_income.analytics.result_models import ETFAnalyticsSnapshot
+from fixed_income.etfs import ETF
 from scripts.logging_utils import configure_logging
 from stores.analytics import AnalyticsSnapshotStore
 from stores.macro import MacroStore
-from stores.market import MetadataStore, PriceStore, SecurityStore
+from stores.market import ETFUniverseStore, MetadataStore, PriceStore
 
 logger = logging.getLogger(__name__)
 
@@ -51,32 +51,32 @@ def build_parser() -> argparse.ArgumentParser:
 def run_precompute_analytics(
     *, engine=None, force: bool = False, ttl_hours: int = 24
 ) -> tuple[int, int]:
-    """Compute and persist analytics snapshots for all active securities.
+    """Compute and persist analytics snapshots for all active ETFs.
 
-    Returns (persisted_count, skipped_count). Skips securities whose snapshots
+    Returns (persisted_count, skipped_count). Skips etf_universe whose snapshots
     are still within the ttl_hours freshness window unless force=True.
     """
     if engine is None:
         engine = get_engine()
-    security_store = SecurityStore(engine)
+    etf_universe_store = ETFUniverseStore(engine)
     price_store = PriceStore(engine)
     metadata_store = MetadataStore(engine)
     macro_store = MacroStore(engine)
     snapshot_store = AnalyticsSnapshotStore(engine)
-    selector = DurationModelSelector()
+    selector = RiskProxySelector()
     analytics_service = FixedIncomeAnalyticsService(
         price_store, macro_store, selector, snapshot_store
     )
 
-    securities = security_store.list_active_securities()
-    if securities.empty:
-        logger.info("No active securities found for analytics precompute.")
+    etf_universe = etf_universe_store.list_active_etfs()
+    if etf_universe.empty:
+        logger.info("No active ETFs found for analytics precompute.")
         return 0, 0
 
-    tickers = securities["ticker"].astype(str).tolist()
+    tickers = etf_universe["ticker"].astype(str).tolist()
     latest_price_dates = price_store.get_latest_stored_dates(tickers)
     latest_snapshot_rows = snapshot_store.get_latest_snapshots(
-        securities["ticker"].astype(str).tolist()
+        etf_universe["ticker"].astype(str).tolist()
     )
     latest_snapshot_map = (
         {str(row["symbol"]): row.to_dict() for _, row in latest_snapshot_rows.iterrows()}
@@ -86,14 +86,14 @@ def run_precompute_analytics(
 
     persisted = 0
     skipped = 0
-    for _, row in securities.iterrows():
+    for _, row in etf_universe.iterrows():
         ticker = str(row["ticker"])
         latest_price_date = latest_price_dates.get(ticker)
         metadata = metadata_store.get_ticker_metadata(ticker) or {}
         metadata_duration = _metadata_duration(metadata)
         snapshot = None
         if ticker in latest_snapshot_map:
-            snapshot = SecurityAnalyticsSnapshot.from_record(latest_snapshot_map[ticker])
+            snapshot = ETFAnalyticsSnapshot.from_record(latest_snapshot_map[ticker])
         if not force and not is_snapshot_stale(
             snapshot,
             ttl_hours=ttl_hours,
@@ -113,14 +113,14 @@ def run_precompute_analytics(
         if history.empty:
             logger.warning("Skipping %s: no price history.", ticker)
             continue
-        security = Security(
+        security = ETF(
             ticker=ticker,
             name=row.get("name"),
             asset_class=row.get("asset_class"),
             metadata=metadata,
             history=history,
         )
-        snapshot = analytics_service.analyze_security(security)
+        snapshot = analytics_service.analyze_etf(security)
         if snapshot.as_of_date is None:
             logger.warning("Skipping %s: no analytics as-of date.", ticker)
             continue

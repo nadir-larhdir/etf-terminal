@@ -41,17 +41,17 @@ class TickerProfile:
 
 
 class TickerManagerService:
-    """Validate, add, and remove ETFs across the securities, metadata, and price tables."""
+    """Validate, add, and remove ETFs across the etf_universe, metadata, and price tables."""
 
     def __init__(
         self,
-        security_store,
+        etf_universe_store,
         price_store,
         metadata_store,
         market_data_service,
         metadata_builder=None,
     ):
-        self.security_store = security_store
+        self.etf_universe_store = etf_universe_store
         self.price_store = price_store
         self.metadata_store = metadata_store
         self.market_data_service = market_data_service
@@ -109,9 +109,9 @@ class TickerManagerService:
     def add_ticker(
         self, ticker: str, asset_class_override: str | None = None, period: str = "1y"
     ) -> TickerProfile:
-        """Validate and persist a new ticker: securities row, metadata, and price history."""
+        """Validate and persist a new ticker: etf_universe row, metadata, and price history."""
         profile = self.inspect_ticker(ticker, asset_class_override=asset_class_override)
-        self.security_store.upsert_securities(
+        self.etf_universe_store.upsert_etfs(
             [
                 {
                     "ticker": profile.ticker,
@@ -129,11 +129,11 @@ class TickerManagerService:
         return profile
 
     def delete_ticker(self, ticker: str) -> None:
-        """Remove a ticker from all active data stores: prices, metadata, and securities."""
+        """Remove a ticker from all active data stores: prices, metadata, and etf_universe."""
         normalized = ticker.strip().upper()
         self.price_store.delete_ticker(normalized)
         self.metadata_store.delete_ticker(normalized)
-        self.security_store.delete_ticker(normalized)
+        self.etf_universe_store.delete_ticker(normalized)
 
     # ------------------------------------------------------------------
     # Private helpers

@@ -1,11 +1,11 @@
-from fixed_income.analytics.result_models import RateRiskEstimate, SecurityAnalyticsSnapshot
+from fixed_income.analytics.result_models import ETFAnalyticsSnapshot, RateRiskEstimate
 from fixed_income.analytics.snapshot_utils import is_snapshot_stale
 
 
 def _snapshot(
     *, estimated_duration: float | None, as_of_date: str = "2026-04-22"
-) -> SecurityAnalyticsSnapshot:
-    return SecurityAnalyticsSnapshot(
+) -> ETFAnalyticsSnapshot:
+    return ETFAnalyticsSnapshot(
         ticker="LQD",
         asset_bucket="Investment Grade Credit",
         model_type_used="provider_metadata",
@@ -15,11 +15,6 @@ def _snapshot(
         rate_risk=RateRiskEstimate(
             estimated_duration=estimated_duration,
             dv01_per_share=0.08,
-            regression_r2=0.8,
-            benchmark_beta=None,
-            benchmark_used=None,
-            rate_proxy_used="Issuer published duration",
-            lookback_days_used=None,
             observations_used=100,
         ),
         as_of_date=as_of_date,

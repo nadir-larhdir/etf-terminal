@@ -7,7 +7,7 @@ from db.connection import get_engine
 from scripts.logging_utils import configure_logging
 from scripts.script_helpers import add_ticker_argument, resolve_target_tickers
 from services.market import MarketDataService
-from stores.market import PriceStore, SecurityStore
+from stores.market import ETFUniverseStore, PriceStore
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +50,8 @@ if __name__ == "__main__":
     args = build_parser().parse_args()
 
     engine = get_engine(data_backend=args.backend, app_env=args.app_env)
-    security_store = SecurityStore(engine)
-    active_securities = security_store.list_active_securities()
+    etf_universe_store = ETFUniverseStore(engine)
+    active_securities = etf_universe_store.list_active_etfs()
     db_tickers = (
         active_securities["ticker"].astype(str).tolist() if not active_securities.empty else []
     )

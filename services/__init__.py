@@ -1,4 +1,4 @@
-from fixed_income.analytics import DurationModelSelector, FixedIncomeAnalyticsService
+from fixed_income.analytics import FixedIncomeAnalyticsService, RiskProxySelector
 from services.admin import TickerManagerService
 from services.macro import (
     DEFAULT_MACRO_SERIES,
@@ -12,7 +12,6 @@ from services.news import NewsFeedService
 
 __all__ = [
     "DEFAULT_MACRO_SERIES",
-    "DurationModelSelector",
     "FixedIncomeAnalyticsService",
     "FEATURE_METADATA",
     "FredClient",
@@ -20,5 +19,6 @@ __all__ = [
     "MacroDataService",
     "MacroFeatureService",
     "NewsFeedService",
+    "RiskProxySelector",
     "TickerManagerService",
 ]
