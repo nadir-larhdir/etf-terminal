@@ -13,7 +13,6 @@ TABLE_COPY_ORDER = list(TABLE_DEFINITIONS.keys())
 
 DATE_COLUMNS = {
     "price_history": ["date"],
-    "security_inputs": ["date"],
     "macro_data": ["date"],
     "macro_features": ["date"],
     "analytics_snapshots": ["as_of_date", "computed_from_start_date", "computed_from_end_date"],

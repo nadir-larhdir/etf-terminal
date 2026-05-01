@@ -46,7 +46,6 @@ def test_ticker_manager_uses_injected_metadata_builder_for_add() -> None:
         security_store=security_store,
         price_store=FakeStore(),
         metadata_store=metadata_store,
-        input_store=FakeStore(),
         market_data_service=market_data_service,
         metadata_builder=lambda ticker: {
             "ticker": ticker,

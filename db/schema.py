@@ -29,17 +29,6 @@ TABLE_DEFINITIONS = {
             PRIMARY KEY (ticker, date)
         )
     """,
-    "security_inputs": """
-        CREATE TABLE IF NOT EXISTS security_inputs (
-            ticker TEXT NOT NULL,
-            date TEXT NOT NULL,
-            flow_usd_mm REAL DEFAULT 0,
-            premium_discount_pct REAL DEFAULT 0,
-            desk_note TEXT DEFAULT '',
-            updated_at TEXT,
-            PRIMARY KEY (ticker, date)
-        )
-    """,
     "security_metadata": """
         CREATE TABLE IF NOT EXISTS security_metadata (
             ticker TEXT PRIMARY KEY,
@@ -48,6 +37,10 @@ TABLE_DEFINITIONS = {
             description TEXT,
             issuer TEXT,
             duration REAL,
+            yield_to_maturity REAL,
+            oas REAL,
+            years_to_maturity REAL,
+            convexity REAL,
             benchmark_index TEXT,
             category TEXT,
             duration_bucket TEXT,
@@ -169,7 +162,17 @@ def create_tables(engine) -> None:
 
 def ensure_security_metadata_schema(conn) -> None:
     """Add any columns missing from security_metadata introduced after the initial schema."""
-    _add_missing_columns(conn, "security_metadata", {"duration": "REAL"})
+    _add_missing_columns(
+        conn,
+        "security_metadata",
+        {
+            "duration": "REAL",
+            "yield_to_maturity": "REAL",
+            "oas": "REAL",
+            "years_to_maturity": "REAL",
+            "convexity": "REAL",
+        },
+    )
 
 
 def ensure_analytics_snapshot_schema(conn) -> None:

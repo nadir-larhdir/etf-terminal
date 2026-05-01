@@ -18,8 +18,8 @@ from dashboard.components.info_panel import InfoPanel
 from dashboard.mobile import PLOTLY_CHART_CONFIG
 from dashboard.perf import timed_block
 from fixed_income.analytics import format_oas_proxy_label
+from fixed_income.analytics.duration_estimator import duration_source_details
 from fixed_income.instruments.security import Security
-from services.market.duration_estimator import CURVE_REGRESSION_TICKERS, ISHARES_ETFS, PROXY_MAP
 
 LOGGER = logging.getLogger(__name__)
 
@@ -113,7 +113,7 @@ class AnalyticsTab:
 
         with st.expander("Methodology", expanded=False):
             st.markdown(
-                "Estimated duration is sourced from holdings, a proxy ETF beta, or Treasury-curve regression depending on the fund. "
+                "Estimated duration is sourced from each ETF issuer's published fixed-income analytics where available. "
                 "Spread beta is measured per 1 bp move in the selected ICE BofA OAS series. "
                 "DV01 and proxy CS01 are shown on a $1MM notional-equivalent basis, not as official published fund analytics or exact CS01."
             )
@@ -283,14 +283,7 @@ class AnalyticsTab:
 
     def _duration_source_details(self, security: Security) -> tuple[str, str]:
         """Return a (method, source) label pair describing how duration was estimated for this ticker."""
-        ticker = security.ticker.strip().upper()
-        if ticker in ISHARES_ETFS:
-            return ("Holdings", "PCF")
-        if ticker in PROXY_MAP:
-            return ("Proxy", PROXY_MAP[ticker])
-        if ticker in CURVE_REGRESSION_TICKERS:
-            return ("Regression", "Treasuries")
-        return ("Model", "Derived")
+        return duration_source_details(security.ticker)
 
     def _render_metric_card(
         self,

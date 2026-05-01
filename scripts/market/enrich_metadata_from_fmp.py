@@ -6,9 +6,12 @@ from datetime import UTC, datetime
 
 from config import DEFAULT_TICKERS, FMP_API_KEY, FMP_BASE_URL, normalize_asset_class
 from db.connection import get_engine
+from fixed_income.analytics.duration_estimator import (
+    SecurityDurationEstimator,
+    issuer_from_long_name,
+)
 from scripts.logging_utils import configure_logging
 from scripts.script_helpers import add_ticker_argument, parse_ticker_list
-from services.market.duration_estimator import SecurityDurationEstimator, issuer_from_long_name
 from services.market.fmp_client import FMPClient
 from stores.market import MetadataStore
 
@@ -17,9 +20,6 @@ INTERNAL_METADATA = {
     "BND": {
         "benchmark_index": "Bloomberg U.S. Aggregate Float Adjusted Index",
         "category": "Core Bond",
-    },
-    "BSV": {
-        "benchmark_index": "Bloomberg U.S. 1-5 Year Government/Credit Float Adjusted Index",
     },
     "EDV": {
         "benchmark_index": "Bloomberg U.S. Treasury STRIPS 20-30 Year Equal Par Bond Index",
@@ -38,10 +38,6 @@ INTERNAL_METADATA = {
     },
     "GOVT": {
         "benchmark_index": "ICE U.S. Treasury Core Bond Index",
-    },
-    "HYD": {
-        "benchmark_index": "Bloomberg Municipal High Yield Index",
-        "category": "HY Credit",
     },
     "IEI": {
         "benchmark_index": "ICE U.S. Treasury 3-7 Year Bond Index",
@@ -316,8 +312,15 @@ def build_metadata_row(
         "N/A",
     )
     duration = None
+    analytics = None
     if duration_estimator is not None:
-        duration = duration_estimator.estimate_duration(ticker)
+        analytics = duration_estimator.get_analytics(ticker)
+        if analytics is not None:
+            duration = (
+                round(float(analytics.preferred_duration), 1)
+                if analytics.preferred_duration is not None
+                else None
+            )
 
     return {
         "ticker": ticker,
@@ -327,6 +330,21 @@ def build_metadata_row(
         or f"Fixed income ETF in the {derived_category} bucket.",
         "issuer": issuer,
         "duration": _choose_preferred(duration, existing.get("duration")),
+        "yield_to_maturity": _choose_preferred(
+            analytics.ytm if analytics is not None else None,
+            existing.get("yield_to_maturity"),
+        ),
+        "oas": _choose_preferred(
+            analytics.oas if analytics is not None else None, existing.get("oas")
+        ),
+        "years_to_maturity": _choose_preferred(
+            analytics.avg_maturity if analytics is not None else None,
+            existing.get("years_to_maturity"),
+        ),
+        "convexity": _choose_preferred(
+            analytics.convexity if analytics is not None else None,
+            existing.get("convexity"),
+        ),
         "benchmark_index": _choose_preferred(
             internal.get("benchmark_index"),
             existing.get("benchmark_index"),
@@ -336,13 +354,17 @@ def build_metadata_row(
         "category": _choose_preferred(
             internal.get("category"),
             (
+                normalize_asset_class(base.get("asset_class"))
+                if _is_populated(base.get("asset_class"))
+                else None
+            ),
+            (
                 normalize_asset_class(existing.get("category"))
                 if _is_populated(existing.get("category"))
                 else None
             ),
             derived_category,
             fmp_meta.get("category"),
-            base.get("asset_class"),
         ),
         "duration_bucket": _choose_preferred(
             internal.get("duration_bucket"),

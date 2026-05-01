@@ -20,6 +20,10 @@ class MetadataStore:
         "description",
         "issuer",
         "duration",
+        "yield_to_maturity",
+        "oas",
+        "years_to_maturity",
+        "convexity",
         "benchmark_index",
         "category",
         "duration_bucket",
@@ -53,17 +57,24 @@ class MetadataStore:
         statement = f"""
         INSERT INTO {qualified_table(self.engine, 'security_metadata')} (
             ticker, conid, long_name, description, issuer, duration,
+            yield_to_maturity, oas, years_to_maturity, convexity,
             benchmark_index, category, duration_bucket, currency, exchange,
             expense_ratio, total_assets, quote_type, source, updated_at
         ) VALUES (
             :ticker, :conid, :long_name, :description, :issuer, :duration,
+            :yield_to_maturity, :oas, :years_to_maturity, :convexity,
             :benchmark_index, :category, :duration_bucket, :currency, :exchange,
             :expense_ratio, :total_assets, :quote_type, :source, :updated_at
         )
         ON CONFLICT(ticker) DO UPDATE SET
             conid = excluded.conid, long_name = excluded.long_name,
             description = excluded.description, issuer = excluded.issuer,
-            duration = excluded.duration, benchmark_index = excluded.benchmark_index,
+            duration = excluded.duration,
+            yield_to_maturity = excluded.yield_to_maturity,
+            oas = excluded.oas,
+            years_to_maturity = excluded.years_to_maturity,
+            convexity = excluded.convexity,
+            benchmark_index = excluded.benchmark_index,
             category = excluded.category, duration_bucket = excluded.duration_bucket,
             currency = excluded.currency, exchange = excluded.exchange,
             expense_ratio = excluded.expense_ratio, total_assets = excluded.total_assets,

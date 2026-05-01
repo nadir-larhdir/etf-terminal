@@ -226,7 +226,6 @@ Ticker deletion removes the symbol from:
 - `securities`
 - `security_metadata`
 - `price_history`
-- `security_inputs`
 
 **Universe Management**
 

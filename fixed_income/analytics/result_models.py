@@ -37,6 +37,8 @@ class SpreadRiskEstimate:
     dv01_proxy_per_share: float | None
     regression_r2: float | None
     proxy_used: str | None
+    lookback_days_used: int | None = None
+    observations_used: int | None = None
 
 
 @dataclass(frozen=True)

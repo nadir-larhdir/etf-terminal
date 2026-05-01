@@ -148,24 +148,28 @@ def test_fixed_income_analytics_service_smoke_estimates() -> None:
         name="Treasury ETF",
         asset_class="UST Long",
         history=price_store.get_ticker_price_history("TLT"),
+        metadata={"duration": 15.3},
     )
     ief = Security(
         "IEF",
         name="Treasury ETF",
         asset_class="UST Belly",
         history=price_store.get_ticker_price_history("IEF"),
+        metadata={"duration": 6.9},
     )
     lqd = Security(
         "LQD",
         name="Investment Grade Bond ETF",
         asset_class="IG Credit",
         history=price_store.get_ticker_price_history("LQD"),
+        metadata={"duration": 7.9},
     )
     hyg = Security(
         "HYG",
         name="High Yield Bond ETF",
         asset_class="HY Credit",
         history=price_store.get_ticker_price_history("HYG"),
+        metadata={"duration": 3.0},
     )
 
     tlt_result = service.analyze_security(tlt)
@@ -173,19 +177,19 @@ def test_fixed_income_analytics_service_smoke_estimates() -> None:
     lqd_result = service.analyze_security(lqd)
     hyg_result = service.analyze_security(hyg)
 
-    assert tlt_result.model_type_used == "treasury_curve_regression"
-    assert 12.0 < (tlt_result.estimated_duration or 0.0) < 20.0
+    assert tlt_result.model_type_used == "provider_metadata"
+    assert tlt_result.estimated_duration == 15.3
 
-    assert 5.0 < (ief_result.estimated_duration or 0.0) < 10.0
+    assert ief_result.estimated_duration == 6.9
     assert ief_result.benchmark_used is None
 
-    assert lqd_result.benchmark_used == "IEF"
+    assert lqd_result.benchmark_used is None
     assert lqd_result.spread_proxy_used == "BAMLC0A0CM"
-    assert 6.0 < (lqd_result.estimated_duration or 0.0) < 10.0
+    assert lqd_result.estimated_duration == 7.9
 
-    assert hyg_result.benchmark_used == "SHY"
+    assert hyg_result.benchmark_used is None
     assert hyg_result.spread_proxy_used == "BAMLH0A0HYM2"
-    assert 2.0 < (hyg_result.estimated_duration or 0.0) < 5.0
+    assert hyg_result.estimated_duration == 3.0
     assert (hyg_result.spread_beta_per_bp or 0.0) < 0.0
 
 
