@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fixed_income.config.text_utils import security_text_blob
+from fixed_income.config.text_utils import etf_text_blob
 
 # Default OAS proxy series per broad bucket — used for bucketed analytics.
 SPREAD_PROXY_BY_BUCKET = {
@@ -11,15 +11,15 @@ SPREAD_PROXY_BY_BUCKET = {
 }
 
 
-def spread_proxy_for_bucket(bucket: str, security) -> str | None:
-    """Return the most appropriate OAS proxy FRED series ID for this security.
+def spread_proxy_for_bucket(bucket: str, etf) -> str | None:
+    """Return the most appropriate OAS proxy FRED series ID for this ETF.
 
-    Refines the default bucket proxy by inspecting the security's text blob:
+    Refines the default bucket proxy by inspecting the ETF's text blob:
     - IG Credit: uses BBB index if the word 'bbb' appears, else broad IG.
     - High Yield: uses Single-B index for single-B credits, else broad HY.
     - All other buckets return None (no spread proxy applicable).
     """
-    text_blob = security_text_blob(security)
+    text_blob = etf_text_blob(etf)
     if bucket == "Investment Grade Credit":
         return "BAMLC0A4CBBB" if "bbb" in text_blob else "BAMLC0A0CM"
     if bucket == "High Yield":

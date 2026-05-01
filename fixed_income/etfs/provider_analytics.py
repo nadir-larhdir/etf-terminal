@@ -124,8 +124,8 @@ def _parse_number(value) -> float | None:
     return float(match.group().replace(",", "")) if match else None
 
 
-class ETF:
-    """Fetch fixed-income analytics for a supported ETF ticker."""
+class ETFAnalyticsClient:
+    """Fetch provider analytics for a supported fixed-income ETF ticker."""
 
     def __init__(self, ticker: str, session: requests.Session | None = None):
         self.ticker = ticker.strip().upper()

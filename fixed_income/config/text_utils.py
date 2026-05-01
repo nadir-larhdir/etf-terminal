@@ -1,10 +1,10 @@
-"""Text helpers for building searchable blobs from security attributes."""
+"""Text helpers for building searchable blobs from ETF attributes."""
 
 from __future__ import annotations
 
 
-def security_text_blob(security) -> str:
-    """Return a single lowercase string concatenating all text fields of a security.
+def etf_text_blob(etf) -> str:
+    """Return a single lowercase string concatenating all text fields of an ETF.
 
     Used by bucket classifiers and proxy selectors to match keywords without
     requiring a strict enum on every attribute.
@@ -12,12 +12,12 @@ def security_text_blob(security) -> str:
     return " ".join(
         str(value or "")
         for value in (
-            security.ticker,
-            security.name,
-            security.asset_class,
-            security.metadata.get("category"),
-            security.metadata.get("long_name"),
-            security.metadata.get("description"),
-            security.metadata.get("duration_bucket"),
+            etf.ticker,
+            etf.name,
+            etf.asset_class,
+            etf.metadata.get("category"),
+            etf.metadata.get("long_name"),
+            etf.metadata.get("description"),
+            etf.metadata.get("duration_bucket"),
         )
     ).lower()

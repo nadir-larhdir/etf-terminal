@@ -7,7 +7,7 @@ from db.connection import get_engine
 from scripts.logging_utils import configure_logging
 from services.admin import TickerManagerService
 from services.market import MarketDataService
-from stores.market import MetadataStore, PriceStore, SecurityStore
+from stores.market import ETFUniverseStore, MetadataStore, PriceStore
 
 logger = logging.getLogger(__name__)
 
@@ -38,12 +38,12 @@ if __name__ == "__main__":
     args = build_parser().parse_args()
 
     engine = get_engine()
-    security_store = SecurityStore(engine)
+    etf_universe_store = ETFUniverseStore(engine)
     price_store = PriceStore(engine)
     metadata_store = MetadataStore(engine)
     market_data_service = MarketDataService(price_store)
     manager = TickerManagerService(
-        security_store=security_store,
+        etf_universe_store=etf_universe_store,
         price_store=price_store,
         metadata_store=metadata_store,
         market_data_service=market_data_service,
@@ -64,6 +64,6 @@ if __name__ == "__main__":
     else:
         manager.delete_ticker(args.ticker)
         logger.info(
-            "Ticker deleted from securities, metadata, and prices: %s",
+            "Ticker deleted from etf_universe, metadata, and prices: %s",
             args.ticker.strip().upper(),
         )

@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from fixed_income.analytics import DurationModelSelector, FixedIncomeAnalyticsService
-from fixed_income.instruments.security import Security
+from fixed_income.analytics import FixedIncomeAnalyticsService, RiskProxySelector
+from fixed_income.etfs import ETF
 
 
 class FakePriceStore:
@@ -141,30 +141,30 @@ def _synthetic_environment() -> tuple[FakePriceStore, FakeMacroStore]:
 
 def test_fixed_income_analytics_service_smoke_estimates() -> None:
     price_store, macro_store = _synthetic_environment()
-    service = FixedIncomeAnalyticsService(price_store, macro_store, DurationModelSelector())
+    service = FixedIncomeAnalyticsService(price_store, macro_store, RiskProxySelector())
 
-    tlt = Security(
+    tlt = ETF(
         "TLT",
         name="Treasury ETF",
         asset_class="UST Long",
         history=price_store.get_ticker_price_history("TLT"),
         metadata={"duration": 15.3},
     )
-    ief = Security(
+    ief = ETF(
         "IEF",
         name="Treasury ETF",
         asset_class="UST Belly",
         history=price_store.get_ticker_price_history("IEF"),
         metadata={"duration": 6.9},
     )
-    lqd = Security(
+    lqd = ETF(
         "LQD",
         name="Investment Grade Bond ETF",
         asset_class="IG Credit",
         history=price_store.get_ticker_price_history("LQD"),
         metadata={"duration": 7.9},
     )
-    hyg = Security(
+    hyg = ETF(
         "HYG",
         name="High Yield Bond ETF",
         asset_class="HY Credit",
@@ -172,22 +172,19 @@ def test_fixed_income_analytics_service_smoke_estimates() -> None:
         metadata={"duration": 3.0},
     )
 
-    tlt_result = service.analyze_security(tlt)
-    ief_result = service.analyze_security(ief)
-    lqd_result = service.analyze_security(lqd)
-    hyg_result = service.analyze_security(hyg)
+    tlt_result = service.analyze_etf(tlt)
+    ief_result = service.analyze_etf(ief)
+    lqd_result = service.analyze_etf(lqd)
+    hyg_result = service.analyze_etf(hyg)
 
     assert tlt_result.model_type_used == "provider_metadata"
     assert tlt_result.estimated_duration == 15.3
 
     assert ief_result.estimated_duration == 6.9
-    assert ief_result.benchmark_used is None
 
-    assert lqd_result.benchmark_used is None
     assert lqd_result.spread_proxy_used == "BAMLC0A0CM"
     assert lqd_result.estimated_duration == 7.9
 
-    assert hyg_result.benchmark_used is None
     assert hyg_result.spread_proxy_used == "BAMLH0A0HYM2"
     assert hyg_result.estimated_duration == 3.0
     assert (hyg_result.spread_beta_per_bp or 0.0) < 0.0
@@ -195,9 +192,9 @@ def test_fixed_income_analytics_service_smoke_estimates() -> None:
 
 def test_fixed_income_analytics_service_prefers_metadata_duration() -> None:
     price_store, macro_store = _synthetic_environment()
-    service = FixedIncomeAnalyticsService(price_store, macro_store, DurationModelSelector())
+    service = FixedIncomeAnalyticsService(price_store, macro_store, RiskProxySelector())
 
-    lqd = Security(
+    lqd = ETF(
         "LQD",
         name="Investment Grade Bond ETF",
         asset_class="IG Credit",
@@ -205,7 +202,7 @@ def test_fixed_income_analytics_service_prefers_metadata_duration() -> None:
         metadata={"duration": 8.0},
     )
 
-    result = service.analyze_security(lqd)
+    result = service.analyze_etf(lqd)
 
     assert result.estimated_duration == 8.0
     assert result.dv01_per_share is not None

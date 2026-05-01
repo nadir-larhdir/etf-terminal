@@ -19,7 +19,7 @@ from dashboard.mobile import PLOTLY_CHART_CONFIG
 from dashboard.perf import timed_block
 from fixed_income.analytics import format_oas_proxy_label
 from fixed_income.analytics.duration_estimator import duration_source_details
-from fixed_income.instruments.security import Security
+from fixed_income.etfs import ETF
 
 LOGGER = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class AnalyticsTab:
         self.analytics_service = analytics_service
         self.info_panel = InfoPanel()
 
-    def render(self, security: Security) -> None:
+    def render(self, security: ETF) -> None:
         """Render the Analytics tab: metric cards, credit spread section, volume bars, and narrative panels."""
         st.subheader("Analytics")
         with timed_block("analytics.prepare_inputs"):
@@ -154,7 +154,7 @@ class AnalyticsTab:
             )
             self._render_volume_bars(security)
 
-    def _analytics_snapshot(self, security: Security):
+    def _analytics_snapshot(self, security: ETF):
         """Return a live or cached analytics snapshot, falling back to live computation when stale."""
         cache_key = app_cache_key(self.analytics_service.price_store.engine)
         price_as_of = (
@@ -225,7 +225,7 @@ class AnalyticsTab:
         except (TypeError, ValueError):
             return None
 
-    def _current_read_headline(self, security: Security, metadata: dict) -> str:
+    def _current_read_headline(self, security: ETF, metadata: dict) -> str:
         """Build the headline string for the Current Read panel from category and duration bucket."""
         category = str(metadata.get("category") or security.asset_class or "Fixed Income")
         duration_bucket = str(metadata.get("duration_bucket") or "").strip()
@@ -235,7 +235,7 @@ class AnalyticsTab:
 
     def _current_read_body(
         self,
-        security: Security,
+        security: ETF,
         metadata: dict,
         snapshot: dict[str, float | None],
         analytics,
@@ -281,7 +281,7 @@ class AnalyticsTab:
         impact_bps = analytics.spread_beta_per_bp * 10000.0
         return f"+1bp OAS widening -> {self._format_bps_impact(impact_bps)} price change."
 
-    def _duration_source_details(self, security: Security) -> tuple[str, str]:
+    def _duration_source_details(self, security: ETF) -> tuple[str, str]:
         """Return a (method, source) label pair describing how duration was estimated for this ticker."""
         return duration_source_details(security.ticker)
 
@@ -311,7 +311,7 @@ class AnalyticsTab:
             unsafe_allow_html=True,
         )
 
-    def _render_volume_bars(self, security: Security) -> None:
+    def _render_volume_bars(self, security: ETF) -> None:
         """Render a 30-day bar chart of volume relative to the rolling 30D average."""
         history = security.history.copy()
         if history.empty or "volume" not in history.columns:
@@ -423,7 +423,7 @@ class AnalyticsTab:
             "</div>"
         )
 
-    def _dv01_change_footer(self, security: Security, duration: float | None) -> str | None:
+    def _dv01_change_footer(self, security: ETF, duration: float | None) -> str | None:
         """Return a 30-day DV01 change label (e.g. '30d ↑ 2.3%'), or None if insufficient history."""
         if (
             duration is None

@@ -1,18 +1,18 @@
-"""Rules for classifying a security into a fixed-income asset bucket."""
+"""Rules for classifying an ETF into a fixed-income asset bucket."""
 
 from __future__ import annotations
 
-from fixed_income.config.text_utils import security_text_blob
+from fixed_income.config.text_utils import etf_text_blob
 
 
-def classify_bucket(security) -> str:
-    """Return the canonical asset bucket for a security.
+def classify_bucket(etf) -> str:
+    """Return the canonical asset bucket for an ETF.
 
     Checks the structured asset_class field first, then falls back to keyword
     matching against the combined text blob of all metadata fields.
     """
-    asset_class = str(security.asset_class or "")
-    text_blob = security_text_blob(security)
+    asset_class = str(etf.asset_class or "")
+    text_blob = etf_text_blob(etf)
 
     # Structured asset_class overrides take priority over keyword matching.
     _ASSET_CLASS_MAP = {
@@ -51,6 +51,6 @@ def classify_bucket(security) -> str:
     return "Unknown"
 
 
-def duration_hint(security) -> str:
-    """Return the full text blob for a security, used as a duration classification hint."""
-    return security_text_blob(security)
+def duration_hint(etf) -> str:
+    """Return the full text blob for an ETF, used as a duration classification hint."""
+    return etf_text_blob(etf)

@@ -1,4 +1,4 @@
-"""Security description card and price-strip header for the Dashboard page."""
+"""ETF description card and price-strip header for the Dashboard page."""
 
 import pandas as pd
 import streamlit as st
@@ -6,7 +6,7 @@ import streamlit as st
 from dashboard.components.info_panel import InfoPanel
 
 
-class SecurityHeader:
+class ETFHeader:
     """Render the descriptive and top-strip header blocks for the selected ETF."""
 
     def __init__(self) -> None:
@@ -56,21 +56,21 @@ class SecurityHeader:
     def render_description(
         self,
         securities: pd.DataFrame,
-        selected_security: str,
+        selected_etf: str,
         metadata: dict | None,
     ) -> None:
         """Render the ETF description info panel with name, description, and key attributes."""
-        selected_matches = securities.loc[
-            securities["ticker"].astype(str) == str(selected_security)
-        ]
+        selected_matches = securities.loc[securities["ticker"].astype(str) == str(selected_etf)]
         if selected_matches.empty:
-            st.warning(f"Security metadata not found for {selected_security}.")
+            st.warning(f"ETF metadata not found for {selected_etf}.")
             return
         selected_row = selected_matches.iloc[0]
-        security_name = selected_row["name"]
+        etf_name = selected_row["name"]
         asset_class = selected_row["asset_class"]
 
-        headline = f"{selected_security} — {metadata.get('long_name', security_name) if metadata else security_name}"
+        headline = (
+            f"{selected_etf} — {metadata.get('long_name', etf_name) if metadata else etf_name}"
+        )
         body = (
             metadata.get(
                 "description",
@@ -100,7 +100,7 @@ class SecurityHeader:
         )
 
     def render_header_strip(
-        self, hist: pd.DataFrame, selected_security: str, metadata: dict | None = None
+        self, hist: pd.DataFrame, selected_etf: str, metadata: dict | None = None
     ) -> None:
         """Render the Bloomberg-style summary strip: PX_LAST, CHG, volume, AUM, and expense ratio."""
         metadata = metadata or {}
@@ -115,7 +115,7 @@ class SecurityHeader:
 
         chg_color = "#4E7B52" if chg >= 0 else "#A55C45"
         header_cells = [
-            self._header_cell_html("Security", selected_security, emphasis="primary"),
+            self._header_cell_html("ETF", selected_etf, emphasis="primary"),
             self._header_cell_html("PX_LAST", f"{px_last:,.2f}", emphasis="primary"),
             self._header_cell_html("CHG", f"{chg:+,.2f}", color=chg_color, emphasis="primary"),
             self._header_cell_html(

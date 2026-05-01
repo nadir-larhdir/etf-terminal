@@ -3,14 +3,11 @@ from __future__ import annotations
 import fixed_income.analytics.duration_estimator as duration_estimator
 import scripts.market.enrich_metadata_from_fmp as enrich_metadata
 from fixed_income.analytics.duration_estimator import (
-    SecurityDurationEstimator,
+    ETFDurationEstimator,
     duration_source_details,
     issuer_from_long_name,
 )
-from services.market.etf import (
-    ISHARES_FUNDS,
-    ETFAnalytics,
-)
+from fixed_income.etfs.provider_analytics import ISHARES_FUNDS, ETFAnalytics
 
 
 class FakeDurationEstimator:
@@ -39,7 +36,7 @@ def test_issuer_from_long_name_uses_first_word() -> None:
 
 
 def test_duration_estimator_uses_provider_analytics(monkeypatch) -> None:
-    class FakeETF:
+    class FakeETFAnalyticsClient:
         def __init__(self, ticker: str, session=None) -> None:
             self.ticker = ticker
 
@@ -51,18 +48,18 @@ def test_duration_estimator_uses_provider_analytics(monkeypatch) -> None:
                 modified_duration=4.1,
             )
 
-    monkeypatch.setattr(duration_estimator, "ETF", FakeETF)
+    monkeypatch.setattr(duration_estimator, "ETFAnalyticsClient", FakeETFAnalyticsClient)
 
-    estimator = SecurityDurationEstimator()
+    estimator = ETFDurationEstimator()
 
     assert estimator.estimate_duration("spab") == 4.2
 
 
 def test_duration_source_details_returns_provider() -> None:
-    assert duration_source_details("LQD") == ("Provider Analytics", "iShares")
-    assert duration_source_details("BND") == ("Provider Analytics", "Vanguard")
-    assert duration_source_details("SPAB") == ("Provider Analytics", "SPDR")
-    assert duration_source_details("PCY") == ("Provider Analytics", "Invesco")
+    assert duration_source_details("LQD") == ("PCF", "iShares")
+    assert duration_source_details("BND") == ("PCF", "Vanguard")
+    assert duration_source_details("SPAB") == ("PCF", "SPDR")
+    assert duration_source_details("PCY") == ("PCF", "Invesco")
 
 
 def test_ishares_registry_keeps_known_product_ids() -> None:

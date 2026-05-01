@@ -7,8 +7,8 @@ import streamlit as st
 
 from db.sql import cache_scope
 from fixed_income.analytics import is_snapshot_stale, snapshot_age_hours
-from fixed_income.analytics.result_models import SecurityAnalyticsSnapshot
-from fixed_income.instruments.security import Security
+from fixed_income.analytics.result_models import ETFAnalyticsSnapshot
+from fixed_income.etfs import ETF
 
 
 def app_cache_key(engine) -> str:
@@ -17,13 +17,13 @@ def app_cache_key(engine) -> str:
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def cached_active_securities(cache_key: str, _security_store) -> pd.DataFrame:
-    """Return a copy of the active securities DataFrame, cached for 15 minutes."""
-    return _security_store.list_active_securities().copy()
+def cached_active_etfs(cache_key: str, _etf_universe_store) -> pd.DataFrame:
+    """Return a copy of the active ETFs DataFrame, cached for 15 minutes."""
+    return _etf_universe_store.list_active_etfs().copy()
 
 
 @st.cache_data(ttl=900, show_spinner=False)
-def cached_security_metadata(cache_key: str, ticker: str, _metadata_store):
+def cached_etf_metadata(cache_key: str, ticker: str, _metadata_store):
     """Return the metadata dict for a single ticker, cached for 15 minutes."""
     return _metadata_store.get_ticker_metadata(ticker)
 
@@ -94,27 +94,27 @@ def cached_live_analytics_snapshot(
     _analytics_service,
 ):
     """Compute a live analytics snapshot from current price and macro data; result is cached."""
-    security = Security(
+    etf = ETF(
         ticker=ticker,
         name=name,
         asset_class=asset_class,
         metadata=metadata or {},
         history=history.copy(),
     )
-    factor_bundle = _analytics_service.load_factor_bundle(security)
-    snapshot = _analytics_service.analyze_factor_bundle(security, factor_bundle)
+    factor_bundle = _analytics_service.load_etf_factor_bundle(etf)
+    snapshot = _analytics_service.analyze_factor_bundle(etf, factor_bundle)
     return snapshot.to_record()
 
 
-def restore_analytics_snapshot(record: dict | None) -> SecurityAnalyticsSnapshot | None:
-    """Deserialize a cached snapshot record back into a SecurityAnalyticsSnapshot."""
-    return None if record is None else SecurityAnalyticsSnapshot.from_record(record)
+def restore_analytics_snapshot(record: dict | None) -> ETFAnalyticsSnapshot | None:
+    """Deserialize a cached snapshot record back into an ETFAnalyticsSnapshot."""
+    return None if record is None else ETFAnalyticsSnapshot.from_record(record)
 
 
 __all__ = [
     "app_cache_key",
-    "cached_active_securities",
-    "cached_security_metadata",
+    "cached_active_etfs",
+    "cached_etf_metadata",
     "cached_price_history",
     "cached_multi_price_history",
     "cached_feature_matrix",

@@ -266,7 +266,7 @@ class MacroFeatureService:
         feature_map["HY_OAS_Z60"] = self._zscore(hy_oas, 60)
         feature_map["HY_MINUS_IG_OAS_Z20"] = self._zscore(hy_minus_ig, 20)
 
-        return pd.concat(feature_map, axis=1).sort_index()
+        return pd.concat(feature_map, axis=1, sort=False).sort_index()
 
     def build_feature_rows(
         self,

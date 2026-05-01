@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import requests
 
-from services.market.etf import ETF, ETFAnalytics, provider_for_ticker
+from fixed_income.etfs.provider_analytics import (
+    ETFAnalytics,
+    ETFAnalyticsClient,
+    provider_for_ticker,
+)
 
 
 def issuer_from_long_name(long_name: str | None) -> str | None:
@@ -16,10 +20,10 @@ def duration_source_details(ticker: str) -> tuple[str, str]:
     provider = provider_for_ticker(ticker)
     if not provider:
         return ("Provider", "Unavailable")
-    return ("Provider Analytics", provider)
+    return ("PCF", provider)
 
 
-class SecurityDurationEstimator:
+class ETFDurationEstimator:
     def __init__(self, engine=None, session: requests.Session | None = None):
         self.engine = engine
         self.session = session or requests.Session()
@@ -30,7 +34,7 @@ class SecurityDurationEstimator:
         if not normalized:
             return None
         if normalized not in self._analytics_cache:
-            self._analytics_cache[normalized] = ETF(
+            self._analytics_cache[normalized] = ETFAnalyticsClient(
                 normalized, session=self.session
             ).get_analytics()
         return self._analytics_cache[normalized]

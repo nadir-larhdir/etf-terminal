@@ -20,7 +20,7 @@ class DashboardControls:
 
     WINDOW_DAY_MAP = WINDOW_LOOKBACK_MAP
 
-    def render_security_select(
+    def render_etf_select(
         self,
         label: str,
         securities: pd.DataFrame,
@@ -28,7 +28,7 @@ class DashboardControls:
         key: str,
         width: int | Literal["stretch"] = "stretch",
     ) -> str:
-        """Render a search-driven security selector; return the selected ticker string."""
+        """Render a search-driven ETF selector; return the selected ticker string."""
         options_df = securities.copy()
 
         if options_df.empty or "ticker" not in options_df.columns:
@@ -69,7 +69,7 @@ class DashboardControls:
 
         ticker_options = filtered_df["ticker"].tolist()
         if not ticker_options:
-            st.caption("No matching securities.")
+            st.caption("No matching ETFs.")
             return ""
 
         label_map = {row["ticker"]: str(row["ticker"]) for _, row in filtered_df.iterrows()}

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from fixed_income.instruments.security import Security
+from fixed_income.etfs import ETF
 from fixed_income.rv.pair_analytics import ratio, screener_snapshot
 from fixed_income.rv.spread_definition import SpreadDefinition
 
@@ -20,8 +20,8 @@ def _history(prices: list[float]) -> pd.DataFrame:
 
 
 def test_pair_analytics_snapshot_and_ratio() -> None:
-    left = Security("LQD", history=_history([100, 101, 102, 103, 104, 105]))
-    right = Security("IEF", history=_history([95, 95.5, 96, 96.5, 97, 97.5]))
+    left = ETF("LQD", history=_history([100, 101, 102, 103, 104, 105]))
+    right = ETF("IEF", history=_history([95, 95.5, 96, 96.5, 97, 97.5]))
 
     ratio_series = ratio(left, right)
     snapshot = screener_snapshot(SpreadDefinition("LQD", "IEF"), left, right)

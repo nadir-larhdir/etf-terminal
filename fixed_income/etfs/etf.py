@@ -12,8 +12,8 @@ def _empty_series() -> pd.Series:
 
 
 @dataclass
-class Security:
-    """Fixed-income instrument with metadata and historical price helpers."""
+class ETF:
+    """Fixed-income ETF with metadata and historical price helpers."""
 
     ticker: str
     name: str | None = None

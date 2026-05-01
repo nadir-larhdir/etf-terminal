@@ -147,7 +147,7 @@ python -m scripts.daily.refresh_all --backend supabase --app-env uat
 ```
 
 That workflow now does all of the following in order:
-- sync the configured securities universe
+- sync the configured ETF universe
 - refresh ETF prices from FMP
 - refresh FRED macro series
 - rebuild macro features
@@ -223,8 +223,8 @@ python -m scripts.admin.manage_universe_ticker delete BSV
 ```
 
 Ticker deletion removes the symbol from:
-- `securities`
-- `security_metadata`
+- `etf_universe`
+- `etf_metadata`
 - `price_history`
 
 **Universe Management**
@@ -380,7 +380,7 @@ python - <<'PY'
 import sqlite3
 conn = sqlite3.connect("market_data_uat.db")
 cur = conn.cursor()
-for table in ["securities", "price_history", "security_metadata", "macro_data", "macro_features"]:
+for table in ["etf_universe", "price_history", "etf_metadata", "macro_data", "macro_features"]:
     cur.execute(f"SELECT COUNT(*) FROM {table}")
     print(table, cur.fetchone()[0])
 conn.close()
@@ -399,9 +399,9 @@ order by table_name;
 Verify Supabase row counts:
 
 ```sql
-select count(*) from public.securities;
+select count(*) from public.etf_universe;
 select count(*) from public.price_history;
-select count(*) from public.security_metadata;
+select count(*) from public.etf_metadata;
 select count(*) from public.macro_data;
 select count(*) from public.macro_features;
 ```
