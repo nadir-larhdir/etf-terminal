@@ -7,7 +7,7 @@ from db.connection import get_engine
 from scripts.logging_utils import configure_logging
 from services.admin import TickerManagerService
 from services.market import MarketDataService
-from stores.market import InputStore, MetadataStore, PriceStore, SecurityStore
+from stores.market import MetadataStore, PriceStore, SecurityStore
 
 logger = logging.getLogger(__name__)
 
@@ -41,13 +41,11 @@ if __name__ == "__main__":
     security_store = SecurityStore(engine)
     price_store = PriceStore(engine)
     metadata_store = MetadataStore(engine)
-    input_store = InputStore(engine)
     market_data_service = MarketDataService(price_store)
     manager = TickerManagerService(
         security_store=security_store,
         price_store=price_store,
         metadata_store=metadata_store,
-        input_store=input_store,
         market_data_service=market_data_service,
     )
 
@@ -66,6 +64,6 @@ if __name__ == "__main__":
     else:
         manager.delete_ticker(args.ticker)
         logger.info(
-            "Ticker deleted from securities, metadata, prices, and inputs: %s",
+            "Ticker deleted from securities, metadata, and prices: %s",
             args.ticker.strip().upper(),
         )

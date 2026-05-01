@@ -5,12 +5,12 @@ import logging
 
 from config import DEFAULT_TICKERS, FRED_API_KEY, FRED_BASE_URL
 from db.connection import get_engine
+from fixed_income.analytics.duration_estimator import SecurityDurationEstimator
 from scripts.analytics.precompute_analytics import run_precompute_analytics
 from scripts.logging_utils import configure_logging
 from scripts.market.enrich_metadata_from_fmp import build_metadata_row
 from services.macro import DEFAULT_MACRO_SERIES, FredClient, MacroDataService, MacroFeatureService
 from services.market import MarketDataService
-from services.market.duration_estimator import SecurityDurationEstimator
 from stores.macro import MacroFeatureStore, MacroStore
 from stores.market import MetadataStore, PriceStore, SecurityStore
 

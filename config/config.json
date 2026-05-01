@@ -8,10 +8,6 @@
       "name": "Vanguard Total Bond Market ETF",
       "asset_class": "Core Bond"
     },
-    "BSV": {
-      "name": "Vanguard Short-Term Bond Index Fund ETF Shares",
-      "asset_class": "IG Credit"
-    },
     "EDV": {
       "name": "Vanguard Extended Duration Treasury ETF",
       "asset_class": "UST Long"
@@ -32,10 +28,6 @@
       "name": "iShares U.S. Treasury Bond ETF",
       "asset_class": "UST Broad"
     },
-    "HYD": {
-      "name": "VanEck High Yield Muni ETF",
-      "asset_class": "Municipal"
-    },
     "HYG": {
       "name": "iShares iBoxx $ High Yield Corporate Bond ETF",
       "asset_class": "HY Credit"
@@ -50,6 +42,14 @@
     },
     "IGSB": {
       "name": "iShares 1-5 Year Investment Grade Corporate Bond ETF",
+      "asset_class": "IG Credit"
+    },
+    "IGIB": {
+      "name": "iShares 5-10 Year Investment Grade Corporate Bond ETF",
+      "asset_class": "IG Credit"
+    },
+    "IGLB": {
+      "name": "iShares 10+ Year Investment Grade Corporate Bond ETF",
       "asset_class": "IG Credit"
     },
     "IUSB": {
@@ -92,9 +92,29 @@
       "name": "SPDR Bloomberg Short Term High Yield Bond ETF",
       "asset_class": "HY Credit"
     },
+    "SPAB": {
+      "name": "SPDR Portfolio Aggregate Bond ETF",
+      "asset_class": "Core Bond"
+    },
+    "SPHY": {
+      "name": "SPDR Portfolio High Yield Bond ETF",
+      "asset_class": "HY Credit"
+    },
+    "SPIB": {
+      "name": "SPDR Portfolio Intermediate Term Corporate Bond ETF",
+      "asset_class": "IG Credit"
+    },
     "SPSB": {
       "name": "SPDR Portfolio Short Term Corporate Bond ETF",
       "asset_class": "IG Credit"
+    },
+    "SPTI": {
+      "name": "SPDR Portfolio Intermediate Term Treasury ETF",
+      "asset_class": "UST Belly"
+    },
+    "SPTL": {
+      "name": "SPDR Portfolio Long Term Treasury ETF",
+      "asset_class": "UST Long"
     },
     "STIP": {
       "name": "iShares 0-5 Year TIPS Bond ETF",
@@ -112,9 +132,21 @@
       "name": "Vanguard Intermediate-Term Corporate Bond ETF",
       "asset_class": "IG Credit"
     },
+    "VCLT": {
+      "name": "Vanguard Long-Term Corporate Bond ETF",
+      "asset_class": "IG Credit"
+    },
     "VCSH": {
       "name": "Vanguard Short-Term Corporate Bond ETF",
       "asset_class": "IG Credit"
+    },
+    "VGIT": {
+      "name": "Vanguard Intermediate-Term Treasury ETF",
+      "asset_class": "UST Belly"
+    },
+    "VGLT": {
+      "name": "Vanguard Long-Term Treasury ETF",
+      "asset_class": "UST Long"
     },
     "VGSH": {
       "name": "Vanguard Short-Term Treasury ETF",

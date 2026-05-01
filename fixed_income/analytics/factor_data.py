@@ -1,21 +1,8 @@
-"""Helpers for loading and transforming macro factor data used in regressions."""
+"""Helpers for loading and transforming spread factor data used in regressions."""
 
 from __future__ import annotations
 
 import pandas as pd
-
-from fixed_income.config.model_settings import RATE_SERIES
-
-
-def treasury_rate_changes_bps(macro_store, *, start_date: str) -> pd.DataFrame:
-    """Return a date-indexed DataFrame of daily Treasury rate changes in basis points.
-
-    Columns correspond to each series in RATE_SERIES. Rows with any NaN are dropped.
-    """
-    rates = macro_store.get_series_matrix(list(RATE_SERIES), start_date=start_date)
-    if rates.empty:
-        return pd.DataFrame()
-    return rates.loc[:, list(RATE_SERIES)].astype(float).diff().mul(100.0).dropna()
 
 
 def spread_changes_bps(macro_store, series_id: str, *, start_date: str) -> pd.Series:

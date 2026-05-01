@@ -48,14 +48,12 @@ class TickerManagerService:
         security_store,
         price_store,
         metadata_store,
-        input_store,
         market_data_service,
         metadata_builder=None,
     ):
         self.security_store = security_store
         self.price_store = price_store
         self.metadata_store = metadata_store
-        self.input_store = input_store
         self.market_data_service = market_data_service
         self.fmp_client = FMPClient(api_key=FMP_API_KEY, base_url=FMP_BASE_URL)
         self.metadata_builder = metadata_builder or self._default_metadata_builder
@@ -131,9 +129,8 @@ class TickerManagerService:
         return profile
 
     def delete_ticker(self, ticker: str) -> None:
-        """Remove a ticker from all data stores: inputs, prices, metadata, and securities."""
+        """Remove a ticker from all active data stores: prices, metadata, and securities."""
         normalized = ticker.strip().upper()
-        self.input_store.delete_ticker(normalized)
         self.price_store.delete_ticker(normalized)
         self.metadata_store.delete_ticker(normalized)
         self.security_store.delete_ticker(normalized)
