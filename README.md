@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/readme-header.svg" alt="ETF Terminal - Fixed income ETF analytics" width="860">
+  <img src="docs/assets/readme-header.svg" alt="ETF Terminal - Fixed income ETF analytics" width="980">
 </p>
 
 <p align="center">
@@ -93,7 +93,8 @@ Backend behavior:
 
 ## Quick Start
 
-Initialize a fresh local UAT database:
+<details>
+<summary><strong>Fresh Local UAT Setup</strong></summary>
 
 ```bash
 DATA_BACKEND=local APP_ENV=uat python -m scripts.db.initialize_database
@@ -105,97 +106,141 @@ DATA_BACKEND=local APP_ENV=uat python -m scripts.macro.sync_macro_data --mode fu
 DATA_BACKEND=local APP_ENV=uat python -m scripts.macro.build_macro_features
 ```
 
-Run the app locally:
+</details>
+
+<details>
+<summary><strong>Run Locally</strong></summary>
 
 ```bash
 DATA_BACKEND=local APP_ENV=uat streamlit run main.py
 ```
 
-Run the app against Supabase:
+</details>
+
+<details>
+<summary><strong>Run With Supabase</strong></summary>
 
 ```bash
 DATA_BACKEND=supabase APP_ENV=uat streamlit run main.py
 ```
 
+</details>
+
 ## Data Workflows
 
-Full daily refresh:
+<details>
+<summary><strong>Daily Refresh</strong></summary>
 
 ```bash
 python -m scripts.daily.refresh_all --backend supabase --app-env uat
 ```
 
-Force analytics snapshots to recompute:
+</details>
+
+<details>
+<summary><strong>Force Analytics Recompute</strong></summary>
 
 ```bash
 python -m scripts.daily.refresh_all --backend supabase --app-env uat --force-analytics
 ```
 
-Refresh the last four days of market data and recompute analytics:
+</details>
+
+<details>
+<summary><strong>Refresh Last Four Days</strong></summary>
 
 ```bash
 python -m scripts.daily.refresh_all --backend supabase --app-env uat --price-overlap-days 4 --macro-overlap-days 4 --force-analytics
 ```
 
-Refresh price history only:
+</details>
+
+<details>
+<summary><strong>Price History Only</strong></summary>
 
 ```bash
 python -m scripts.market.sync_price_history --mode incremental --overlap-days 2
 ```
 
-Backfill price history:
+</details>
+
+<details>
+<summary><strong>Backfill Price History</strong></summary>
 
 ```bash
 python -m scripts.market.sync_price_history --mode full --period 3y
 ```
 
-Refresh macro data and features:
+</details>
+
+<details>
+<summary><strong>Macro Data And Features</strong></summary>
 
 ```bash
 python -m scripts.macro.sync_macro_data --mode incremental
 python -m scripts.macro.build_macro_features
 ```
 
-Refresh ETF metadata:
+</details>
+
+<details>
+<summary><strong>ETF Metadata Refresh</strong></summary>
 
 ```bash
 python -m scripts.market.sync_static_metadata --mode missing-only
 python -m scripts.market.enrich_metadata_from_fmp --mode upsert
 ```
 
+</details>
+
 ## ETF Universe
 
 The configured universe lives in `config/config.json`.
 
-Sync the configured universe into the database:
+<details>
+<summary><strong>Sync Configured Universe</strong></summary>
 
 ```bash
 python -m scripts.market.sync_securities_universe --mode upsert
 ```
 
-Replace the database universe with the configured universe:
+</details>
+
+<details>
+<summary><strong>Replace Database Universe</strong></summary>
 
 ```bash
 python -m scripts.market.sync_securities_universe --mode full-replace
 ```
 
-Add a ticker:
+</details>
+
+<details>
+<summary><strong>Add A Ticker</strong></summary>
 
 ```bash
 python -m scripts.admin.manage_universe_ticker add BSV
 ```
 
-Add a ticker with an asset class override:
+</details>
+
+<details>
+<summary><strong>Add A Ticker With Asset Class Override</strong></summary>
 
 ```bash
 python -m scripts.admin.manage_universe_ticker add BSV --asset-class "Core Bond"
 ```
 
-Delete a ticker everywhere:
+</details>
+
+<details>
+<summary><strong>Delete A Ticker Everywhere</strong></summary>
 
 ```bash
 python -m scripts.admin.manage_universe_ticker delete BSV
 ```
+
+</details>
 
 Ticker deletion removes rows from `etf_universe`, `etf_metadata`, and `price_history`.
 
