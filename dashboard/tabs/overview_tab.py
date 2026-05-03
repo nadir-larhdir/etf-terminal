@@ -27,7 +27,7 @@ class OverviewTab:
             (
                 "<div style='margin-top:0.25rem;margin-bottom:0.25rem;'>"
                 f"<div style='color:{accent_color};font-size:0.76rem;font-weight:700;"
-                "text-transform:uppercase;letter-spacing:0.45px;'>"
+                "text-transform:uppercase;letter-spacing:0.42px;'>"
                 f"{title}</div>"
                 "<div style='color:#8F8A80;font-size:0.78rem;line-height:1.35;'>"
                 f"{subtitle}</div></div>"
@@ -72,24 +72,27 @@ class OverviewTab:
                 f"{observations} observations | Latest close {latest_close:.2f} | "
                 f"Average volume {average_volume:,.0f}"
             ),
-            accent_color="#5F8D84",
+            accent_color="#7FB9AA",
             margin_top="0.15rem",
             margin_bottom="0.50rem",
         )
 
-        self._render_section_label(
-            "Price Action",
-            "Spot price versus recent mean and one-standard-deviation range.",
-            accent_color="#6F7B46",
-        )
-        render_price_chart(hist, selected_security, start_date, end_date)
+        price_col, volume_col = st.columns(2)
+        with price_col:
+            self._render_section_label(
+                "Price Action",
+                "Spot price versus recent mean and one-standard-deviation range.",
+                accent_color="#8AA05A",
+            )
+            render_price_chart(hist, selected_security, start_date, end_date)
 
-        self._render_section_label(
-            "Participation",
-            "Observed trading volume with the selected-window average for context.",
-            accent_color="#5F8D84",
-        )
-        render_volume_chart(hist, selected_security, start_date, end_date)
+        with volume_col:
+            self._render_section_label(
+                "Participation",
+                "Observed trading volume with the selected-window average for context.",
+                accent_color="#7FB9AA",
+            )
+            render_volume_chart(hist, selected_security, start_date, end_date)
 
         with st.expander(f"{selected_security} Recent Price History"):
             st.caption("Last 20 observations from the stored time series.")

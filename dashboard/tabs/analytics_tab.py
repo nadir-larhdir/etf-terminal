@@ -45,6 +45,27 @@ class AnalyticsTab:
             duration_method, duration_source = self._duration_source_details(security)
             duration_footer = self._duration_scale_indicator(analytics.estimated_duration)
             dv01_footer = self._dv01_change_footer(security, analytics.estimated_duration)
+            ytm = self._metadata_float(metadata, "yield_to_maturity")
+            oas = self._metadata_float(metadata, "oas")
+            years_to_maturity = self._metadata_float(metadata, "years_to_maturity")
+            convexity = self._metadata_float(metadata, "convexity")
+
+        top1, top2, top3, top4 = st.columns(4)
+        with top1:
+            self._render_metric_card("YTM", self._format_percent_points(ytm), "#1F271C", "#8D8779")
+        with top2:
+            self._render_metric_card("OAS", self._format_bps_value(oas), "#1F271C", "#8D8779")
+        with top3:
+            self._render_metric_card(
+                "Years to Maturity",
+                self._format_years(years_to_maturity),
+                self._duration_risk_color(years_to_maturity),
+                "#8D8779",
+            )
+        with top4:
+            self._render_metric_card(
+                "Convexity", self._format_number(convexity), "#1F271C", "#8D8779"
+            )
 
         a1, a2, a3, a4 = st.columns(4)
         with a1:
@@ -80,28 +101,28 @@ class AnalyticsTab:
                     "OAS Proxy Used",
                     format_oas_proxy_label(analytics.spread_proxy_used),
                     "#1F271C",
-                    "#6F7B46",
+                    "#8AA05A",
                 )
             with s2:
                 self._render_metric_card(
                     "CS Beta",
                     self._format_spread_beta_bps(analytics.spread_beta_per_bp),
                     self._cs_beta_risk_color(analytics.spread_beta_per_bp),
-                    "#6F7B46",
+                    "#8AA05A",
                 )
             with s3:
                 self._render_metric_card(
                     "Proxy CS01 / $1MM",
                     self._format_dollar_per_million(analytics.spread_dv01_proxy_per_share),
                     self._cs01_risk_color(analytics.spread_dv01_proxy_per_share),
-                    "#6F7B46",
+                    "#8AA05A",
                 )
             with s4:
                 self._render_metric_card(
                     "Credit Spread R²",
                     self._format_number(analytics.spread_model_r2),
-                    "#1F271C",
-                    "#6F7B46",
+                    self._r2_risk_color(analytics.spread_model_r2),
+                    "#8AA05A",
                     show_bottom_border=False,
                     footer=(
                         f"{self._r2_gauge(analytics.spread_model_r2)}"
@@ -126,7 +147,7 @@ class AnalyticsTab:
                 body=self._current_read_body(
                     security, metadata, snapshot, analytics, duration_method, duration_source
                 ),
-                accent_color="#5F8D84",
+                accent_color="#7FB9AA",
                 margin_top="0.50rem",
                 margin_bottom="0.30rem",
             )
@@ -139,7 +160,7 @@ class AnalyticsTab:
                         f"{self._oas_move_explanation(analytics)} Proxy CS01: {self._format_dollar_per_million(analytics.spread_dv01_proxy_per_share)}/$1MM "
                         f"(R²: {self._format_number(analytics.spread_model_r2)})."
                     ),
-                    accent_color="#6F7B46",
+                    accent_color="#8AA05A",
                     margin_top="0.50rem",
                     margin_bottom="0.30rem",
                 )
@@ -148,7 +169,7 @@ class AnalyticsTab:
                 title="Trading Activity",
                 headline=liquidity_regime,
                 body=f"Current volume is running at {self._volume_multiple(snapshot):.2f}x the 30-day average.",
-                accent_color="#5F8D84",
+                accent_color="#7FB9AA",
                 margin_top="0.50rem",
                 margin_bottom="0.12rem",
             )
@@ -217,7 +238,11 @@ class AnalyticsTab:
 
     def _metadata_duration(self, metadata: dict) -> float | None:
         """Extract and cast the duration field from metadata, returning None for missing or non-numeric values."""
-        raw_value = metadata.get("duration")
+        return self._metadata_float(metadata, "duration")
+
+    def _metadata_float(self, metadata: dict, key: str) -> float | None:
+        """Extract and cast a float-like metadata field, returning None for missing or non-numeric values."""
+        raw_value = metadata.get(key)
         if raw_value in (None, "", "N/A"):
             return None
         try:
@@ -262,6 +287,14 @@ class AnalyticsTab:
         """Format a float to 2 decimal places."""
         return "N/A" if value is None else f"{value:.2f}"
 
+    def _format_percent_points(self, value: float | None) -> str:
+        """Format a percentage-point value such as YTM."""
+        return "N/A" if value is None else f"{value:.2f}%"
+
+    def _format_bps_value(self, value: float | None) -> str:
+        """Format a level OAS value in basis points."""
+        return "N/A" if value is None else f"{value:.0f} bps"
+
     def _format_spread_beta_bps(self, value: float | None) -> str:
         """Format a spread beta (per decimal) as a signed basis-point string."""
         return "N/A" if value is None else f"{value * 10000:+.1f} bps"
@@ -303,8 +336,8 @@ class AnalyticsTab:
         st.markdown(
             (
                 f"<div class='bb-highlight-metric' style='padding:0.25rem 0 0.85rem 0;{bottom_border}min-height:7.4rem;'>"
-                f"<div class='bb-highlight-metric-label' style='font-size:0.68rem;letter-spacing:0.8px;text-transform:uppercase;color:#707A68;font-weight:600;'>{label}</div>"
-                f"<div class='bb-highlight-metric-value' style='color:{color};font-size:3.35rem;font-weight:800;line-height:1.02;margin-top:0.18rem;'>{value}</div>"
+                f"<div class='bb-highlight-metric-label' style='font-size:0.68rem;letter-spacing:0.42px;text-transform:uppercase;color:#707A68;font-weight:700;'>{label}</div>"
+                f"<div class='bb-highlight-metric-value' style='color:{color};font-size:3.35rem;font-weight:800;line-height:1.02;letter-spacing:0.12px;margin-top:0.18rem;'>{value}</div>"
                 f"{footer_block}"
                 "</div>"
             ),
@@ -327,7 +360,7 @@ class AnalyticsTab:
                 go.Bar(
                     x=ratio.index,
                     y=ratio.values,
-                    marker_color="#5F8D84",
+                    marker_color="#7FB9AA",
                     hovertemplate="%{x|%b %d, %Y}<br>Vol / 30D: %{y:.2f}x<extra></extra>",
                 )
             ]
@@ -374,10 +407,10 @@ class AnalyticsTab:
         if value is None:
             return "#1F271C"
         if value <= 3.0:
-            return "#5F8D84"
+            return "#6FAF72"
         if value <= 7.0:
-            return "#C9A64B"
-        return "#A55C45"
+            return "#D4A017"
+        return "#C97C6B"
 
     def _dv01_risk_color(self, value: float | None) -> str:
         """Return a hex color for the DV01 card: teal ≤$150/MM, amber ≤$500/MM, red otherwise."""
@@ -385,10 +418,10 @@ class AnalyticsTab:
             return "#1F271C"
         per_million = abs(value * 10000)
         if per_million <= 150:
-            return "#5F8D84"
+            return "#6FAF72"
         if per_million <= 500:
-            return "#C9A64B"
-        return "#A55C45"
+            return "#D4A017"
+        return "#C97C6B"
 
     def _cs_beta_risk_color(self, value: float | None) -> str:
         """Return a hex color for the CS beta card: teal ≤1 bp, amber ≤3 bp, red otherwise."""
@@ -396,10 +429,10 @@ class AnalyticsTab:
             return "#1F271C"
         beta_bps = abs(value * 10000)
         if beta_bps <= 1.0:
-            return "#5F8D84"
+            return "#6FAF72"
         if beta_bps <= 3.0:
-            return "#C9A64B"
-        return "#A55C45"
+            return "#D4A017"
+        return "#C97C6B"
 
     def _cs01_risk_color(self, value: float | None) -> str:
         """Return a hex color for the CS01 card: teal ≤$100/MM, amber ≤$400/MM, red otherwise."""
@@ -407,10 +440,10 @@ class AnalyticsTab:
             return "#1F271C"
         per_million = abs(value * 10000)
         if per_million <= 100:
-            return "#5F8D84"
+            return "#6FAF72"
         if per_million <= 400:
-            return "#C9A64B"
-        return "#A55C45"
+            return "#D4A017"
+        return "#C97C6B"
 
     def _r2_gauge(self, value: float | None) -> str:
         """Return an inline HTML progress bar representing the R² model fit quality."""
@@ -419,9 +452,19 @@ class AnalyticsTab:
         pct = max(0.0, min(value, 1.0)) * 100.0
         return (
             f"<div style='margin-top:0.35rem;height:6px;background:rgba(111,123,70,0.12);border-radius:999px;'>"
-            f"<div style='width:{pct:.1f}%;height:100%;border-radius:999px;background:linear-gradient(90deg, #5F8D84, #6F7B46);'></div>"
+            f"<div style='width:{pct:.1f}%;height:100%;border-radius:999px;background:linear-gradient(90deg, #7FB9AA, #8AA05A);'></div>"
             "</div>"
         )
+
+    def _r2_risk_color(self, value: float | None) -> str:
+        """Return a color for R² quality: red for weak fit, amber for middling fit, teal for strong fit."""
+        if value is None:
+            return "#1F271C"
+        if value < 0.25:
+            return "#C97C6B"
+        if value < 0.6:
+            return "#D4A017"
+        return "#6FAF72"
 
     def _dv01_change_footer(self, security: ETF, duration: float | None) -> str | None:
         """Return a 30-day DV01 change label (e.g. '30d ↑ 2.3%'), or None if insufficient history."""
@@ -452,7 +495,7 @@ class AnalyticsTab:
             "<div style='display:flex;align-items:center;gap:0.45rem;'>"
             "<span>0Y</span>"
             f"<div style='position:relative;flex:1;height:4px;background:rgba(111,123,70,0.12);border-radius:999px;'>"
-            f"<div style='position:absolute;left:calc({pct:.1f}% - 5px);top:-3px;width:10px;height:10px;border-radius:50%;background:#5F8D84;'></div>"
+            f"<div style='position:absolute;left:calc({pct:.1f}% - 5px);top:-3px;width:10px;height:10px;border-radius:50%;background:#7FB9AA;'></div>"
             "</div>"
             "<span>30Y</span>"
             "</div>"

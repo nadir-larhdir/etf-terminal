@@ -113,7 +113,7 @@ class ETFHeader:
         vol_30d = float(hist["volume"].tail(30).mean()) if len(hist) >= 1 else float(volume)
         vol_ratio = (volume / vol_30d) if vol_30d else 0.0
 
-        chg_color = "#4E7B52" if chg >= 0 else "#A55C45"
+        chg_color = "#6FAF72" if chg >= 0 else "#C97C6B"
         header_cells = [
             self._header_cell_html("ETF", selected_etf, emphasis="primary"),
             self._header_cell_html("PX_LAST", f"{px_last:,.2f}", emphasis="primary"),

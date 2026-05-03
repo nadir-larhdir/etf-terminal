@@ -17,12 +17,12 @@ def apply_dashboard_theme():
             --etf-ink-muted: #707A68;
             --etf-border: #D8D4C7;
             --etf-border-strong: #C9C4B4;
-            --etf-accent: #6F7B46;
-            --etf-accent-strong: #556136;
-            --etf-accent-soft: rgba(111, 123, 70, 0.12);
-            --etf-up: #4E7B52;
-            --etf-down: #A55C45;
-            --etf-teal: #5F8D84;
+            --etf-accent: #8AA05A;
+            --etf-accent-strong: #6E8740;
+            --etf-accent-soft: rgba(138, 160, 90, 0.14);
+            --etf-up: #6FAF72;
+            --etf-down: #C97C6B;
+            --etf-teal: #7FB9AA;
         }
 
         .stApp {

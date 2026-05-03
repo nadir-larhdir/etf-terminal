@@ -37,7 +37,8 @@ class InfoPanel:
         if footer:
             footer_block = (
                 f"<div style='color:{body_color};font-size:0.80rem;line-height:1.40;"
-                f"margin-top:0.35rem;padding-top:0.30rem;border-top:1px solid {border_color};'>"
+                f"margin-top:0.35rem;padding-top:0.30rem;border-top:1px solid {border_color};"
+                "text-align:justify;text-justify:inter-word;'>"
                 f"{footer}</div>"
             )
 
@@ -54,7 +55,7 @@ class InfoPanel:
             f"<div style='color:{accent_color};font-size:{title_font_size};text-transform:uppercase;"
             f"letter-spacing:0.45px;margin-bottom:0.18rem;font-weight:700;'>{title}</div>"
             f"{headline_block}"
-            f"<div style='color:{body_color};font-size:{body_font_size};line-height:1.52;'>{body}</div>"
+            f"<div style='color:{body_color};font-size:{body_font_size};line-height:1.52;text-align:justify;text-justify:inter-word;'>{body}</div>"
             f"{footer_block}</div>"
         )
 
