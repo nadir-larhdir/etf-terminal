@@ -18,6 +18,8 @@ dependencies = [
     "requests",
     "python-dotenv",
     "beautifulsoup4",
+    "playwright",
+    "pandas_datareader",
 ]
 
 [project.optional-dependencies]

@@ -213,9 +213,9 @@ _THEME_CONFIGS: list[dict[str, Any]] = [
             else "Rate path uncertain" if abs(v) < 0.1 else "Further hikes possible"
         ),
         "trend_fn": lambda v: (
-            ("Trending", "#6F7B46")
+            ("Trending", "#8AA05A")
             if v < -0.1
-            else ("Mixed", "#A55C45") if abs(v) < 0.1 else ("Hawkish", "#8B2020")
+            else ("Mixed", "#C97C6B") if abs(v) < 0.1 else ("Hawkish", "#B46A5A")
         ),
     },
     {
@@ -230,9 +230,9 @@ _THEME_CONFIGS: list[dict[str, Any]] = [
             else "Spread conditions stable" if abs(v) < 2 else "Spreads widening, caution warranted"
         ),
         "trend_fn": lambda v: (
-            ("Improving", "#6F7B46")
+            ("Improving", "#8AA05A")
             if v < -2
-            else ("Stable", "#707A68") if abs(v) < 2 else ("Widening", "#A55C45")
+            else ("Stable", "#707A68") if abs(v) < 2 else ("Widening", "#C97C6B")
         ),
     },
     {
@@ -251,9 +251,9 @@ _THEME_CONFIGS: list[dict[str, Any]] = [
             )
         ),
         "trend_fn": lambda v: (
-            ("Easing", "#6F7B46")
+            ("Easing", "#8AA05A")
             if v < -0.05
-            else ("Mixed", "#707A68") if abs(v) < 0.05 else ("Rising", "#A55C45")
+            else ("Mixed", "#707A68") if abs(v) < 0.05 else ("Rising", "#C97C6B")
         ),
     },
     {
@@ -268,9 +268,9 @@ _THEME_CONFIGS: list[dict[str, Any]] = [
             else f"Flat curve at {v*100:.0f}bp" if v < 0.5 else f"Steepening curve at {v*100:.0f}bp"
         ),
         "trend_fn": lambda v: (
-            ("Inverted", "#A55C45")
+            ("Inverted", "#C97C6B")
             if v < 0
-            else ("Flat", "#707A68") if v < 0.5 else ("Steepening", "#6F7B46")
+            else ("Flat", "#707A68") if v < 0.5 else ("Steepening", "#8AA05A")
         ),
     },
     {
@@ -285,9 +285,9 @@ _THEME_CONFIGS: list[dict[str, Any]] = [
             else "Policy near neutral" if v < 0.5 else "Long-end premium over funds rate rising"
         ),
         "trend_fn": lambda v: (
-            ("Restrictive", "#A55C45")
+            ("Restrictive", "#C97C6B")
             if v < 0
-            else ("Neutral", "#707A68") if v < 0.5 else ("Accommodative", "#6F7B46")
+            else ("Neutral", "#707A68") if v < 0.5 else ("Accommodative", "#8AA05A")
         ),
     },
 ]
@@ -638,8 +638,8 @@ _PAGE_CSS = """
 .mover-ticker { font-size:0.88rem;font-weight:700;color:var(--news-ink);min-width:36px;letter-spacing:0.1px; }
 .mover-name { font-size:0.68rem;color:var(--news-muted);margin-top:1px; }
 .mover-desc { font-size:0.78rem;color:var(--news-soft);margin-top:0.25rem; }
-.mover-change-pos { font-size:0.92rem;font-weight:700;color:#4E7B52;white-space:nowrap; }
-.mover-change-neg { font-size:0.92rem;font-weight:700;color:#A55C45;white-space:nowrap; }
+.mover-change-pos { font-size:0.92rem;font-weight:700;color:#6FAF72;white-space:nowrap; }
+.mover-change-neg { font-size:0.92rem;font-weight:700;color:#C97C6B;white-space:nowrap; }
 .theme-tracker-band {
     background:linear-gradient(180deg,rgba(248,245,238,0.96),rgba(251,248,241,0.78));
     border-top:1px solid rgba(216,212,199,0.70);border-bottom:1px solid rgba(216,212,199,0.70);
@@ -753,7 +753,7 @@ _PAGE_CSS = """
     font-variant-numeric:tabular-nums;
 }
 .sentiment-bar-wrap { position:relative;height:8px;border-radius:4px;margin:0.5rem 0 0.25rem 0;
-    background:linear-gradient(to right,#A55C45,#D8D4C7 50%,#4E7B52); }
+    background:linear-gradient(to right,#C97C6B,#D8D4C7 50%,#6FAF72); }
 .sentiment-bar-indicator {
     position:absolute;top:-3px;width:14px;height:14px;border-radius:50%;
     background:#1F271C;border:2px solid #FBF8F1;transform:translateX(-50%);
@@ -1246,7 +1246,7 @@ class NewsPage:
         # Map score [-1, 1] to position [0%, 100%]
         position_pct = max(2, min(98, int((score + 1) / 2 * 100)))
 
-        label_color = "#4E7B52" if score > 0.15 else "#A55C45" if score < -0.15 else "#707A68"
+        label_color = "#6FAF72" if score > 0.15 else "#C97C6B" if score < -0.15 else "#707A68"
 
         st.markdown(
             f"<div style='font-size:1.0rem;font-weight:700;color:{label_color};margin-bottom:0.15rem;'>{label}</div>"

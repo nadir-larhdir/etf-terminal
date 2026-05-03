@@ -47,6 +47,8 @@ FMP_API_KEY = os.getenv("FMP_API_KEY", "").strip()
 FMP_BASE_URL = "https://financialmodelingprep.com/stable"
 FRED_API_KEY = os.getenv("FRED_API_KEY", "").strip()
 FRED_BASE_URL = "https://api.stlouisfed.org/fred"
+FINRA_CLIENT_ID = os.getenv("FINRA_CLIENT_ID", "").strip()
+FINRA_CLIENT_SECRET = os.getenv("FINRA_CLIENT_SECRET", "").strip()
 
 _config = load_config()
 DEFAULT_TICKERS: dict[str, dict[str, str]] = _config["DEFAULT_TICKERS"]

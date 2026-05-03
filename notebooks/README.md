@@ -28,6 +28,8 @@ Suggested flow:
    Use a simple pair-trade backtest template based on z-score entries/exits.
 9. `08_macro_vs_etf_sensitivity.ipynb`
    Regress ETF returns on Treasury and OAS factor changes to inspect rate and spread sensitivities.
+10. `10_finra_client_sandbox.ipynb`
+   Try the FINRA client across official market datasets and hidden bond endpoints.
 
 Typical backend choices:
 
