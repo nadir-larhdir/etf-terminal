@@ -11,7 +11,7 @@ from db.connection import get_engine
 from fixed_income.analytics import FixedIncomeAnalyticsService, RiskProxySelector
 from stores.analytics import AnalyticsSnapshotStore
 from stores.macro import MacroFeatureStore, MacroStore
-from stores.market import ETFUniverseStore, MetadataStore, PriceStore
+from stores.market import ETFUniverseStore, HoldingsStore, MetadataStore, PriceStore
 
 NAVIGATION_VIEWS = ("Home", "Dashboard", "News", "Macro")
 
@@ -27,6 +27,7 @@ def get_cached_app_dependencies(data_backend: str, app_env: str):
     return {
         "engine": engine,
         "etf_universe_store": ETFUniverseStore(engine),
+        "holdings_store": HoldingsStore(engine),
         "price_store": price_store,
         "metadata_store": MetadataStore(engine),
         "macro_store": macro_store,
@@ -50,6 +51,7 @@ class DashboardApp:
         macro_store,
         macro_feature_store,
         analytics_service,
+        holdings_store,
     ):
         self.etf_universe_store = etf_universe_store
         self.price_store = price_store
@@ -58,7 +60,9 @@ class DashboardApp:
         self.macro_feature_store = macro_feature_store
         self.home_page = HomePage(price_store, macro_feature_store)
         self.news_page = NewsPage(macro_feature_store, price_store)
-        self.dashboard_page = DashboardPage(price_store, metadata_store, analytics_service)
+        self.dashboard_page = DashboardPage(
+            price_store, metadata_store, analytics_service, holdings_store
+        )
         self.macro_page = MacroPage(macro_feature_store)
 
     def run(self) -> None:
@@ -148,5 +152,6 @@ def run_app():
         dependencies["macro_store"],
         dependencies["macro_feature_store"],
         dependencies["analytics_service"],
+        dependencies["holdings_store"],
     )
     app.run()

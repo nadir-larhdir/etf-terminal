@@ -53,6 +53,26 @@ TABLE_DEFINITIONS = {
             updated_at TEXT
         )
     """,
+    "etf_holdings": """
+        CREATE TABLE IF NOT EXISTS etf_holdings (
+            ticker TEXT NOT NULL,
+            as_of_date DATE NOT NULL,
+            position INTEGER NOT NULL,
+            name TEXT,
+            cusip TEXT,
+            isin TEXT,
+            sedol TEXT,
+            weight REAL,
+            coupon REAL,
+            maturity_dt DATE,
+            price REAL,
+            market_value REAL,
+            face_amount REAL,
+            source TEXT,
+            fetched_at TIMESTAMP,
+            PRIMARY KEY (ticker, as_of_date, position)
+        )
+    """,
     "macro_data": """
         CREATE TABLE IF NOT EXISTS macro_data (
             series_id TEXT NOT NULL,
@@ -124,6 +144,7 @@ EXPECTED_MACRO_DATA_COLUMNS = [
 INDEX_DEFINITIONS = {
     "idx_price_history_date": "CREATE INDEX IF NOT EXISTS idx_price_history_date ON price_history (date)",
     "idx_price_history_ticker_date": "CREATE INDEX IF NOT EXISTS idx_price_history_ticker_date ON price_history (ticker, date)",
+    "idx_etf_holdings_ticker_as_of": "CREATE INDEX IF NOT EXISTS idx_etf_holdings_ticker_as_of ON etf_holdings (ticker, as_of_date)",
     "idx_macro_data_date": "CREATE INDEX IF NOT EXISTS idx_macro_data_date ON macro_data (date)",
     "idx_macro_data_series_date": "CREATE INDEX IF NOT EXISTS idx_macro_data_series_date ON macro_data (series_id, date)",
     "idx_macro_features_date": "CREATE INDEX IF NOT EXISTS idx_macro_features_date ON macro_features (date)",
