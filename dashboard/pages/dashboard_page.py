@@ -6,19 +6,20 @@ from config import normalize_asset_class
 from dashboard.cache import app_cache_key, cached_etf_metadata, cached_price_history
 from dashboard.components import DashboardControls, ETFHeader
 from dashboard.perf import timed_block
-from dashboard.tabs import AnalyticsTab, OverviewTab, RVTab
+from dashboard.tabs import AnalyticsTab, HoldingsTab, OverviewTab, RVTab
 from fixed_income.etfs import ETF
 
 
 class DashboardPage:
     """Render the main ETF workspace page behind the Dashboard navigation view."""
 
-    def __init__(self, price_store, metadata_store, analytics_service) -> None:
+    def __init__(self, price_store, metadata_store, analytics_service, holdings_store) -> None:
         self.price_store = price_store
         self.metadata_store = metadata_store
         self.etf_header = ETFHeader()
         self.overview_tab = OverviewTab()
         self.analytics_tab = AnalyticsTab(analytics_service)
+        self.holdings_tab = HoldingsTab(holdings_store)
         self.rv_tab = RVTab(price_store)
         self.controls = DashboardControls()
 
@@ -94,7 +95,7 @@ class DashboardPage:
         all_tickers = securities["ticker"].tolist()
         active_section = st.radio(
             "Dashboard Section",
-            ["Overview", "Analytics", "RV Analysis"],
+            ["Overview", "Analytics", "Holdings", "RV Analysis"],
             horizontal=True,
             key="dashboard_section",
             label_visibility="collapsed",
@@ -106,6 +107,10 @@ class DashboardPage:
 
         if active_section == "Analytics":
             render_tab_safe("Analytics", self.analytics_tab.render, etf)
+            return
+
+        if active_section == "Holdings":
+            render_tab_safe("Holdings", self.holdings_tab.render, etf)
             return
 
         render_tab_safe("RV Analysis", self.rv_tab.render, etf, all_tickers)

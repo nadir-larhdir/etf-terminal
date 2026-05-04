@@ -8,11 +8,12 @@ from db.connection import get_engine
 from fixed_income.analytics.duration_estimator import ETFDurationEstimator
 from scripts.analytics.precompute_analytics import run_precompute_analytics
 from scripts.logging_utils import configure_logging
+from scripts.market.sync_holdings import refresh_holdings_snapshots
 from scripts.market.enrich_metadata_from_fmp import build_metadata_row
 from services.macro import DEFAULT_MACRO_SERIES, FredClient, MacroDataService, MacroFeatureService
 from services.market import MarketDataService
 from stores.macro import MacroFeatureStore, MacroStore
-from stores.market import ETFUniverseStore, MetadataStore, PriceStore
+from stores.market import ETFUniverseStore, HoldingsStore, MetadataStore, PriceStore
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-analytics",
         action="store_true",
         help="Skip analytics snapshot refresh.",
+    )
+    parser.add_argument(
+        "--skip-holdings",
+        action="store_true",
+        help="Skip ETF holdings snapshot refresh.",
     )
     parser.add_argument(
         "--feature-rebuild-days",
@@ -143,6 +149,7 @@ def main() -> None:
     etf_universe_store = ETFUniverseStore(engine)
     price_store = PriceStore(engine)
     metadata_store = MetadataStore(engine)
+    holdings_store = HoldingsStore(engine)
     macro_store = MacroStore(engine)
     macro_feature_store = MacroFeatureStore(engine)
 
@@ -155,7 +162,7 @@ def main() -> None:
     macro_data_service = MacroDataService(fred_client, macro_store)
     macro_feature_service = MacroFeatureService(macro_store, macro_feature_store)
 
-    total_steps = 6 if run_analytics else 5
+    total_steps = 7 if run_analytics else 6
 
     logger.info("Step 1/%s: syncing configured ETF universe...", total_steps)
     universe_rows = _refresh_universe(etf_universe_store)
@@ -194,10 +201,18 @@ def main() -> None:
         refreshed_metadata = _refresh_metadata(metadata_store, tickers)
         logger.info("Metadata refresh complete for %s ticker(s).", refreshed_metadata)
 
+    if args.skip_holdings:
+        refreshed_holdings = 0
+        logger.info("Step 6/%s: skipping ETF holdings refresh.", total_steps)
+    else:
+        logger.info("Step 6/%s: refreshing ETF holdings...", total_steps)
+        refreshed_holdings = refresh_holdings_snapshots(holdings_store, tickers)
+        logger.info("Holdings refresh complete for %s ticker(s).", refreshed_holdings)
+
     analytics_persisted = 0
     analytics_skipped = 0
     if run_analytics:
-        logger.info("Step 6/%s: precomputing analytics snapshots...", total_steps)
+        logger.info("Step 7/%s: precomputing analytics snapshots...", total_steps)
         analytics_persisted, analytics_skipped = run_precompute_analytics(
             engine=engine,
             force=args.force_analytics,
@@ -210,6 +225,7 @@ def main() -> None:
     logger.info(" - latest macro date: %s", _latest_macro_date(macro_store, series_ids))
     logger.info(" - latest feature date: %s", _latest_feature_date(macro_feature_store))
     logger.info(" - metadata rows refreshed: %s", refreshed_metadata)
+    logger.info(" - holdings snapshots refreshed: %s", refreshed_holdings)
     if run_analytics:
         logger.info(" - analytics snapshots persisted: %s", analytics_persisted)
         logger.info(" - analytics snapshots skipped: %s", analytics_skipped)
