@@ -1,8 +1,12 @@
 """Fetch and merge ETF metadata from Financial Modeling Prep into the local database."""
 
 import argparse
+import json
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
+
+import pandas as pd
 
 from config import DEFAULT_TICKERS, FMP_API_KEY, FMP_BASE_URL, normalize_asset_class
 from db.connection import get_engine
@@ -10,6 +14,7 @@ from fixed_income.analytics.duration_estimator import (
     ETFDurationEstimator,
     issuer_from_long_name,
 )
+from fixed_income.etfs.provider_analytics import ETFAnalyticsClient
 from scripts.logging_utils import configure_logging
 from scripts.script_helpers import add_ticker_argument, parse_ticker_list
 from services.market.fmp_client import FMPClient
@@ -157,6 +162,34 @@ def _choose_longer_text(*values):
     if not populated:
         return None
     return max(populated, key=len)
+
+
+def _credit_quality_payload(ticker: str) -> str | None:
+    """Return normalized credit-quality JSON with weights summing to 100.00."""
+    try:
+        df = ETFAnalyticsClient(ticker).get_credit_quality()
+    except Exception:
+        return None
+    if df.empty:
+        return None
+
+    weights = pd.to_numeric(df["weight"], errors="coerce").fillna(0.0)
+    total = float(weights.sum())
+    if total <= 0:
+        return None
+
+    normalized = df[["rating"]].copy()
+    normalized["weight"] = (weights / total * 100.0).round(2)
+    diff = round(100.0 - float(normalized["weight"].sum()), 2)
+    if diff:
+        idx = normalized["weight"].idxmax()
+        normalized.loc[idx, "weight"] = round(float(normalized.loc[idx, "weight"]) + diff, 2)
+
+    payload = [
+        {"rating": str(row.rating), "weight": float(row.weight)}
+        for row in normalized.sort_values("weight", ascending=False).itertuples(index=False)
+    ]
+    return json.dumps(payload)
 
 
 def get_etf_description(ticker: str) -> dict:
@@ -321,6 +354,10 @@ def build_metadata_row(
                 if analytics.preferred_duration is not None
                 else None
             )
+    credit_quality = _choose_preferred(
+        _credit_quality_payload(ticker),
+        existing.get("credit_quality"),
+    )
 
     return {
         "ticker": ticker,
@@ -345,6 +382,7 @@ def build_metadata_row(
             analytics.convexity if analytics is not None else None,
             existing.get("convexity"),
         ),
+        "credit_quality": credit_quality,
         "benchmark_index": _choose_preferred(
             internal.get("benchmark_index"),
             existing.get("benchmark_index"),
@@ -386,6 +424,35 @@ def build_metadata_row(
     }
 
 
+def build_metadata_rows(
+    metadata_store: MetadataStore, tickers: list[str], *, max_workers: int = 8
+) -> list[dict]:
+    """Build metadata rows in parallel and return the successful results."""
+    if not tickers:
+        return []
+
+    def _build_one(ticker: str) -> dict:
+        existing_row = metadata_store.get_ticker_metadata(ticker)
+        estimator = ETFDurationEstimator(metadata_store.engine)
+        return build_metadata_row(
+            ticker,
+            existing_row=existing_row,
+            duration_estimator=estimator,
+        )
+
+    rows: list[dict] = []
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(tickers))) as executor:
+        futures = {executor.submit(_build_one, ticker): ticker for ticker in tickers}
+        for future in as_completed(futures):
+            ticker = futures[future]
+            try:
+                rows.append(future.result())
+                logger.info("Enriched metadata for %s", ticker)
+            except Exception as exc:
+                logger.warning("Failed metadata enrichment for %s: %s", ticker, exc)
+    return rows
+
+
 if __name__ == "__main__":
     configure_logging()
     parser = argparse.ArgumentParser(
@@ -418,19 +485,6 @@ if __name__ == "__main__":
         existing = metadata_store.get_existing_tickers()
         tickers = [ticker for ticker in tickers if ticker not in existing]
 
-    rows = []
-    for ticker in tickers:
-        try:
-            existing_row = metadata_store.get_ticker_metadata(ticker)
-            row = build_metadata_row(
-                ticker,
-                existing_row=existing_row,
-                duration_estimator=duration_estimator,
-            )
-            rows.append(row)
-            logger.info("Enriched metadata for %s", ticker)
-        except Exception as exc:
-            logger.warning("Failed metadata enrichment for %s: %s", ticker, exc)
-
+    rows = build_metadata_rows(metadata_store, tickers)
     metadata_store.upsert_metadata(rows)
     logger.info("ETF metadata enrichment complete.")

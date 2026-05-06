@@ -14,7 +14,6 @@ from dashboard.cache import (
     restore_analytics_snapshot,
     snapshot_age_hours,
 )
-from dashboard.components.info_panel import InfoPanel
 from dashboard.mobile import PLOTLY_CHART_CONFIG
 from dashboard.perf import timed_block
 from fixed_income.analytics import format_oas_proxy_label
@@ -29,19 +28,20 @@ class AnalyticsTab:
 
     def __init__(self, analytics_service) -> None:
         self.analytics_service = analytics_service
-        self.info_panel = InfoPanel()
 
     def render(self, security: ETF) -> None:
-        """Render the Analytics tab: metric cards, credit spread section, volume bars, and narrative panels."""
+        """Render the Analytics tab: metric cards and credit spread diagnostics."""
         st.subheader("Analytics")
+        self.render_metric_cards(security)
+
+    def render_metric_cards(self, security: ETF) -> None:
+        """Render the two rows of analytics metric cards (YTM/OAS/duration/DV01 etc.)."""
         with timed_block("analytics.prepare_inputs"):
             metadata = security.metadata or {}
-            snapshot = security.trading_snapshot()
             analytics = self._analytics_snapshot(security)
             has_credit_spread = (
                 analytics.spread_proxy_used is not None and analytics.spread_beta_per_bp is not None
             )
-            liquidity_regime = self._liquidity_regime(snapshot["volume_z"])
             duration_method, duration_source = self._duration_source_details(security)
             duration_footer = self._duration_scale_indicator(analytics.estimated_duration)
             dv01_footer = self._dv01_change_footer(security, analytics.estimated_duration)
@@ -52,7 +52,9 @@ class AnalyticsTab:
 
         top1, top2, top3, top4 = st.columns(4)
         with top1:
-            self._render_metric_card("YTM", self._format_percent_points(ytm), "#1F271C", "#8D8779")
+            self._render_metric_card(
+                "YTM (SEC)", self._format_percent_points(ytm), "#1F271C", "#8D8779"
+            )
         with top2:
             self._render_metric_card("OAS", self._format_bps_value(oas), "#1F271C", "#8D8779")
         with top3:
@@ -70,7 +72,7 @@ class AnalyticsTab:
         a1, a2, a3, a4 = st.columns(4)
         with a1:
             self._render_metric_card(
-                "Estimated Duration",
+                "Est. Duration",
                 self._format_years(analytics.estimated_duration),
                 self._duration_risk_color(analytics.estimated_duration),
                 "#5DA9E9",
@@ -89,12 +91,11 @@ class AnalyticsTab:
         with a4:
             self._render_metric_card("Duration Source", duration_source, "#1F271C", "#8D8779")
 
-        st.markdown(
-            "<div style='height:1px;margin:1.2rem 0 1.4rem 0;background:linear-gradient(90deg, rgba(95,141,132,0.0), rgba(95,141,132,0.45), rgba(111,123,70,0.35), rgba(111,123,70,0.0));'></div>",
-            unsafe_allow_html=True,
-        )
-
         if has_credit_spread:
+            st.markdown(
+                "<div style='height:1px;margin:0.8rem 0 1.0rem 0;background:linear-gradient(90deg, rgba(95,141,132,0.0), rgba(95,141,132,0.45), rgba(111,123,70,0.35), rgba(111,123,70,0.0));'></div>",
+                unsafe_allow_html=True,
+            )
             s1, s2, s3, s4 = st.columns(4)
             with s1:
                 self._render_metric_card(
@@ -132,48 +133,46 @@ class AnalyticsTab:
                     ),
                 )
 
-        with st.expander("Methodology", expanded=False):
-            st.markdown(
-                "Estimated duration is sourced from each ETF issuer's published fixed-income analytics where available. "
-                "Spread beta is measured per 1 bp move in the selected ICE BofA OAS series. "
-                "DV01 and proxy CS01 are shown on a $1MM notional-equivalent basis, not as official published fund analytics or exact CS01."
-            )
+    def render_narrative_panels(self, security: ETF) -> None:
+        """Render the aligned Current Read and Liquidity Condition panels."""
+        with timed_block("analytics.narrative_panels"):
+            metadata = security.metadata or {}
+            snapshot = security.trading_snapshot()
+            analytics = self._analytics_snapshot(security)
+            liquidity_regime = self._liquidity_regime(snapshot["volume_z"])
+            duration_method, duration_source = self._duration_source_details(security)
 
         left, right = st.columns([3, 2])
         with left:
-            self.info_panel.render(
-                title="Current Read",
-                headline=self._current_read_headline(security, metadata),
-                body=self._current_read_body(
-                    security, metadata, snapshot, analytics, duration_method, duration_source
-                ),
-                accent_color="#7FB9AA",
-                margin_top="0.50rem",
-                margin_bottom="0.30rem",
-            )
-            if has_credit_spread:
-                self.info_panel.render(
-                    title="Spread Beta Proxy",
-                    headline=None,
-                    body=(
-                        f"{self._format_spread_beta_bps(analytics.spread_beta_per_bp)} vs {format_oas_proxy_label(analytics.spread_proxy_used)}.<br>"
-                        f"{self._oas_move_explanation(analytics)} Proxy CS01: {self._format_dollar_per_million(analytics.spread_dv01_proxy_per_share)}/$1MM "
-                        f"(R²: {self._format_number(analytics.spread_model_r2)})."
+            card = st.container(border=True)
+            with card:
+                st.markdown(
+                    (
+                        "<div style='font-size:11px;text-transform:uppercase;letter-spacing:0.55px;"
+                        "color:#8D8779;font-weight:600;margin-bottom:10px;'>Current Read</div>"
+                        f"<div style='color:#1F271C;font-size:0.98rem;font-weight:700;margin-bottom:0.35rem;'>{self._current_read_headline(security, metadata)}</div>"
+                        f"<div style='color:#4F5A49;font-size:0.88rem;line-height:1.55;'>{self._current_read_body(security, metadata, snapshot, analytics, duration_method, duration_source)}</div>"
                     ),
-                    accent_color="#8AA05A",
-                    margin_top="0.50rem",
-                    margin_bottom="0.30rem",
+                    unsafe_allow_html=True,
                 )
         with right:
-            self.info_panel.render(
-                title="Trading Activity",
-                headline=liquidity_regime,
-                body=f"Current volume is running at {self._volume_multiple(snapshot):.2f}x the 30-day average.",
-                accent_color="#7FB9AA",
-                margin_top="0.50rem",
-                margin_bottom="0.12rem",
-            )
-            self._render_volume_bars(security)
+            card = st.container(border=True)
+            with card:
+                st.markdown(
+                    (
+                        "<div>"
+                        "<div style='font-size:11px;text-transform:uppercase;letter-spacing:0.55px;"
+                        "color:#8D8779;font-weight:600;margin-bottom:10px;'>Liquidity Condition</div>"
+                        f"<div style='color:#1F271C;font-size:0.98rem;font-weight:700;margin-bottom:0.35rem;'>{liquidity_regime}</div>"
+                        f"<div style='color:#4F5A49;font-size:0.88rem;line-height:1.5;margin-bottom:0.5rem;'>"
+                        f"Current volume is running at {self._volume_multiple(snapshot):.2f}x the 30-day average."
+                        "</div>"
+                        "<div style='color:#8D8779;font-size:0.78rem;margin-bottom:0.2rem;'>Volume vs 30D average</div>"
+                        "</div>"
+                    ),
+                    unsafe_allow_html=True,
+                )
+                self._render_volume_bars(security, show_caption=False, height=110)
 
     def _analytics_snapshot(self, security: ETF):
         """Return a live or cached analytics snapshot, falling back to live computation when stale."""
@@ -246,7 +245,8 @@ class AnalyticsTab:
         if raw_value in (None, "", "N/A"):
             return None
         try:
-            return float(raw_value)
+            value = float(raw_value)
+            return None if pd.isna(value) else value
         except (TypeError, ValueError):
             return None
 
@@ -277,35 +277,35 @@ class AnalyticsTab:
 
     def _format_dollar_per_million(self, value: float | None) -> str:
         """Format a per-share dollar risk as a dollar amount per $1MM notional."""
-        return "N/A" if value is None else f"${value * 10000:,.0f}"
+        return "-" if value is None or pd.isna(value) else f"${value * 10000:,.0f}"
 
     def _format_years(self, value: float | None) -> str:
         """Format a duration in years to one decimal place."""
-        return "N/A" if value is None else f"{value:.1f}y"
+        return "-" if value is None or pd.isna(value) else f"{value:.1f}y"
 
     def _format_number(self, value: float | None) -> str:
         """Format a float to 2 decimal places."""
-        return "N/A" if value is None else f"{value:.2f}"
+        return "-" if value is None or pd.isna(value) else f"{value:.2f}"
 
     def _format_percent_points(self, value: float | None) -> str:
         """Format a percentage-point value such as YTM."""
-        return "N/A" if value is None else f"{value:.2f}%"
+        return "-" if value is None or pd.isna(value) else f"{value:.2f}%"
 
     def _format_bps_value(self, value: float | None) -> str:
         """Format a level OAS value in basis points."""
-        return "N/A" if value is None else f"{value:.0f} bps"
+        return "-" if value is None or pd.isna(value) else f"{value:.0f} bps"
 
     def _format_spread_beta_bps(self, value: float | None) -> str:
         """Format a spread beta (per decimal) as a signed basis-point string."""
-        return "N/A" if value is None else f"{value * 10000:+.1f} bps"
+        return "-" if value is None or pd.isna(value) else f"{value * 10000:+.1f} bps"
 
     def _format_percent(self, value: float | None) -> str:
         """Format a decimal proportion as a whole-number percentage string."""
-        return "N/A" if value is None else f"{value:.0%}"
+        return "-" if value is None or pd.isna(value) else f"{value:.0%}"
 
     def _format_bps_impact(self, value: float | None) -> str:
         """Format a signed basis-point price impact to 2 decimal places."""
-        return "N/A" if value is None else f"{value:+.2f} bps"
+        return "-" if value is None or pd.isna(value) else f"{value:+.2f} bps"
 
     def _oas_move_explanation(self, analytics) -> str:
         """Return a plain-English sentence describing the price impact of a +1 bp OAS move."""
@@ -331,20 +331,33 @@ class AnalyticsTab:
         """Render a single large-value metric card with a label, colored value, and optional footer HTML."""
         footer_block = ""
         if footer:
-            footer_block = f"<div style='margin-top:0.45rem;color:#707A68;font-size:0.72rem;line-height:1.3;'>{footer}</div>"
-        bottom_border = f"border-bottom:2px solid {border_color};" if show_bottom_border else ""
+            footer_block = (
+                f"<div style='width:100%;margin-top:8px;padding-top:7px;border-top:1px solid #EDE9E0;"
+                f"color:#8D8779;font-size:0.70rem;line-height:1.35;'>{footer}</div>"
+            )
+        bottom_accent = (
+            f"border-bottom:1px solid {border_color};"
+            if show_bottom_border
+            else "border-bottom:1px solid #EAE4D8;"
+        )
         st.markdown(
             (
-                f"<div class='bb-highlight-metric' style='padding:0.25rem 0 0.85rem 0;{bottom_border}min-height:7.4rem;'>"
-                f"<div class='bb-highlight-metric-label' style='font-size:0.68rem;letter-spacing:0.42px;text-transform:uppercase;color:#707A68;font-weight:700;'>{label}</div>"
-                f"<div class='bb-highlight-metric-value' style='color:{color};font-size:3.35rem;font-weight:800;line-height:1.02;letter-spacing:0.12px;margin-top:0.18rem;'>{value}</div>"
+                f"<div style='background:rgba(251,248,241,0.18);border:1px solid #EAE4D8;{bottom_accent}"
+                f"border-radius:10px;padding:14px 16px 12px 16px;height:126px;'>"
+                f"<div style='font-size:11px;text-transform:uppercase;letter-spacing:0.55px;"
+                f"color:#8D8779;font-weight:600;margin-bottom:7px;'>{label}</div>"
+                f"<div style='height:calc(100% - 18px);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;'>"
+                f"<div style='color:{color};font-size:2.15rem;font-weight:700;line-height:1.05;'>{value}</div>"
                 f"{footer_block}"
-                "</div>"
+                f"</div>"
+                f"</div>"
             ),
             unsafe_allow_html=True,
         )
 
-    def _render_volume_bars(self, security: ETF) -> None:
+    def _render_volume_bars(
+        self, security: ETF, *, show_caption: bool = True, height: int = 150
+    ) -> None:
         """Render a 30-day bar chart of volume relative to the rolling 30D average."""
         history = security.history.copy()
         if history.empty or "volume" not in history.columns:
@@ -354,7 +367,8 @@ class AnalyticsTab:
         ratio = ratio.dropna().tail(30)
         if ratio.empty:
             return
-        st.caption("Volume vs 30D average")
+        if show_caption:
+            st.caption("Volume vs 30D average")
         fig = go.Figure(
             data=[
                 go.Bar(
@@ -370,7 +384,7 @@ class AnalyticsTab:
             paper_bgcolor="#FBF8F1",
             plot_bgcolor="#FBF8F1",
             margin=dict(l=8, r=8, t=8, b=8),
-            height=150,
+            height=height,
             font=dict(
                 family='"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
                 color="#1F271C",

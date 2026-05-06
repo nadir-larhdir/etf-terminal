@@ -14,7 +14,7 @@ class DashboardTable:
         styled = df.style
 
         def style_value(value, column_name: str) -> str:
-            is_text_col = column_name.upper() in {"DATE", "PAIR", "REGIME", "CROSS"}
+            is_text_col = column_name.upper() in {"DATE", "PAIR", "REGIME", "CROSS", "ACTION"}
             text_align = "left" if is_text_col else "right"
             base_style = f"color:#1F271C; text-align:{text_align};"
 
@@ -109,7 +109,7 @@ class DashboardTable:
         display_df = df.copy()
 
         for col in display_df.columns:
-            if col in {"PAIR", "DATE", "REGIME", "CROSS"}:
+            if col in {"PAIR", "DATE", "REGIME", "CROSS", "ACTION"}:
                 continue
 
             numeric_series = pd.to_numeric(display_df[col], errors="coerce")
@@ -224,7 +224,19 @@ class DashboardTable:
         formatted = df.copy()
 
         for col in formatted.columns:
-            if col == "PAIR":
+            if col in {"PAIR", "ACTION"}:
+                continue
+            if col == "REGIME":
+                continue
+            if col in {"RATIO DEV", "FWD 10D RET", "FWD 20D RET"}:
+                formatted[col] = formatted[col].map(
+                    lambda x: f"{float(x):+.2f}%" if pd.notna(x) else ""
+                )
+                continue
+            if col == "HALF-LIFE":
+                formatted[col] = formatted[col].map(
+                    lambda x: f"{float(x):.1f}d" if pd.notna(x) and float(x) > 0 else "--"
+                )
                 continue
             if col == "STABILITY":
                 formatted[col] = formatted[col].map(

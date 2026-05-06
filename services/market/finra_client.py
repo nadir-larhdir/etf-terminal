@@ -7,8 +7,6 @@ import json
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from threading import Thread
-from typing import Optional
 
 import pandas as pd
 import requests
@@ -104,7 +102,7 @@ class BondAnalytics:
     @staticmethod
     def ytm_from_price(
         price: float, coupon_rate: float, maturity: date, face: float = 100.0, frequency: int = 2
-    ) -> Optional[float]:
+    ) -> float | None:
         cfs, _, years = BondAnalytics._cash_flows(coupon_rate, maturity, face, frequency)
         if years <= 0:
             return None
@@ -131,7 +129,7 @@ class BondAnalytics:
         r = ytm / frequency
         pv_cfs = [cf / (1 + r) ** (i + 1) for i, cf in enumerate(cfs)]
         total_pv = sum(pv_cfs)
-        mac = sum(t * pv / total_pv for t, pv in zip(times, pv_cfs))
+        mac = sum(t * pv / total_pv for t, pv in zip(times, pv_cfs, strict=False))
         mod = mac / (1 + r)
         return {
             "macaulay_duration": round(mac, 4),
@@ -150,9 +148,11 @@ class BondAnalytics:
         frequency: int = 2,
     ) -> dict[str, float]:
         cfs, times, years = BondAnalytics._cash_flows(coupon_rate, maturity, face, frequency)
-        pv_cfs = [cf / (1 + float(curve(min(t, 30)))) ** t for t, cf in zip(times, cfs)]
+        pv_cfs = [
+            cf / (1 + float(curve(min(t, 30)))) ** t for t, cf in zip(times, cfs, strict=False)
+        ]
         total_pv = sum(pv_cfs)
-        mac = sum(t * pv / total_pv for t, pv in zip(times, pv_cfs))
+        mac = sum(t * pv / total_pv for t, pv in zip(times, pv_cfs, strict=False))
         mod = mac / (1 + float(curve(2)) / frequency)
 
         def pv_diff(y: float) -> float:

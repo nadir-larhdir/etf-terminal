@@ -73,15 +73,35 @@ def apply_dashboard_theme():
             font-weight: 700 !important;
             text-transform: uppercase;
             letter-spacing: 0.42px;
-            margin-bottom: 0.18rem !important;
+            margin-bottom: 0.14rem !important;
+            margin-top: 0 !important;
+        }
+
+        h3 {
+            font-size: 0.92rem !important;
         }
 
         p, span, label, div {
             color: var(--etf-ink);
         }
 
-        .stCaption {
+        .stCaption, [data-testid="stCaptionContainer"] {
             color: var(--etf-ink-muted) !important;
+            font-size: 0.72rem !important;
+        }
+
+        /* Tighten the gap between metric card columns */
+        div[data-testid="stHorizontalBlock"]:has(.bb-highlight-metric) {
+            gap: 0.55rem !important;
+        }
+
+        /* Consistent 8px gap between all column blocks */
+        div[data-testid="column"] {
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
+        div[data-testid="stHorizontalBlock"] {
+            gap: 0.55rem !important;
         }
 
         .app-shell-brand {
@@ -115,19 +135,43 @@ def apply_dashboard_theme():
         div[data-baseweb="select"] > div,
         div[data-baseweb="input"] > div,
         [data-testid="stDateInputField"] {
-            background-color: var(--etf-bg-elevated) !important;
-            border: 1px solid var(--etf-border) !important;
-            border-radius: 0 !important;
+            background-color: #FAF7F2 !important;
+            border: 1px solid #E4E0D8 !important;
+            border-radius: 4px !important;
             color: var(--etf-ink) !important;
             box-shadow: none !important;
             min-height: 30px !important;
+            transition: border-color 0.12s ease !important;
+        }
+
+        div[data-baseweb="select"] > div:hover,
+        div[data-baseweb="input"] > div:hover {
+            border-color: #C4BFB2 !important;
+        }
+
+        div[data-baseweb="select"] > div:focus-within,
+        div[data-baseweb="input"] > div:focus-within {
+            border-color: var(--etf-accent) !important;
+            box-shadow: 0 0 0 2px rgba(138,160,90,0.12) !important;
         }
 
         input, textarea {
-            background-color: var(--etf-bg-elevated) !important;
+            background-color: #FAF7F2 !important;
             color: var(--etf-ink) !important;
-            border-radius: 0 !important;
+            border-radius: 4px !important;
             font-size: 0.82rem !important;
+        }
+
+        div[data-baseweb="select"],
+        div[data-baseweb="select"] span,
+        div[data-baseweb="select"] input,
+        div[data-baseweb="input"] input,
+        [data-testid="stDateInputField"],
+        [data-testid="stDateInputField"] div,
+        [data-testid="stDateInputField"] span,
+        [data-testid="stDateInputField"] input,
+        [data-testid="stDateInputField"] button {
+            font-size: 0.95rem !important;
         }
 
         div.stButton > button {
@@ -188,17 +232,18 @@ def apply_dashboard_theme():
         }
 
         [data-testid="stDataFrame"] {
-            border: 1px solid var(--etf-border) !important;
-            border-radius: 1px !important;
+            border: 1px solid #E4E0D8 !important;
+            border-radius: 6px !important;
+            overflow: hidden !important;
         }
 
         [data-testid="stPlotlyChart"] {
-            background: rgba(251,248,241,0.92);
-            border: 1px solid var(--etf-border);
-            border-radius: 0;
-            box-shadow: 0 1px 2px rgba(31,39,28,0.03);
-            padding: 0.2rem 0.25rem 0.05rem 0.25rem;
-            margin-bottom: 0.55rem;
+            background: var(--etf-bg-elevated);
+            border: 1px solid #E4E0D8;
+            border-radius: 6px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            padding: 0;
+            margin-bottom: 0.50rem;
             overflow: hidden;
         }
 
@@ -305,7 +350,30 @@ def apply_dashboard_theme():
         }
 
         .bb-metric-group-spacer {
-            height: 0.7rem;
+            height: 0.5rem;
+        }
+
+        /* Expander polish */
+        [data-testid="stExpander"] {
+            border: 1px solid #E4E0D8 !important;
+            border-radius: 6px !important;
+            background: #FFFFFF !important;
+            overflow: hidden !important;
+            margin-bottom: 0.50rem !important;
+        }
+
+        [data-testid="stExpander"] > details > summary {
+            font-size: 0.75rem !important;
+            font-weight: 700 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.38px !important;
+            color: var(--etf-ink-soft) !important;
+            padding: 0.55rem 0.75rem !important;
+            background: #FAFAF6 !important;
+        }
+
+        [data-testid="stExpander"] > details[open] > summary {
+            border-bottom: 1px solid #E4E0D8 !important;
         }
 
         .bb-regime-badge {
@@ -576,20 +644,40 @@ def apply_dashboard_theme():
         }
 
         .bb-highlight-metric {
-            padding: 0.1rem 0 0.55rem 0;
+            padding: 0;
         }
 
         .bb-highlight-metric-label {
-            font-size: 0.78rem;
+            font-size: 11px;
             text-transform: uppercase;
-            color: rgba(31, 39, 28, 0.72);
-            margin-bottom: 0.2rem;
+            letter-spacing: 0.50px;
+            color: #8D8779;
+            margin-bottom: 6px;
+            font-weight: 600;
         }
 
         .bb-highlight-metric-value {
-            font-size: 2rem;
-            font-weight: 600;
-            line-height: 1.1;
+            font-size: 2.55rem;
+            font-weight: 800;
+            line-height: 1.0;
+            letter-spacing: -0.4px;
+        }
+
+        /* Section card wrapper: white bg, border, radius */
+        .ov-card {
+            background: #FFFFFF;
+            border: 1px solid #E4E0D8;
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+
+        /* Inline accent divider */
+        .ov-divider {
+            height: 1px;
+            background: linear-gradient(90deg, rgba(95,141,132,0.0), rgba(95,141,132,0.40), rgba(111,123,70,0.30), rgba(111,123,70,0.0));
+            margin: 14px 0 18px 0;
         }
 
         .bb-pos {

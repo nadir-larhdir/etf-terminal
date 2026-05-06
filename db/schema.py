@@ -41,6 +41,7 @@ TABLE_DEFINITIONS = {
             oas REAL,
             years_to_maturity REAL,
             convexity REAL,
+            credit_quality TEXT,
             benchmark_index TEXT,
             category TEXT,
             duration_bucket TEXT,
@@ -189,6 +190,7 @@ def ensure_etf_metadata_schema(conn) -> None:
             "oas": "REAL",
             "years_to_maturity": "REAL",
             "convexity": "REAL",
+            "credit_quality": "TEXT",
         },
     )
 

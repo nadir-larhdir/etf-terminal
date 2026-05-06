@@ -91,8 +91,7 @@ class HoldingsStore:
         params: dict[str, object] = {"ticker": ticker.upper()}
         if limit is not None:
             params["limit"] = int(limit)
-        query = text(
-            f"""
+        query = text(f"""
             SELECT *
             FROM {qualified_table(self.engine, 'etf_holdings')}
             WHERE ticker = :ticker
@@ -103,21 +102,18 @@ class HoldingsStore:
               )
             ORDER BY position
             {limit_clause}
-            """
-        )
+            """)
         with self.engine.connect() as conn:
             return pd.read_sql(query, conn, params=params)
 
     def get_latest_as_of_date(self, ticker: str) -> str | None:
         """Return the latest cached holdings date for ticker."""
         self._ensure_schema()
-        query = text(
-            f"""
+        query = text(f"""
             SELECT MAX(as_of_date) AS as_of_date
             FROM {qualified_table(self.engine, 'etf_holdings')}
             WHERE ticker = :ticker
-            """
-        )
+            """)
         with self.engine.connect() as conn:
             frame = pd.read_sql(query, conn, params={"ticker": ticker.upper()})
         if frame.empty or pd.isna(frame.iloc[0]["as_of_date"]):
