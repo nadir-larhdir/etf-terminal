@@ -148,9 +148,9 @@ class DashboardTable:
 <style>
 .{table_id}-wrap {{
     border: 1px solid #D8D4C7;
-    border-radius: 0;
+    border-radius: 8px;
     background-color: #FBF8F1;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
     width: 100%;
     overflow-x: auto;
     {container_style}

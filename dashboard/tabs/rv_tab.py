@@ -32,17 +32,20 @@ from fixed_income.rv.spread_definition import SpreadDefinition
 
 _RV_CSS = """
 <style>
+[class^="rv-"], [class^="rv-"] * {
+    font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+}
 .rv-metric-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 0.45rem;
-    margin-bottom: 0.65rem;
+    gap: 0.55rem;
+    margin-bottom: 0.72rem;
 }
 .rv-metric-card {
-    border: 1px solid var(--etf-border);
+    border: 1px solid #E4E0D8;
     background: #FBF8F1;
     border-radius: 8px;
-    padding: 0.65rem 0.9rem 0.65rem 0.9rem;
+    padding: 0.70rem 0.92rem;
     min-height: 112px;
     display: grid;
     grid-template-columns: 3px 1fr;
@@ -88,11 +91,11 @@ _RV_CSS = """
     line-height: 1.1;
 }
 .rv-chart-panel {
-    border: 1px solid var(--etf-border);
+    border: 1px solid #E4E0D8;
     background: #FBF8F1;
     border-radius: 8px;
-    padding: 0.55rem 0.7rem 0.3rem 0.7rem;
-    margin-bottom: 0.7rem;
+    padding: 0.60rem 0.75rem 0.35rem 0.75rem;
+    margin-bottom: 0.75rem;
 }
 .rv-chart-head {
     display: flex;
@@ -161,10 +164,10 @@ div[role="radiogroup"] label[data-baseweb="radio"]:has(input:checked) p {
     color: var(--etf-accent) !important;
 }
 .rv-col-panel {
-    border: 1px solid var(--etf-border);
+    border: 1px solid #E4E0D8;
     background: #FBF8F1;
     border-radius: 8px;
-    padding: 0.58rem 0.72rem;
+    padding: 0.62rem 0.76rem;
     min-height: 100%;
 }
 .rv-col-title {

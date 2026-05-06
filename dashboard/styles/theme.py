@@ -137,7 +137,7 @@ def apply_dashboard_theme():
         [data-testid="stDateInputField"] {
             background-color: #FAF7F2 !important;
             border: 1px solid #E4E0D8 !important;
-            border-radius: 4px !important;
+            border-radius: 8px !important;
             color: var(--etf-ink) !important;
             box-shadow: none !important;
             min-height: 30px !important;
@@ -158,7 +158,7 @@ def apply_dashboard_theme():
         input, textarea {
             background-color: #FAF7F2 !important;
             color: var(--etf-ink) !important;
-            border-radius: 4px !important;
+            border-radius: 8px !important;
             font-size: 0.82rem !important;
         }
 
@@ -233,17 +233,17 @@ def apply_dashboard_theme():
 
         [data-testid="stDataFrame"] {
             border: 1px solid #E4E0D8 !important;
-            border-radius: 6px !important;
+            border-radius: 8px !important;
             overflow: hidden !important;
         }
 
         [data-testid="stPlotlyChart"] {
             background: var(--etf-bg-elevated);
             border: 1px solid #E4E0D8;
-            border-radius: 6px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
             padding: 0;
-            margin-bottom: 0.50rem;
+            margin-bottom: 0.55rem;
             overflow: hidden;
         }
 
@@ -692,13 +692,14 @@ def apply_dashboard_theme():
             display: grid;
             grid-template-columns: 1.2fr repeat(7, minmax(0, 1fr));
             gap: 0;
-            border: 1px solid var(--etf-border);
+            border: 1px solid #E4E0D8;
             background:
                 linear-gradient(180deg, rgba(111,123,70,0.03), rgba(255,255,255,0)),
                 var(--etf-bg-elevated);
-            margin: 0.08rem 0 0.38rem 0;
+            margin: 0.10rem 0 0.44rem 0;
             overflow: hidden;
-            border-radius: 0;
+            border-radius: 8px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
         }
 
         .home-strip-primary,
@@ -803,8 +804,8 @@ def apply_dashboard_theme():
 
         .home-hero {
             min-height: 220px;
-            border: 1px solid var(--etf-border);
-            border-radius: 0;
+            border: 1px solid #E4E0D8;
+            border-radius: 8px;
             background:
                 linear-gradient(180deg, rgba(251,248,241,0.98), rgba(244,240,230,0.96)),
                 radial-gradient(circle at 82% 50%, rgba(95,141,132,0.10), transparent 30%);
@@ -814,6 +815,7 @@ def apply_dashboard_theme():
             gap: 0.45rem;
             overflow: hidden;
             position: relative;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
         }
 
         .home-eyebrow {
@@ -900,7 +902,7 @@ def apply_dashboard_theme():
         .home-hero-canvas {
             position: relative;
             min-height: 180px;
-            border-radius: 0;
+            border-radius: 8px;
             background: linear-gradient(180deg, rgba(250,247,240,0.96), rgba(244,240,230,0.96));
             overflow: hidden;
             border: 0;
@@ -922,10 +924,10 @@ def apply_dashboard_theme():
         .home-side-card,
         .home-wide-card,
         .home-built-card {
-            border: 1px solid var(--etf-border);
-            border-radius: 0;
+            border: 1px solid #E4E0D8;
+            border-radius: 8px;
             background: linear-gradient(180deg, rgba(250,247,240,0.96), rgba(244,240,230,0.96));
-            padding: 0.7rem 0.78rem;
+            padding: 0.74rem 0.82rem;
             min-height: 100%;
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
         }
@@ -984,20 +986,21 @@ def apply_dashboard_theme():
         .home-stat-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0.45rem;
-            margin-top: 0.28rem;
-            margin-bottom: 0.36rem;
+            gap: 0.55rem;
+            margin-top: 0.32rem;
+            margin-bottom: 0.42rem;
         }
 
         .home-stat-card {
-            border: 1px solid var(--etf-border);
-            border-radius: 0;
+            border: 1px solid #E4E0D8;
+            border-radius: 8px;
             background: rgba(251,248,241,0.96);
-            padding: 0.58rem 0.62rem;
+            padding: 0.62rem 0.68rem;
             display: grid;
             grid-template-columns: 34px 1fr;
             gap: 0.55rem;
             align-items: center;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
         }
 
         .home-stat-icon {
@@ -1006,7 +1009,7 @@ def apply_dashboard_theme():
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 0;
+            border-radius: 8px;
             background: linear-gradient(145deg, rgba(111,123,70,0.14), rgba(111,123,70,0.04));
             color: var(--etf-accent);
             font-size: 0.95rem;
@@ -1111,15 +1114,19 @@ def apply_dashboard_theme():
         .home-context-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0.45rem;
-            margin-bottom: 0.34rem;
+            gap: 0.55rem;
+            margin-bottom: 0.40rem;
+        }
+
+        .home-right-rail {
+            margin-top: 92px;
         }
 
         .home-context-card {
-            border: 1px solid var(--etf-border);
-            border-radius: 0;
+            border: 1px solid #E4E0D8;
+            border-radius: 8px;
             background: linear-gradient(180deg, rgba(250,247,240,0.96), rgba(244,240,230,0.96));
-            padding: 0.72rem 0.78rem;
+            padding: 0.76rem 0.82rem;
             min-height: 100%;
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.45);
         }
@@ -1194,7 +1201,7 @@ def apply_dashboard_theme():
         .home-built-icon {
             width: 54px;
             height: 54px;
-            border-radius: 0;
+            border-radius: 8px;
             background: rgba(111,123,70,0.08);
             display: flex;
             align-items: center;
@@ -1293,6 +1300,10 @@ def apply_dashboard_theme():
 
             .home-context-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .home-right-rail {
+                margin-top: 0;
             }
 
             .home-built-card {

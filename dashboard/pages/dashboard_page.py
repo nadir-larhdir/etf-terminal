@@ -12,6 +12,9 @@ from fixed_income.etfs import ETF
 
 _PANEL_CSS = """
 <style>
+[class^="db-"], [class^="db-"] * {
+    font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+}
 .db-price-card {
     border: 1px solid var(--etf-border);
     background: var(--etf-bg-elevated);

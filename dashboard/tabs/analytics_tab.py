@@ -22,6 +22,52 @@ from fixed_income.etfs import ETF
 
 LOGGER = logging.getLogger(__name__)
 
+_ANALYTICS_CSS = """
+<style>
+[class^="an-"], [class^="an-"] * {
+    font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+}
+.an-metric-card {
+    background: rgba(251, 248, 241, 0.38);
+    border: 1px solid #E4E0D8;
+    border-radius: 8px;
+    padding: 13px 15px 11px 15px;
+    height: 126px;
+}
+.an-metric-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.55px;
+    color: #8D8779;
+    font-weight: 600;
+    margin-bottom: 7px;
+}
+.an-metric-body {
+    height: calc(100% - 18px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+.an-metric-value {
+    font-size: 2.15rem;
+    font-weight: 700;
+    line-height: 1.05;
+}
+.an-metric-footer {
+    width: 100%;
+    margin-top: 8px;
+    padding-top: 7px;
+    border-top: 1px solid #EDE9E0;
+    color: #8D8779;
+    font-size: 0.70rem;
+    line-height: 1.35;
+    text-align: left;
+}
+</style>
+"""
+
 
 class AnalyticsTab:
     """Display model-based ETF rate-risk and trading diagnostics."""
@@ -36,6 +82,7 @@ class AnalyticsTab:
 
     def render_metric_cards(self, security: ETF) -> None:
         """Render the two rows of analytics metric cards (YTM/OAS/duration/DV01 etc.)."""
+        st.markdown(_ANALYTICS_CSS, unsafe_allow_html=True)
         with timed_block("analytics.prepare_inputs"):
             metadata = security.metadata or {}
             analytics = self._analytics_snapshot(security)
@@ -331,10 +378,7 @@ class AnalyticsTab:
         """Render a single large-value metric card with a label, colored value, and optional footer HTML."""
         footer_block = ""
         if footer:
-            footer_block = (
-                f"<div style='width:100%;margin-top:8px;padding-top:7px;border-top:1px solid #EDE9E0;"
-                f"color:#8D8779;font-size:0.70rem;line-height:1.35;'>{footer}</div>"
-            )
+            footer_block = f"<div class='an-metric-footer'>{footer}</div>"
         bottom_accent = (
             f"border-bottom:1px solid {border_color};"
             if show_bottom_border
@@ -342,12 +386,10 @@ class AnalyticsTab:
         )
         st.markdown(
             (
-                f"<div style='background:rgba(251,248,241,0.18);border:1px solid #EAE4D8;{bottom_accent}"
-                f"border-radius:10px;padding:14px 16px 12px 16px;height:126px;'>"
-                f"<div style='font-size:11px;text-transform:uppercase;letter-spacing:0.55px;"
-                f"color:#8D8779;font-weight:600;margin-bottom:7px;'>{label}</div>"
-                f"<div style='height:calc(100% - 18px);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;'>"
-                f"<div style='color:{color};font-size:2.15rem;font-weight:700;line-height:1.05;'>{value}</div>"
+                f"<div class='an-metric-card' style='{bottom_accent}'>"
+                f"<div class='an-metric-label'>{label}</div>"
+                f"<div class='an-metric-body'>"
+                f"<div class='an-metric-value' style='color:{color};'>{value}</div>"
                 f"{footer_block}"
                 f"</div>"
                 f"</div>"

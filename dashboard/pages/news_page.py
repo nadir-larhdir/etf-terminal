@@ -583,9 +583,23 @@ _PAGE_CSS = """
     --news-border-strong: var(--etf-border-strong, #C9C4B4);
     --news-accent: var(--etf-accent, #6F7B46);
 }
+[class^="news-"], [class^="news-"] *,
+[class^="top-story-"], [class^="top-story-"] *,
+[class^="mover-"], [class^="mover-"] *,
+[class^="theme-"], [class^="theme-"] *,
+[class^="event-"], [class^="event-"] *,
+[class^="source-"], [class^="source-"] *,
+.sidebar-section-header,
+.sidebar-section-header *,
+.st-key-filter_all button, .st-key-filter_rates button, .st-key-filter_credit button,
+.st-key-filter_macro button, .st-key-filter_etfs button, .st-key-filter_policy button,
+.st-key-filter_inflation button {
+    font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+}
 .news-summary-bar {
     display:flex;gap:1.5rem;align-items:center;padding:0.55rem 0.75rem;
-    background:var(--news-bg);border:1px solid var(--news-border);border-radius:1px;margin-bottom:0.8rem;
+    background:var(--news-bg);border:1px solid #E4E0D8;border-radius:8px;margin-bottom:0.85rem;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.45);
 }
 .news-stat-item { display:flex;flex-direction:column;min-width:70px; }
 .news-stat-value { font-size:0.96rem;font-weight:700;color:var(--news-ink);line-height:1.15;letter-spacing:0.12px; }
@@ -620,8 +634,9 @@ _PAGE_CSS = """
 .news-item-source { font-size:0.68rem;color:var(--news-muted); }
 .news-bm { color:var(--news-border-strong);font-size:0.80rem;flex-shrink:0;margin-top:2px; }
 .top-story-card {
-    background:var(--news-bg);border:1px solid var(--news-border);border-radius:1px;
+    background:var(--news-bg);border:1px solid #E4E0D8;border-radius:8px;
     padding:1.2rem;margin-bottom:0.7rem;position:relative;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.45);
 }
 .top-story-title {
     font-size:1.08rem;font-weight:700;color:var(--news-ink) !important;line-height:1.25;
@@ -632,8 +647,9 @@ _PAGE_CSS = """
 .top-story-desc { font-size:0.78rem;color:var(--news-soft);line-height:1.45;margin-bottom:0.55rem; }
 .top-story-footer { font-size:0.72rem;color:var(--news-muted);display:flex;gap:0.5rem;align-items:center; }
 .mover-card {
-    padding:0.6rem 0.7rem;border:1px solid var(--news-border);background:var(--news-bg);
-    border-radius:1px;margin-bottom:0.5rem;display:flex;gap:0.6rem;align-items:flex-start;
+    padding:0.64rem 0.74rem;border:1px solid #E4E0D8;background:var(--news-bg);
+    border-radius:8px;margin-bottom:0.55rem;display:flex;gap:0.6rem;align-items:flex-start;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.45);
 }
 .mover-ticker { font-size:0.88rem;font-weight:700;color:var(--news-ink);min-width:36px;letter-spacing:0.1px; }
 .mover-name { font-size:0.68rem;color:var(--news-muted);margin-top:1px; }
@@ -696,8 +712,9 @@ _PAGE_CSS = """
     .theme-grid { grid-template-columns:1fr; }
 }
 .sidebar-section-header {
-    font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.42px;
-    color:var(--news-ink);border-bottom:1px solid var(--news-border);padding-bottom:0.35rem;margin-bottom:0.45rem;
+    font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.42px;
+    color:var(--news-ink);border-bottom:1px solid var(--news-border);
+    padding-bottom:0.35rem;margin:0.25rem 0 0.60rem 0;
 }
 .st-key-filter_all, .st-key-filter_rates, .st-key-filter_credit,
 .st-key-filter_macro, .st-key-filter_etfs, .st-key-filter_policy,
@@ -730,10 +747,10 @@ _PAGE_CSS = """
     font-weight:700 !important;letter-spacing:0.42px;text-transform:uppercase;
 }
 .st-key-filter_all button {
-    border-top:1px solid var(--news-border) !important;border-radius:1px 1px 0 0 !important;
+    border-top:1px solid var(--news-border) !important;border-radius:8px 8px 0 0 !important;
 }
 .st-key-filter_inflation button {
-    border-bottom:1px solid var(--news-border) !important;border-radius:0 0 1px 1px !important;
+    border-bottom:1px solid var(--news-border) !important;border-radius:0 0 8px 8px !important;
 }
 .st-key-filter_all button:hover, .st-key-filter_rates button:hover, .st-key-filter_credit button:hover,
 .st-key-filter_macro button:hover, .st-key-filter_etfs button:hover, .st-key-filter_policy button:hover,
