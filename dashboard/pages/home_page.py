@@ -88,8 +88,10 @@ class HomePage:
             )
             self.table.render(bucket_summary, hide_index=True, height=270)
         with main_right:
+            st.markdown('<div class="home-right-rail">', unsafe_allow_html=True)
             st.markdown(pulse_html, unsafe_allow_html=True)
             st.markdown(built_for_html, unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
     def _latest_market_date(self, securities: pd.DataFrame) -> str | None:
         """Return the most recent stored price date across all active securities."""
