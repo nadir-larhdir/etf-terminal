@@ -11,15 +11,15 @@ from dashboard.mobile import PLOTLY_CHART_CONFIG, responsive_chart_layout
 TERMINAL_FONT = (
     '"SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
 )
-CHART_GRID = "#D8D4C7"
+CHART_GRID = "rgba(200,195,185,0.45)"
 CHART_INK = "#1F271C"
-CHART_MUTED = "#7A7568"
+CHART_MUTED = "#9A9288"
 CHART_OLIVE = "#8AA05A"
-CHART_OLIVE_SOFT = "rgba(138, 160, 90, 0.12)"
+CHART_OLIVE_SOFT = "rgba(138, 160, 90, 0.10)"
 CHART_TEAL = "#7FB9AA"
-CHART_UP = "#6FAF72"
-CHART_DOWN = "#C97C6B"
-CHART_GOLD = "#C9A64B"
+CHART_UP = "#5DA861"
+CHART_DOWN = "#C46A5A"
+CHART_GOLD = "#C4952A"
 
 
 def _filter_by_period(hist: pd.DataFrame, period_label: str) -> pd.DataFrame:
@@ -93,7 +93,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             y=close_series,
             mode="lines",
             name="Price",
-            line=dict(color=CHART_MUTED, width=1.2),
+            line=dict(color=CHART_MUTED, width=1.0),
             hoverinfo="skip",
             showlegend=False,
         )
@@ -105,7 +105,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             y=[upper_band] * len(filtered),
             mode="lines",
             name="+1σ",
-            line=dict(color=CHART_GOLD, width=1, dash="dot"),
+            line=dict(color=CHART_GOLD, width=0.9, dash="dot"),
             hovertemplate="+1σ: %{y:,.2f}<extra></extra>",
         )
     )
@@ -115,7 +115,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             y=[lower_band] * len(filtered),
             mode="lines",
             name="-1σ",
-            line=dict(color=CHART_GOLD, width=1, dash="dot"),
+            line=dict(color=CHART_GOLD, width=0.9, dash="dot"),
             fill="tonexty",
             fillcolor=CHART_OLIVE_SOFT,
             hovertemplate="-1σ: %{y:,.2f}<extra></extra>",
@@ -127,7 +127,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             y=above_mean,
             mode="lines",
             name="Above Mean",
-            line=dict(color=CHART_UP, width=2.5),
+            line=dict(color=CHART_UP, width=2.0),
             hovertemplate="%{x|%b %d, %Y}<br>PX_LAST: %{y:,.2f}<extra></extra>",
             connectgaps=False,
         )
@@ -138,7 +138,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             y=below_mean,
             mode="lines",
             name="Below Mean",
-            line=dict(color=CHART_DOWN, width=2.5),
+            line=dict(color=CHART_DOWN, width=2.0),
             hovertemplate="%{x|%b %d, %Y}<br>PX_LAST: %{y:,.2f}<extra></extra>",
             connectgaps=False,
         )
@@ -149,20 +149,19 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             y=[mean_price] * len(filtered),
             mode="lines",
             name="Mean",
-            line=dict(color=CHART_OLIVE, width=1.5),
+            line=dict(color=CHART_OLIVE, width=1.2),
             hovertemplate="MEAN: %{y:,.2f}<extra></extra>",
         )
     )
 
     _apply_terminal_chart_layout(
         fig,
-        title=f"{ticker} Price Action",
-        height=520,
-        margin=dict(l=20, r=20, t=50, b=30),
+        title=f"Price Action ({ticker})",
+        height=460,
+        margin=dict(l=16, r=16, t=60, b=24),
     )
     fig.update_layout(
         xaxis=dict(
-            title="Date",
             showgrid=True,
             gridcolor=CHART_GRID,
             zeroline=False,
@@ -170,9 +169,9 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             rangeslider=dict(visible=False),
             fixedrange=True,
             automargin=True,
+            tickfont=dict(size=10, color="#6B6560"),
         ),
         yaxis=dict(
-            title="Price",
             showgrid=True,
             gridcolor=CHART_GRID,
             zeroline=False,
@@ -180,6 +179,7 @@ def render_price_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             tickformat=".2f",
             fixedrange=True,
             automargin=True,
+            tickfont=dict(size=10, color="#6B6560"),
         ),
     )
 
@@ -192,7 +192,10 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
 
     volume_series = filtered["volume"]
     mean_volume = float(volume_series.mean())
-    bar_colors = [CHART_UP if value >= mean_volume else CHART_DOWN for value in volume_series]
+    bar_colors = [
+        "rgba(93,168,97,0.75)" if value >= mean_volume else "rgba(196,106,90,0.65)"
+        for value in volume_series
+    ]
 
     max_volume = float(volume_series.max())
     step = (
@@ -210,6 +213,7 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             y=volume_series,
             name="Volume",
             marker_color=bar_colors,
+            marker_line_width=0,
             hovertemplate="%{x|%b %d, %Y}<br>VOLUME: %{y:,.0f}<extra></extra>",
         )
     )
@@ -218,32 +222,30 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             x=filtered.index,
             y=[mean_volume] * len(filtered),
             mode="lines",
-            name="Mean",
-            line=dict(color=CHART_OLIVE, width=1.5),
-            hovertemplate="MEAN: %{y:,.0f}<extra></extra>",
+            name="30D Avg",
+            line=dict(color=CHART_OLIVE, width=1.4),
+            hovertemplate="30D AVG: %{y:,.0f}<extra></extra>",
         )
     )
 
     _apply_terminal_chart_layout(
         fig,
-        title=f"{ticker} Trading Activity",
-        height=520,
-        margin=dict(l=20, r=20, t=50, b=30),
+        title=f"Trading Activity ({ticker})",
+        height=460,
+        margin=dict(l=16, r=16, t=60, b=24),
     )
     fig.update_layout(
-        bargap=0.15,
+        bargap=0.20,
         xaxis=dict(
-            title="Date",
-            showgrid=True,
-            gridcolor=CHART_GRID,
+            showgrid=False,
             zeroline=False,
             range=[filtered.index.min(), filtered.index.max()],
             rangeslider=dict(visible=False),
             fixedrange=True,
             automargin=True,
+            tickfont=dict(size=10, color="#6B6560"),
         ),
         yaxis=dict(
-            title="Volume",
             showgrid=True,
             gridcolor=CHART_GRID,
             zeroline=False,
@@ -253,29 +255,38 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
             range=[0, max_volume * 1.15],
             fixedrange=True,
             automargin=True,
+            tickfont=dict(size=10, color="#6B6560"),
         ),
     )
 
     st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
 
 
-def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
+def render_zscore_chart(
+    z_series: pd.Series, ticker_a: str, ticker_b: str, *, title: str | None = None
+):
     """Render the RV z-score series with ±1σ/±2σ reference lines and extreme-point markers."""
     fig = go.Figure()
 
-    # Main Z line
     fig.add_trace(
         go.Scatter(
             x=z_series.index,
             y=z_series,
             mode="lines",
             name="Z-Score",
-            line=dict(color=CHART_MUTED, width=1.5),
+            line=dict(color="#6F6A63", width=1.9),
         )
     )
 
-    # Sigma lines
-    for level, label in [(2, "+2σ"), (1, "+1σ"), (0, "Mean"), (-1, "-1σ"), (-2, "-2σ")]:
+    for level, label in [
+        (3, "+3 Std"),
+        (2, "+2 Std"),
+        (1, "+1 Std"),
+        (0, "Mean"),
+        (-1, "-1 Std"),
+        (-2, "-2 Std"),
+        (-3, "-3 Std"),
+    ]:
         fig.add_trace(
             go.Scatter(
                 x=z_series.index,
@@ -283,15 +294,18 @@ def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
                 mode="lines",
                 name=label,
                 line=dict(
-                    color=CHART_OLIVE if level == 0 else CHART_GOLD,
-                    width=1,
+                    color=(
+                        "#A9A39B"
+                        if level == 0
+                        else "#D9C49B" if abs(level) == 1 else "#E0B1A6" if level > 1 else "#BCD5C7"
+                    ),
+                    width=1.0 if level == 0 else 0.8,
                     dash="dot" if level != 0 else "solid",
                 ),
                 hoverinfo="skip",
             )
         )
 
-    # Highlight extreme points
     extreme_mask = z_series.abs() >= 2
     fig.add_trace(
         go.Scatter(
@@ -299,24 +313,64 @@ def render_zscore_chart(z_series: pd.Series, ticker_a: str, ticker_b: str):
             y=z_series[extreme_mask],
             mode="markers",
             name="Extreme",
-            marker=dict(color=CHART_DOWN, size=6),
+            marker=dict(color=CHART_DOWN, size=5, symbol="circle"),
+            showlegend=False,
         )
+    )
+
+    last_value = float(z_series.iloc[-1])
+    fig.add_annotation(
+        x=z_series.index[-1],
+        y=last_value,
+        xanchor="left",
+        yanchor="middle",
+        xshift=18,
+        text=f"{last_value:.2f}",
+        showarrow=False,
+        bgcolor="#7A766F",
+        bordercolor="#7A766F",
+        font=dict(color="#FBF8F1", size=10, family=TERMINAL_FONT),
+        borderpad=4,
     )
 
     _apply_terminal_chart_layout(
         fig,
-        title=f"RV Z-Score: {ticker_a}/{ticker_b}",
-        height=420,
+        title=title or f"Z-Score ({ticker_a} / {ticker_b})",
+        height=380,
+        margin=dict(l=16, r=44, t=24, b=24),
     )
     fig.update_layout(
-        xaxis=dict(showgrid=True, gridcolor=CHART_GRID, automargin=True),
-        yaxis=dict(showgrid=True, gridcolor=CHART_GRID, automargin=True),
+        paper_bgcolor="#FBF8F1",
+        plot_bgcolor="#FBF8F1",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            x=0.5,
+            xanchor="center",
+            font=dict(size=9, color="#6B6560"),
+        ),
+        xaxis=dict(
+            showgrid=False,
+            gridcolor=CHART_GRID,
+            automargin=True,
+            tickfont=dict(size=10, color="#6B6560"),
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor=CHART_GRID,
+            automargin=True,
+            tickfont=dict(size=10, color="#6B6560"),
+            range=[-3.4, 3.4],
+        ),
     )
 
     st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
 
 
-def render_return_spread_chart(ratio_series: pd.Series, ticker_a: str, ticker_b: str):
+def render_return_spread_chart(
+    ratio_series: pd.Series, ticker_a: str, ticker_b: str, *, title: str | None = None
+):
     """Render the cumulative beta-adjusted return spread between two ETFs."""
     fig = go.Figure()
 
@@ -325,22 +379,55 @@ def render_return_spread_chart(ratio_series: pd.Series, ticker_a: str, ticker_b:
             x=ratio_series.index,
             y=ratio_series,
             mode="lines",
-            name="Ratio",
-            line=dict(color=CHART_TEAL, width=1.5),
+            name="Spread",
+            line=dict(color=CHART_TEAL, width=1.8),
+            fill="tozeroy",
+            fillcolor="rgba(127,185,170,0.08)",
         )
     )
 
-    _apply_terminal_chart_layout(fig, title=f"Return Spread: {ticker_a}/{ticker_b}", height=420)
+    _apply_terminal_chart_layout(
+        fig,
+        title=title or f"Spread ({ticker_a} / {ticker_b})",
+        height=380,
+        margin=dict(l=16, r=16, t=24, b=24),
+    )
     fig.update_layout(
-        xaxis=dict(showgrid=True, gridcolor=CHART_GRID, automargin=True),
-        yaxis=dict(showgrid=True, gridcolor=CHART_GRID, automargin=True),
+        paper_bgcolor="#FBF8F1",
+        plot_bgcolor="#FBF8F1",
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            x=0.5,
+            xanchor="center",
+            font=dict(size=9, color="#6B6560"),
+        ),
+        xaxis=dict(
+            showgrid=False,
+            gridcolor=CHART_GRID,
+            automargin=True,
+            tickfont=dict(size=10, color="#6B6560"),
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor=CHART_GRID,
+            automargin=True,
+            tickfont=dict(size=10, color="#6B6560"),
+        ),
     )
 
     st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
 
 
 def render_beta_adjusted_z_chart(
-    z_series: pd.Series, beta_series: pd.Series, ticker_a: str, ticker_b: str
+    z_series: pd.Series,
+    beta_series: pd.Series,
+    ticker_a: str,
+    ticker_b: str,
+    *,
+    title: str | None = None,
 ):
     """Render the rolling-beta-adjusted z-score series for the given pair."""
     adj_z = z_series * beta_series
@@ -353,7 +440,7 @@ def render_beta_adjusted_z_chart(
             y=adj_z,
             mode="lines",
             name="Beta-Adj Z",
-            line=dict(color=CHART_TEAL, width=1.5),
+            line=dict(color="#7B6BA8", width=1.8),
         )
     )
 
@@ -363,14 +450,40 @@ def render_beta_adjusted_z_chart(
             y=[0] * len(adj_z),
             mode="lines",
             name="Mean",
-            line=dict(color=CHART_OLIVE, width=1),
+            line=dict(color=CHART_OLIVE, width=1.0),
         )
     )
 
-    _apply_terminal_chart_layout(fig, title=f"Beta-Adjusted Z: {ticker_a}/{ticker_b}", height=420)
+    _apply_terminal_chart_layout(
+        fig,
+        title=title or f"Beta-Adj Z ({ticker_a} / {ticker_b})",
+        height=380,
+        margin=dict(l=16, r=16, t=24, b=24),
+    )
     fig.update_layout(
-        xaxis=dict(showgrid=True, gridcolor=CHART_GRID, automargin=True),
-        yaxis=dict(showgrid=True, gridcolor=CHART_GRID, automargin=True),
+        paper_bgcolor="#FBF8F1",
+        plot_bgcolor="#FBF8F1",
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            x=0.5,
+            xanchor="center",
+            font=dict(size=9, color="#6B6560"),
+        ),
+        xaxis=dict(
+            showgrid=False,
+            gridcolor=CHART_GRID,
+            automargin=True,
+            tickfont=dict(size=10, color="#6B6560"),
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor=CHART_GRID,
+            automargin=True,
+            tickfont=dict(size=10, color="#6B6560"),
+        ),
     )
 
     st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)

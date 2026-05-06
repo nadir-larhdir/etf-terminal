@@ -171,31 +171,33 @@ class ETFHoldings:
         frame["price"] = frame["market_value"] / frame["face_amount"] * 100
         if "asset_class" in frame.columns:
             frame = frame[
-                frame["asset_class"].astype(str).str.lower().isin(
-                    ["bond", "fixed income", "corporate bond", "treasury", "agency", "municipal"]
-                )
+                frame["asset_class"]
+                .astype(str)
+                .str.lower()
+                .isin(["bond", "fixed income", "corporate bond", "treasury", "agency", "municipal"])
             ]
         return self._finalize(frame)
 
     def _load_vanguard(self) -> pd.DataFrame:
-        url = (
-            f"https://investor.vanguard.com/vmf/api"
-            f"/{self.ticker}/portfolio-holding/bond.json"
-        )
+        url = f"https://investor.vanguard.com/vmf/api" f"/{self.ticker}/portfolio-holding/bond.json"
 
         first = self.session.get(
-            url, params={"start": 1, "count": 500},
-            headers=_VANGUARD_HEADERS, timeout=20,
+            url,
+            params={"start": 1, "count": 500},
+            headers=_VANGUARD_HEADERS,
+            timeout=20,
         )
         first.raise_for_status()
-        payload  = first.json()
-        total    = int(payload.get("size", 0))
+        payload = first.json()
+        total = int(payload.get("size", 0))
         entities = list(payload.get("fund", {}).get("entity", []))  # ← safe get
 
         def fetch_page(start: int) -> list[dict]:
             r = self.session.get(
-                url, params={"start": start, "count": 500},
-                headers=_VANGUARD_HEADERS, timeout=20,
+                url,
+                params={"start": start, "count": 500},
+                headers=_VANGUARD_HEADERS,
+                timeout=20,
             )
             r.raise_for_status()
             return r.json().get("fund", {}).get("entity", [])  # ← safe get
@@ -206,24 +208,27 @@ class ETFHoldings:
                 for future in as_completed(futures):
                     entities.extend(future.result())
 
-        rows = [{
-            "name":         e.get("longName") or e.get("shortName"),
-            "cusip":        e.get("cusip")  or None,
-            "isin":         e.get("isin")   or None,
-            "sedol":        e.get("sedol")  or None,
-            "weight":       e.get("percentWeight"),
-            "coupon":       e.get("couponRate"),
-            "maturity_dt":  _mbs_date(e.get("maturityDate")),
-            "market_value": e.get("marketValue"),
-            "face_amount":  e.get("faceAmount"),
-        } for e in entities]
+        rows = [
+            {
+                "name": e.get("longName") or e.get("shortName"),
+                "cusip": e.get("cusip") or None,
+                "isin": e.get("isin") or None,
+                "sedol": e.get("sedol") or None,
+                "weight": e.get("percentWeight"),
+                "coupon": e.get("couponRate"),
+                "maturity_dt": _mbs_date(e.get("maturityDate")),
+                "market_value": e.get("marketValue"),
+                "face_amount": e.get("faceAmount"),
+            }
+            for e in entities
+        ]
 
         frame = pd.DataFrame(rows)
-        frame["weight"]      = _to_num(frame["weight"])
-        frame["coupon"]      = _to_num(frame["coupon"])
+        frame["weight"] = _to_num(frame["weight"])
+        frame["coupon"] = _to_num(frame["coupon"])
         frame["face_amount"] = _to_num(frame["face_amount"])
         frame["maturity_dt"] = _to_date(frame["maturity_dt"])
-        frame["price"]       = frame["market_value"] / frame["face_amount"] * 100
+        frame["price"] = frame["market_value"] / frame["face_amount"] * 100
         return self._finalize(frame)
 
     def _load_spdr(self) -> pd.DataFrame:
@@ -274,7 +279,9 @@ class ETFHoldings:
                     "maturity_dt": holding.get("maturityDate"),
                     "market_value": market_value,
                     "face_amount": face_amount,
-                    "price": (market_value / face_amount * 100) if market_value and face_amount else None,
+                    "price": (
+                        (market_value / face_amount * 100) if market_value and face_amount else None
+                    ),
                 }
             )
         frame = pd.DataFrame(rows)

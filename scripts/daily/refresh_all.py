@@ -5,11 +5,10 @@ import logging
 
 from config import DEFAULT_TICKERS, FRED_API_KEY, FRED_BASE_URL
 from db.connection import get_engine
-from fixed_income.analytics.duration_estimator import ETFDurationEstimator
 from scripts.analytics.precompute_analytics import run_precompute_analytics
 from scripts.logging_utils import configure_logging
+from scripts.market.enrich_metadata_from_fmp import build_metadata_rows
 from scripts.market.sync_holdings import refresh_holdings_snapshots
-from scripts.market.enrich_metadata_from_fmp import build_metadata_row
 from services.macro import DEFAULT_MACRO_SERIES, FredClient, MacroDataService, MacroFeatureService
 from services.market import MarketDataService
 from stores.macro import MacroFeatureStore, MacroStore
@@ -114,17 +113,7 @@ def _latest_feature_date(
 
 def _refresh_metadata(metadata_store: MetadataStore, tickers: list[str]) -> int:
     """Fetch and upsert FMP metadata for each ticker; return the row count."""
-    duration_estimator = ETFDurationEstimator(metadata_store.engine)
-    rows = []
-    for ticker in tickers:
-        existing = metadata_store.get_ticker_metadata(ticker)
-        rows.append(
-            build_metadata_row(
-                ticker,
-                existing_row=existing,
-                duration_estimator=duration_estimator,
-            )
-        )
+    rows = build_metadata_rows(metadata_store, tickers)
     metadata_store.upsert_metadata(rows)
     return len(rows)
 

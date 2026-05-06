@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
@@ -87,6 +89,8 @@ _INVESCO_HEADERS = {
     "Sec-Fetch-Site": "same-site",
 }
 
+_RATING_BUCKETS = ["AAA", "AA", "A", "BBB", "BB", "B", "CCC", "CC", "C", "D", "NR"]
+
 
 @dataclass(frozen=True)
 class ETFAnalytics:
@@ -124,6 +128,59 @@ def _parse_number(value) -> float | None:
     return float(match.group().replace(",", "")) if match else None
 
 
+def _normalize_rating(value: str) -> str:
+    """Collapse provider rating labels into broad buckets."""
+    if not isinstance(value, str) or not value.strip():
+        return "NR"
+
+    rating = value.strip()
+    lowered = rating.lower()
+    if lowered in {"nr", "not rated"}:
+        return "NR"
+    if "cash" in lowered or "derivative" in lowered:
+        return "CASH"
+    if any(token in lowered for token in ("government", "treasury", "agency")):
+        return "GOVT"
+
+    rating = rating.split("/", 1)[0].strip()
+    rating = re.sub(r"\s*rated\s*$", "", rating, flags=re.IGNORECASE).rstrip("uU")
+    base = re.match(r"^[A-Za-z]+", rating)
+    if not base:
+        return "NR"
+
+    moodys_to_sp = {
+        "AAA": "AAA",
+        "AA": "AA",
+        "A": "A",
+        "BAA": "BBB",
+        "BA": "BB",
+        "B": "B",
+        "CAA": "CCC",
+        "CA": "CC",
+        "C": "C",
+    }
+    normalized = moodys_to_sp.get(base.group(0).upper(), base.group(0).upper())
+    return normalized if normalized in _RATING_BUCKETS else "NR"
+
+
+def _credit_quality_df(
+    breakdown: dict[str, float], *, ticker: str, provider: str, normalize: bool
+) -> pd.DataFrame:
+    """Convert a raw rating breakdown dict to a standard dataframe."""
+    if not breakdown:
+        return pd.DataFrame(columns=["rating", "weight", "ticker", "provider"])
+
+    rows = [{"rating": k, "weight": v} for k, v in breakdown.items()]
+    df = pd.DataFrame(rows)
+    if normalize:
+        df["rating"] = df["rating"].map(_normalize_rating)
+        df = df.groupby("rating", as_index=False)["weight"].sum()
+    df = df.sort_values("weight", ascending=False).reset_index(drop=True)
+    df["ticker"] = ticker
+    df["provider"] = provider
+    return df
+
+
 class ETFAnalyticsClient:
     """Fetch provider analytics for a supported fixed-income ETF ticker."""
 
@@ -145,6 +202,25 @@ class ETFAnalyticsClient:
         if self.provider == "Invesco":
             return self._fetch_invesco()
         raise ValueError(f"Unsupported ETF provider '{self.provider}' for {self.ticker}.")
+
+    def get_credit_quality(self, *, normalize: bool = True) -> pd.DataFrame:
+        """Fetch ETF credit-quality weights across providers."""
+        if self.provider == "iShares":
+            breakdown = self._fetch_ishares_credit_quality()
+        elif self.provider == "Vanguard":
+            breakdown = self._fetch_vanguard_credit_quality()
+        elif self.provider == "SPDR":
+            breakdown = self._fetch_spdr_credit_quality()
+        elif self.provider == "Invesco":
+            breakdown = self._fetch_invesco_credit_quality()
+        else:
+            breakdown = {}
+        return _credit_quality_df(
+            breakdown,
+            ticker=self.ticker,
+            provider=self.provider,
+            normalize=normalize,
+        )
 
     def _fetch_ishares(self) -> ETFAnalytics:
         product_id, slug = ISHARES_FUNDS[self.ticker]
@@ -182,6 +258,24 @@ class ETFAnalyticsClient:
             avg_maturity=raw.get("Weighted Avg Maturity"),
             avg_coupon=raw.get("Weighted Avg Coupon"),
         )
+
+    def _fetch_ishares_credit_quality(self) -> dict[str, float]:
+        product_id, slug = ISHARES_FUNDS[self.ticker]
+        response = self.session.get(
+            f"https://www.ishares.com/us/products/{product_id}/{slug}",
+            headers=_ISHARES_HEADERS,
+            timeout=20,
+        )
+        response.raise_for_status()
+        match = re.search(r"tabsRatingDataTable\s*=\s*(\[.*?\])\s*;", response.text, re.DOTALL)
+        if not match:
+            return {}
+        items = json.loads(re.sub(r",(\s*[}\]])", r"\1", match.group(1)))
+        return {
+            str(item.get("name") or ""): float(item.get("value") or 0.0)
+            for item in items
+            if item.get("name") is not None
+        }
 
     def _fetch_vanguard(self) -> ETFAnalytics:
         characteristics = self.session.get(
@@ -229,6 +323,21 @@ class ETFAnalyticsClient:
             as_of=as_of,
         )
 
+    def _fetch_vanguard_credit_quality(self) -> dict[str, float]:
+        response = self.session.get(
+            f"https://investor.vanguard.com/vmf/api/{self.ticker}/classification",
+            params={"isInternal": "true", "isBfpClassificationToggle": "true"},
+            headers=_VANGUARD_HEADERS,
+            timeout=20,
+        )
+        response.raise_for_status()
+        section = response.json().get("creditQuality", {})
+        return {
+            str(item.get("name") or ""): float(item.get("marketValuePct") or 0.0)
+            for item in section.get("item", [])
+            if item.get("name") is not None
+        }
+
     def _fetch_spdr(self) -> ETFAnalytics:
         response = self.session.get(
             f"https://www.ssga.com/us/en/individual/etfs/funds/{SSGA_FUNDS[self.ticker]}",
@@ -264,6 +373,26 @@ class ETFAnalyticsClient:
             avg_coupon=raw.get("Average Coupon"),
         )
 
+    def _fetch_spdr_credit_quality(self) -> dict[str, float]:
+        response = self.session.get(
+            f"https://www.ssga.com/us/en/individual/etfs/funds/{SSGA_FUNDS[self.ticker]}",
+            headers=_SSGA_HEADERS,
+            timeout=20,
+        )
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        hidden = soup.find("input", {"id": "quality-breakdown-fund"})
+        if not hidden or not hidden.get("value"):
+            return {}
+        data = json.loads(hidden["value"])
+        return {
+            str(item.get("name", {}).get("value") or ""): float(
+                item.get("weight", {}).get("originalValue") or 0.0
+            )
+            for item in data.get("attrArray", [])
+            if item.get("name", {}).get("value") is not None
+        }
+
     def _fetch_invesco(self) -> ETFAnalytics:
         response = self.session.get(
             f"https://dng-api.invesco.com/cache/v1/accounts/en_US/shareclasses/{INVESCO_FUNDS[self.ticker]}",
@@ -290,3 +419,22 @@ class ETFAnalyticsClient:
             avg_coupon=_parse_number(data.get("unauditedWeightedAverageCoupon")),
             as_of=data.get("effectiveDate"),
         )
+
+    def _fetch_invesco_credit_quality(self) -> dict[str, float]:
+        response = self.session.get(
+            f"https://dng-api.invesco.com/cache/v1/accounts/en_US/shareclasses/{INVESCO_FUNDS[self.ticker]}/holdings/fund",
+            params={"idType": "cusip", "productType": "ETF"},
+            headers=_INVESCO_HEADERS,
+            timeout=20,
+        )
+        response.raise_for_status()
+        holdings = pd.DataFrame(response.json().get("holdings", []))
+        if holdings.empty or "spMoodysRating" not in holdings.columns:
+            return {}
+        grouped = holdings.groupby("spMoodysRating")["percentageOfTotalNetAssets"].sum()
+        return grouped.to_dict()
+
+
+def get_credit_quality(ticker: str, *, normalize: bool = True) -> pd.DataFrame:
+    """Convenience wrapper around ETFAnalyticsClient.get_credit_quality()."""
+    return ETFAnalyticsClient(ticker).get_credit_quality(normalize=normalize)

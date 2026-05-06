@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from threading import Lock
 
 import pandas as pd
 from sqlalchemy import text
 
+from db.schema import create_tables
 from db.sql import qualified_table
 
 
 class MetadataStore:
     """Persist and retrieve ETF metadata (issuer, duration, AUM, etc.)."""
+
+    _schema_lock = Lock()
 
     BASE_COLUMNS = [
         "ticker",
@@ -24,6 +28,7 @@ class MetadataStore:
         "oas",
         "years_to_maturity",
         "convexity",
+        "credit_quality",
         "benchmark_index",
         "category",
         "duration_bucket",
@@ -38,6 +43,7 @@ class MetadataStore:
 
     def __init__(self, engine):
         self.engine = engine
+        self._schema_ready = False
 
     # ------------------------------------------------------------------
     # Writes
@@ -47,6 +53,7 @@ class MetadataStore:
         """Insert or update metadata rows, aligning columns to BASE_COLUMNS."""
         if not rows:
             return
+        self._ensure_schema()
         df = pd.DataFrame(rows)
         if "updated_at" not in df.columns:
             df["updated_at"] = datetime.now(UTC).isoformat()
@@ -57,12 +64,12 @@ class MetadataStore:
         statement = f"""
         INSERT INTO {qualified_table(self.engine, 'etf_metadata')} (
             ticker, conid, long_name, description, issuer, duration,
-            yield_to_maturity, oas, years_to_maturity, convexity,
+            yield_to_maturity, oas, years_to_maturity, convexity, credit_quality,
             benchmark_index, category, duration_bucket, currency, exchange,
             expense_ratio, total_assets, quote_type, source, updated_at
         ) VALUES (
             :ticker, :conid, :long_name, :description, :issuer, :duration,
-            :yield_to_maturity, :oas, :years_to_maturity, :convexity,
+            :yield_to_maturity, :oas, :years_to_maturity, :convexity, :credit_quality,
             :benchmark_index, :category, :duration_bucket, :currency, :exchange,
             :expense_ratio, :total_assets, :quote_type, :source, :updated_at
         )
@@ -74,6 +81,7 @@ class MetadataStore:
             oas = excluded.oas,
             years_to_maturity = excluded.years_to_maturity,
             convexity = excluded.convexity,
+            credit_quality = excluded.credit_quality,
             benchmark_index = excluded.benchmark_index,
             category = excluded.category, duration_bucket = excluded.duration_bucket,
             currency = excluded.currency, exchange = excluded.exchange,
@@ -100,15 +108,26 @@ class MetadataStore:
 
     def get_existing_tickers(self) -> set[str]:
         """Return the set of tickers that have a metadata row."""
+        self._ensure_schema()
         return self._existing_tickers()
 
     def get_ticker_metadata(self, ticker: str) -> dict | None:
         """Return the metadata dict for a single ticker, or None if not found."""
+        self._ensure_schema()
         return self._ticker_metadata(ticker)
 
     # ------------------------------------------------------------------
     # Private query helpers
     # ------------------------------------------------------------------
+
+    def _ensure_schema(self) -> None:
+        if self._schema_ready:
+            return
+        with self._schema_lock:
+            if self._schema_ready:
+                return
+            create_tables(self.engine)
+            self._schema_ready = True
 
     def _existing_tickers(self) -> set[str]:
         with self.engine.connect() as conn:
