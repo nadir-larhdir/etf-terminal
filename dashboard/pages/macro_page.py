@@ -211,6 +211,110 @@ class MacroPage:
             return default
         return float(value)
 
+    def _slope_bps(
+        self,
+        latest: dict[str, float | None],
+        short_feature: str,
+        long_feature: str,
+    ) -> float | None:
+        """Return long-minus-short curve slope in basis points."""
+        short_value = latest.get(short_feature)
+        long_value = latest.get(long_feature)
+        if short_value is None or long_value is None:
+            return None
+        if pd.isna(short_value) or pd.isna(long_value):
+            return None
+        return (float(long_value) - float(short_value)) * 100.0
+
+    def _curve_regime_label(self, latest: dict[str, float | None]) -> tuple[str, str]:
+        """Classify curve shape using 2s10s plus the visible front-to-long curve."""
+        ust_2s10s_bps = self._number(latest.get("UST_2S10S")) * 100.0
+        ust_5s30s_bps = self._number(latest.get("UST_5S30S")) * 100.0
+        full_curve_bps = self._slope_bps(latest, "UST_3M_LEVEL", "UST_30Y_LEVEL")
+
+        if full_curve_bps is not None:
+            if full_curve_bps <= -25:
+                return (
+                    "Curve Inverted",
+                    f"3M-to-30Y is inverted by {abs(full_curve_bps):.0f} bps.",
+                )
+            if full_curve_bps >= 75:
+                return (
+                    "Curve Steep",
+                    f"3M-to-30Y slopes upward by {full_curve_bps:.0f} bps.",
+                )
+            if abs(full_curve_bps) <= 35 and abs(ust_2s10s_bps) <= 25:
+                return (
+                    "Curve Flat",
+                    "Front-to-long and 2s10s slopes are both compressed.",
+                )
+
+        if ust_2s10s_bps <= -10:
+            return "Curve Inverted", f"2s10s is inverted by {abs(ust_2s10s_bps):.0f} bps."
+        if ust_2s10s_bps >= 25 or ust_5s30s_bps >= 35:
+            return (
+                "Curve Steep",
+                f"2s10s is {ust_2s10s_bps:.0f} bps and 5s30s is {ust_5s30s_bps:.0f} bps.",
+            )
+        return "Curve Flat", "2s10s is near zero and the curve slope is compressed."
+
+    def _duration_regime_label(self, latest: dict[str, float | None]) -> tuple[str, str]:
+        """Classify duration backdrop from recent 10Y yield changes."""
+        ust_10y_change_20d_bps = self._number(latest.get("UST_10Y_CHANGE_20D")) * 100.0
+        if ust_10y_change_20d_bps <= -10:
+            return (
+                "Duration Bullish",
+                f"10Y yields have fallen {abs(ust_10y_change_20d_bps):.0f} bps over the last 20 trading days.",
+            )
+        if ust_10y_change_20d_bps >= 10:
+            return (
+                "Duration Bearish",
+                f"10Y yields have risen {ust_10y_change_20d_bps:.0f} bps over the last 20 trading days.",
+            )
+        return (
+            "Duration Neutral",
+            f"10Y yields are range-bound, moving {ust_10y_change_20d_bps:+.0f} bps over the last 20 trading days.",
+        )
+
+    def _inflation_regime_label(self, latest: dict[str, float | None]) -> tuple[str, str]:
+        """Classify inflation tone from CPI and breakeven changes."""
+        cpi_yoy = self._number(latest.get("CPI_YOY"))
+        cpi_3m_ann = self._number(latest.get("CPI_3M_ANN"))
+        bei_5y_change_20d_bps = self._number(latest.get("BEI_5Y_CHANGE_20D")) * 100.0
+
+        if cpi_yoy > 3.0 or cpi_3m_ann > 3.0:
+            return (
+                "Inflation Hot",
+                "Headline inflation or its short-term annualized pace remains above 3%.",
+            )
+        if bei_5y_change_20d_bps >= 25:
+            return (
+                "Inflation Repricing",
+                f"5Y breakevens have risen {bei_5y_change_20d_bps:.0f} bps over the last 20 trading days.",
+            )
+        return (
+            "Inflation Cooling",
+            "CPI YoY is below 3% and 3M annualized inflation is contained.",
+        )
+
+    def _growth_regime_label(self, latest: dict[str, float | None]) -> tuple[str, str]:
+        """Classify growth backdrop from unemployment changes."""
+        unrate_3m_change_bps = self._number(latest.get("UNRATE_3M_CHANGE")) * 100.0
+        if unrate_3m_change_bps <= -10:
+            return (
+                "Growth Improving",
+                f"Unemployment has fallen {abs(unrate_3m_change_bps):.0f} bps over the last three months.",
+            )
+        if unrate_3m_change_bps >= 10:
+            return (
+                "Growth Deteriorating",
+                f"Unemployment has risen {unrate_3m_change_bps:.0f} bps over the last three months.",
+            )
+        return (
+            "Growth Stable",
+            f"Unemployment is broadly stable, moving {unrate_3m_change_bps:+.0f} bps over three months.",
+        )
+
     def _delta_html(self, label: str, text: str, value: float | None) -> str:
         """Return an HTML delta row with a directional arrow and tone-based CSS class."""
         tone = self._metric_tone(value)
@@ -234,50 +338,10 @@ class MacroPage:
     def _rule_based_regimes(self, matrix: pd.DataFrame) -> dict[str, tuple[str, str]]:
         """Derive duration, curve, inflation, and growth regime labels from current macro levels."""
         latest = {column: self._latest_value(matrix, column) for column in matrix.columns}
-        ust_10y_change_20d = self._number(latest.get("UST_10Y_CHANGE_20D"))
-        ust_2s10s = self._number(latest.get("UST_2S10S"))
-        cpi_yoy = self._number(latest.get("CPI_YOY"))
-        cpi_3m_ann = self._number(latest.get("CPI_3M_ANN"))
-        bei_5y_change_20d = self._number(latest.get("BEI_5Y_CHANGE_20D"))
-        unrate_3m_change = self._number(latest.get("UNRATE_3M_CHANGE"))
-
-        duration = "Duration Bearish"
-        duration_body = "10Y yields are rising over the last 20 trading days."
-        if ust_10y_change_20d < -10:
-            duration = "Duration Bullish"
-            duration_body = "10Y yields have fallen materially over the last 20 trading days."
-        elif abs(ust_10y_change_20d) <= 10:
-            duration = "Duration Neutral"
-            duration_body = "10Y yields are broadly range-bound versus the last 20 trading days."
-
-        curve = "Curve Inverted"
-        curve_body = "2s10s remains below zero."
-        if ust_2s10s > 25:
-            curve = "Curve Steepening"
-            curve_body = "2s10s is decisively positive, signaling a steeper curve."
-        elif ust_2s10s >= 0:
-            curve = "Curve Flat"
-            curve_body = "2s10s is positive but still compressed."
-
-        inflation = "Inflation Cooling"
-        inflation_body = "CPI YoY is below 2.5% and 3M annualized inflation is contained."
-        if cpi_yoy > 3.0 or cpi_3m_ann > 3.0:
-            inflation = "Inflation Hot"
-            inflation_body = (
-                "Headline inflation or its short-term annualized pace remains elevated."
-            )
-        elif bei_5y_change_20d > 0.25:
-            inflation = "Inflation Repricing"
-            inflation_body = "Breakevens have moved higher over the last 20 trading days."
-
-        growth = "Growth Deteriorating"
-        growth_body = "Unemployment has been rising over recent months."
-        if unrate_3m_change < -0.1:
-            growth = "Growth Improving"
-            growth_body = "Unemployment has been falling over the last three months."
-        elif abs(unrate_3m_change) <= 0.1:
-            growth = "Growth Stable"
-            growth_body = "Unemployment is broadly stable on a three-month view."
+        duration, duration_body = self._duration_regime_label(latest)
+        curve, curve_body = self._curve_regime_label(latest)
+        inflation, inflation_body = self._inflation_regime_label(latest)
+        growth, growth_body = self._growth_regime_label(latest)
 
         return {
             "duration_regime": (duration, duration_body),
@@ -490,7 +554,7 @@ class MacroPage:
                     unsafe_allow_html=True,
                 )
         st.caption(
-            "Rules are deliberately simple: duration uses 10Y changes, curve uses 2s10s level, inflation uses CPI and breakevens, and growth uses unemployment changes."
+            "Rules are deliberately simple: duration uses 10Y changes, curve uses 2s10s and the visible front-to-long slope, inflation uses CPI and breakevens, and growth uses unemployment changes."
         )
 
     def _render_cards(self, matrix: pd.DataFrame) -> None:

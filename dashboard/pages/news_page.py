@@ -4,21 +4,24 @@ from __future__ import annotations
 
 import base64
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from html import escape
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
 
+from config import FMP_API_KEY, FMP_BASE_URL
 from dashboard.cache import (
     app_cache_key,
     cached_feature_matrix,
     cached_latest_feature_values,
 )
 from dashboard.perf import timed_block
+from services.market.fmp_client import FMPClient
 from services.news import NewsFeedService, classify_bucket
 
 # ---------------------------------------------------------------------------
@@ -292,14 +295,36 @@ _THEME_CONFIGS: list[dict[str, Any]] = [
     },
 ]
 
-# Upcoming events — semi-static; update weekly or wire to an economic calendar API
-_UPCOMING_EVENTS: list[dict[str, str]] = [
-    {"time": "10:00 ET", "name": "Fed Speaker", "day": "Today"},
-    {"time": "14:00 ET", "name": "2Y Treasury Auction", "day": "Today"},
-    {"time": "08:30 ET", "name": "Core PCE (MoM)", "day": "Tomorrow"},
-    {"time": "10:00 ET", "name": "FOMC Rate Decision", "day": "May 7"},
-    {"time": "08:30 ET", "name": "CPI (YoY)", "day": "May 13"},
-]
+_EASTERN_TZ = ZoneInfo("America/New_York")
+_ECONOMIC_CALENDAR_CACHE_VERSION = "v2"
+_ECONOMIC_CALENDAR_LOOKAHEAD_DAYS = 14
+_EVENT_KEYWORDS = (
+    "auction",
+    "beige book",
+    "cpi",
+    "consumer confidence",
+    "durable goods",
+    "ecb",
+    "fed",
+    "fomc",
+    "gdp",
+    "home sales",
+    "housing starts",
+    "initial jobless",
+    "ism",
+    "jolts",
+    "manufacturing",
+    "nonfarm",
+    "payroll",
+    "pce",
+    "pmi",
+    "ppi",
+    "rate decision",
+    "retail sales",
+    "treasury",
+    "unemployment",
+)
+_EVENT_IMPORTANCE_VALUES = {"high", "medium", "3", "2"}
 
 _MARKET_MOVER_TICKERS = ("TLT", "HYG", "LQD", "SHY", "EMB", "IEF", "AGG", "MBB")
 
@@ -355,6 +380,34 @@ def _load_market_movers(cache_key: str, _price_store) -> dict[str, dict]:
     except Exception:  # noqa: BLE001
         pass
     return result
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _load_upcoming_events(
+    cache_key: str,
+    api_key: str,
+    cache_version: str = _ECONOMIC_CALENDAR_CACHE_VERSION,
+) -> tuple[list[dict[str, str]], str | None]:
+    """Fetch upcoming macro events from FMP's economic calendar."""
+    del cache_version
+    if not api_key:
+        return [], "Set FMP_API_KEY to load the live economic calendar."
+
+    start_date = datetime.now(_EASTERN_TZ).date()
+    end_date = start_date + timedelta(days=_ECONOMIC_CALENDAR_LOOKAHEAD_DAYS)
+    try:
+        rows = FMPClient(api_key=api_key, base_url=FMP_BASE_URL).get_economic_calendar(
+            start=start_date.isoformat(),
+            end=end_date.isoformat(),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return [], f"Economic calendar unavailable: {exc}"
+
+    now = datetime.now(_EASTERN_TZ)
+    events = _normalise_upcoming_events(rows, now=now)
+    if not events:
+        events = _normalise_upcoming_events(rows, now=now, require_relevance=False)
+    return events[:5], None
 
 
 # ---------------------------------------------------------------------------
@@ -472,6 +525,99 @@ def _dedupe_items(feed_data: dict[str, dict]) -> list[dict]:
             ):
                 items_by_key[key] = normalized
     return sorted(items_by_key.values(), key=_published_timestamp, reverse=True)
+
+
+def _calendar_field(row: dict, *keys: str) -> str:
+    """Return the first non-empty calendar field as a string."""
+    for key in keys:
+        value = row.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return ""
+
+
+def _parse_event_datetime(row: dict) -> datetime | None:
+    """Parse an FMP calendar row date/time into Eastern time."""
+    raw = _calendar_field(row, "date", "datetime", "time")
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            dt = pd.to_datetime(raw, errors="raise").to_pydatetime()
+        except (TypeError, ValueError):
+            return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_EASTERN_TZ)
+    return dt.astimezone(_EASTERN_TZ)
+
+
+def _event_day_label(event_dt: datetime, today) -> str:
+    """Return Today/Tomorrow or compact month-day label for an event."""
+    event_date = event_dt.date()
+    if event_date == today:
+        return "Today"
+    if event_date == today + timedelta(days=1):
+        return "Tomorrow"
+    return f"{event_dt.strftime('%b')} {event_dt.day}"
+
+
+def _is_us_event(row: dict) -> bool:
+    """Return True for US/USD economic calendar rows."""
+    country = _calendar_field(row, "country").lower()
+    currency = _calendar_field(row, "currency").upper()
+    return currency == "USD" or country in {
+        "us",
+        "usa",
+        "united states",
+        "united states of america",
+    }
+
+
+def _is_relevant_event(row: dict) -> bool:
+    """Return True for market-moving rates, inflation, policy, and growth events."""
+    event_name = _calendar_field(row, "event", "name", "title")
+    if not event_name:
+        return False
+
+    importance = _calendar_field(row, "importance", "impact").lower()
+    has_keyword = any(keyword in event_name.lower() for keyword in _EVENT_KEYWORDS)
+    return has_keyword or importance in _EVENT_IMPORTANCE_VALUES
+
+
+def _normalise_upcoming_events(
+    rows: list[dict],
+    *,
+    now: datetime,
+    require_relevance: bool = True,
+) -> list[dict[str, str]]:
+    """Convert raw FMP calendar rows into sidebar-ready event dicts."""
+    events: list[dict[str, str]] = []
+    today = now.date()
+    for row in rows:
+        event_dt = _parse_event_datetime(row)
+        if event_dt is None or event_dt < now:
+            continue
+        if not _is_us_event(row):
+            continue
+        if require_relevance and not _is_relevant_event(row):
+            continue
+
+        name = _calendar_field(row, "event", "name", "title")
+        time_label = (
+            "TBA" if event_dt.hour == 0 and event_dt.minute == 0 else event_dt.strftime("%H:%M ET")
+        )
+        events.append(
+            {
+                "time": time_label,
+                "name": name,
+                "day": _event_day_label(event_dt, today),
+                "sort_key": event_dt.isoformat(),
+            }
+        )
+
+    return sorted(events, key=lambda event: event["sort_key"])
 
 
 def _compute_summary_counts(items: list[dict]) -> dict[str, int]:
@@ -1280,20 +1426,43 @@ class NewsPage:
     # ------------------------------------------------------------------
 
     def _render_upcoming_events(self) -> None:
-        """Render the Upcoming Events list from the static event schedule."""
+        """Render the Upcoming Events list from the live economic calendar."""
         st.markdown(
             "<div class='sidebar-section-header'>Upcoming Events</div>",
             unsafe_allow_html=True,
         )
 
-        rows = "".join(
-            f"<div class='event-row'>"
-            f"<span class='event-time'>{ev['time']}</span>"
-            f"<span class='event-name'>{ev['name']}</span>"
-            f"<span class='event-day'>{ev['day']}</span>"
-            f"</div>"
-            for ev in _UPCOMING_EVENTS
+        cache_key = app_cache_key(self.macro_feature_store.engine)
+        events, calendar_error = _load_upcoming_events(
+            cache_key,
+            FMP_API_KEY,
+            _ECONOMIC_CALENDAR_CACHE_VERSION,
         )
+        if calendar_error:
+            rows = (
+                "<div class='event-row'>"
+                "<span class='event-time'>Live</span>"
+                f"<span class='event-name'>{escape(calendar_error)}</span>"
+                "<span class='event-day'>--</span>"
+                "</div>"
+            )
+        elif not events:
+            rows = (
+                "<div class='event-row'>"
+                "<span class='event-time'>Next</span>"
+                "<span class='event-name'>No major US macro events found</span>"
+                "<span class='event-day'>14d</span>"
+                "</div>"
+            )
+        else:
+            rows = "".join(
+                f"<div class='event-row'>"
+                f"<span class='event-time'>{escape(ev['time'])}</span>"
+                f"<span class='event-name'>{escape(ev['name'])}</span>"
+                f"<span class='event-day'>{escape(ev['day'])}</span>"
+                f"</div>"
+                for ev in events
+            )
         st.markdown(f"<div>{rows}</div>", unsafe_allow_html=True)
 
     # ------------------------------------------------------------------

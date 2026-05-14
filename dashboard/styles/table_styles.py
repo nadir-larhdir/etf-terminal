@@ -228,7 +228,7 @@ class DashboardTable:
                 continue
             if col == "REGIME":
                 continue
-            if col in {"RATIO DEV", "FWD 10D RET", "FWD 20D RET"}:
+            if col in {"RATIO DEV", "SPREAD DEV", "FWD 10D RET", "FWD 20D RET"}:
                 formatted[col] = formatted[col].map(
                     lambda x: f"{float(x):+.2f}%" if pd.notna(x) else ""
                 )
