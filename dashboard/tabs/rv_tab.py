@@ -18,17 +18,15 @@ from fixed_income.etfs import ETF
 from fixed_income.rv.pair_analytics import (
     beta_metrics,
     filtered_prices,
-    forward_reversion_stats,
-    half_life_proxy,
-    ratio,
-    ratio_deviation_pct,
-    ratio_zscore,
-    regime_label,
     rolling_correlation,
-    screener_snapshot,
-    stability_score,
 )
 from fixed_income.rv.spread_definition import SpreadDefinition
+from fixed_income.rv.spread_diagnostics import (
+    diagnose_spread,
+    forward_spread_reversion_stats,
+    regime_from_zscore,
+    spread_stability_score,
+)
 
 _RV_CSS = """
 <style>
@@ -264,19 +262,15 @@ def _cached_screener_rows(
         )
         if len(candidate_merged) < 10:
             continue
-        snapshot = screener_snapshot(
-            SpreadDefinition(base_security.ticker, candidate_security.ticker),
-            base_security,
-            candidate_security,
-            start_date=pd.Timestamp(rv_start_date),
-            end_date=pd.Timestamp(rv_end_date),
-            prices=candidate_merged,
-        )
-        ratio_dev = ratio_deviation_pct(
-            base_security,
-            candidate_security,
-            start_date=pd.Timestamp(rv_start_date),
-            end_date=pd.Timestamp(rv_end_date),
+        spread_frame, spread_diagnostics = diagnose_spread(
+            candidate_merged,
+            left_ticker=base_security.ticker,
+            right_ticker=candidate_security.ticker,
+            spread_kind="return",
+            beta_source="trailing",
+            beta_lookback=60,
+            hedge_window=60,
+            z_window=20,
         )
         beta_60d, _, _ = beta_metrics(
             base_security,
@@ -286,29 +280,25 @@ def _cached_screener_rows(
         )
         corr_60d_series = rolling_correlation(base_security, candidate_security, window=60).dropna()
         corr_60d = float(corr_60d_series.iloc[-1]) if not corr_60d_series.empty else 0.0
-        half_life = half_life_proxy(
-            base_security,
-            candidate_security,
-            start_date=pd.Timestamp(rv_start_date),
-            end_date=pd.Timestamp(rv_end_date),
+        spread_mean = spread_frame["spread_mean"].dropna()
+        spread_last = spread_frame["spread"].dropna()
+        spread_dev = (
+            (float(spread_last.iloc[-1]) - float(spread_mean.iloc[-1])) * 100.0
+            if not spread_last.empty and not spread_mean.empty
+            else 0.0
         )
-        regime = regime_label(
-            base_security,
-            candidate_security,
-            start_date=pd.Timestamp(rv_start_date),
-            end_date=pd.Timestamp(rv_end_date),
-        )
-        fwd_10_ret, _, _ = forward_reversion_stats(base_security, candidate_security, 10)
-        fwd_20_ret, _, _ = forward_reversion_stats(base_security, candidate_security, 20)
-        action = _action_label(snapshot.zscore)
+        regime = regime_from_zscore(spread_diagnostics.zscore_last)
+        fwd_10_ret, _, _ = forward_spread_reversion_stats(spread_frame, 10)
+        fwd_20_ret, _, _ = forward_spread_reversion_stats(spread_frame, 20)
+        action = _action_label(spread_diagnostics.zscore_last)
         screener_rows.append(
             {
-                "PAIR": snapshot.name,
-                "Z-SCORE": snapshot.zscore,
-                "RATIO DEV": ratio_dev,
+                "PAIR": SpreadDefinition(base_security.ticker, candidate_security.ticker).name,
+                "Z-SCORE": spread_diagnostics.zscore_last,
+                "SPREAD DEV": spread_dev,
                 "BETA (60D)": beta_60d,
                 "CORR (60D)": corr_60d,
-                "HALF-LIFE": half_life,
+                "HALF-LIFE": spread_diagnostics.half_life_days or 0.0,
                 "REGIME": regime.replace(" / EXTREME", ""),
                 "FWD 10D RET": fwd_10_ret,
                 "FWD 20D RET": fwd_20_ret,
@@ -404,6 +394,7 @@ class RVTab:
         fwd_20_avg: float,
         fwd_20_hit: float,
         fwd_20_n: int,
+        fair_value: float,
     ) -> None:
         """Render the 4 top metric cards: RV SIGNAL / REGIME / DISLOCATION / FWD RETURN 20D."""
         signal_label = self._rv_signal(current_z)
@@ -415,8 +406,6 @@ class RVTab:
         regime_color = "#C4882A"
         disloc_color = "var(--etf-down)" if abs_dev_pct >= 0 else "var(--etf-up)"
         fwd_color = "var(--etf-up)" if fwd_20_avg >= 0 else "var(--etf-down)"
-        fair_value = -abs_dev_pct
-
         cards = "".join(
             [
                 self._metric_card_html(
@@ -456,6 +445,9 @@ class RVTab:
         beta_60d: float,
         current_corr_60: float,
         half_life: float,
+        stability: float,
+        adf_pvalue: float | None,
+        adf_is_stationary: bool | None,
         left_liquidity: float | None,
         right_liquidity: float | None,
     ) -> None:
@@ -493,10 +485,12 @@ class RVTab:
         with c2:
             rows = [
                 ("Z-Score", f"{current_z:+.2f}"),
-                ("Ratio Dev", f"{abs_dev_pct:+.2f}%"),
+                ("Spread Dev", f"{abs_dev_pct:+.2f}%"),
                 ("Rolling Beta (60D)", f"{beta_60d:,.2f}"),
                 ("Correlation (60D)", f"{current_corr_60:,.2f}"),
                 ("Half-Life", f"{half_life:,.1f}d" if half_life > 0 else "N/A"),
+                ("Stability", f"{stability:,.0f} / 100"),
+                ("ADF p-value", self._format_adf_pvalue(adf_pvalue, adf_is_stationary)),
                 (
                     "Liquidity",
                     (
@@ -602,7 +596,7 @@ class RVTab:
             return
 
         screener_df = (
-            screener_df.sort_values(by=["Z-SCORE", "RATIO DEV"], ascending=[False, False])
+            screener_df.sort_values(by=["Z-SCORE", "SPREAD DEV"], ascending=[False, False])
             .head(12)
             .copy()
         )
@@ -638,9 +632,9 @@ class RVTab:
             return
 
         merged = (
-            hist[["close", "volume"]]
+            hist[["adj_close", "volume"]]
             .join(
-                compare_hist[["close", "volume"]],
+                compare_hist[["adj_close", "volume"]],
                 how="inner",
                 lsuffix="_base",
                 rsuffix="_comp",
@@ -675,21 +669,6 @@ class RVTab:
             st.warning("No overlapping RV history available for the selected dates.")
             return
 
-        ratio_series = ratio(security, compare_obj, start_date=rv_start_date, end_date=rv_end_date)
-        ratio_series = ratio_series.loc[rv_merged.index]
-        rv_merged["ratio"] = ratio_series
-
-        zscore_series = ratio_zscore(
-            security, compare_obj, start_date=rv_start_date, end_date=rv_end_date
-        )
-        zscore_series = zscore_series.loc[rv_merged.index]
-        rv_merged["zscore"] = zscore_series if not zscore_series.empty else 0.0
-
-        current_z = float(rv_merged["zscore"].iloc[-1])
-        abs_dev_pct = ratio_deviation_pct(
-            security, compare_obj, start_date=rv_start_date, end_date=rv_end_date
-        )
-
         corr_60_series = rolling_correlation(security, compare_obj, window=60)
         corr_60_series = corr_60_series.loc[rv_merged.index.intersection(corr_60_series.index)]
         current_corr_60 = (
@@ -706,26 +685,49 @@ class RVTab:
         beta_adj_z = beta_adj_z.loc[rv_merged.index]
         rv_merged["beta_adj_spread"] = beta_adj_spread
         rv_merged["beta_adj_z"] = beta_adj_z if not beta_adj_z.empty else 0.0
-        half_life = half_life_proxy(
-            security, compare_obj, start_date=rv_start_date, end_date=rv_end_date
+        rv_pair_prices = rv_merged[["adj_close_base", "adj_close_comp"]].rename(
+            columns={"adj_close_base": "close_left", "adj_close_comp": "close_right"}
         )
-        rv_regime = regime_label(
-            security, compare_obj, start_date=rv_start_date, end_date=rv_end_date
+        spread_frame, spread_diagnostics = diagnose_spread(
+            rv_pair_prices,
+            left_ticker=selected_security,
+            right_ticker=compare_security,
+            spread_kind="return",
+            beta_source="trailing",
+            beta_lookback=60,
+            hedge_window=60,
+            z_window=20,
         )
-        stability = stability_score(
-            security, compare_obj, start_date=rv_start_date, end_date=rv_end_date
-        )
+        spread_frame = spread_frame.loc[rv_merged.index]
+        rv_merged["zscore"] = spread_frame["zscore"] if not spread_frame.empty else 0.0
+        rv_merged["return_spread"] = spread_frame["spread"] if not spread_frame.empty else 0.0
 
-        fwd_10_avg, fwd_10_hit, fwd_10_n = forward_reversion_stats(security, compare_obj, 10)
-        fwd_20_avg, fwd_20_hit, fwd_20_n = forward_reversion_stats(security, compare_obj, 20)
+        current_z = float(spread_diagnostics.zscore_last)
+        fair_value = (
+            float(spread_frame["spread_mean"].dropna().iloc[-1]) * 100.0
+            if not spread_frame["spread_mean"].dropna().empty
+            else 0.0
+        )
+        current_spread = (
+            float(spread_frame["spread"].dropna().iloc[-1]) * 100.0
+            if not spread_frame["spread"].dropna().empty
+            else 0.0
+        )
+        abs_dev_pct = current_spread - fair_value
+        half_life = spread_diagnostics.half_life_days or 0.0
+        rv_regime = regime_from_zscore(current_z)
+        stability = spread_stability_score(spread_diagnostics)
+
+        _, fwd_10_hit, fwd_10_n = forward_spread_reversion_stats(spread_frame, 10)
+        fwd_20_avg, fwd_20_hit, fwd_20_n = forward_spread_reversion_stats(spread_frame, 20)
 
         rv_merged["base_cumret"] = (
-            rv_merged["close_base"] / float(rv_merged["close_base"].iloc[0]) - 1.0
+            rv_merged["adj_close_base"] / float(rv_merged["adj_close_base"].iloc[0]) - 1.0
         )
         rv_merged["comp_cumret"] = (
-            rv_merged["close_comp"] / float(rv_merged["close_comp"].iloc[0]) - 1.0
+            rv_merged["adj_close_comp"] / float(rv_merged["adj_close_comp"].iloc[0]) - 1.0
         )
-        rv_merged["cum_spread"] = rv_merged["base_cumret"] - current_beta * rv_merged["comp_cumret"]
+        rv_merged["cum_spread"] = rv_merged["return_spread"].fillna(0.0).cumsum()
 
         left_liquidity = self._volume_multiple(hist)
         right_liquidity = self._volume_multiple(compare_hist)
@@ -737,7 +739,14 @@ class RVTab:
         )
 
         self._render_top_cards(
-            rv_regime, current_z, stability, abs_dev_pct, fwd_20_avg, fwd_20_hit, fwd_20_n
+            rv_regime,
+            current_z,
+            stability,
+            abs_dev_pct,
+            fwd_20_avg,
+            fwd_20_hit,
+            fwd_20_n,
+            fair_value,
         )
 
         selected_period = self._render_chart_section(rv_merged, selected_security, compare_security)
@@ -755,10 +764,12 @@ class RVTab:
             current_beta,
             current_corr_60,
             half_life,
+            stability,
+            spread_diagnostics.adf_pvalue,
+            spread_diagnostics.adf_is_stationary_5pct,
             left_liquidity,
             right_liquidity,
         )
-
         with timed_block("rv.bulk_load_candidate_histories"):
             candidate_histories = cached_multi_price_history(
                 cache_key,
@@ -798,6 +809,13 @@ class RVTab:
             ).tail(12)
             signal_history = self.table.format_signal_history(signal_history)
             self.table.render(signal_history, hide_index=True)
+
+    def _format_adf_pvalue(self, value: float | None, is_stationary: bool | None) -> str:
+        """Format ADF p-value with a concise mean-reversion read."""
+        if value is None or is_stationary is None:
+            return "--"
+        label = "MR" if is_stationary else "No MR"
+        return f"{value:.4f} ({label})"
 
     def _signal_regime(self, z_value: float) -> tuple[str, str]:
         """Map a z-score to a (regime label, threshold label) pair for the signal-history table."""

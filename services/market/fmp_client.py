@@ -55,6 +55,13 @@ class FMPClient:
             return pd.DataFrame(columns=["date", *_OHLCV_COLUMNS, "ticker"])
 
         frame = self._normalise_price_rows(rows, symbol)
+        frame = self._with_dividend_adjusted_close(
+            frame,
+            symbol,
+            period=period,
+            start=start,
+            end=end,
+        )
 
         return self._trim_price_frame(frame, period=period, start=start, end=end)
 
@@ -78,6 +85,20 @@ class FMPClient:
             if col in frame.columns:
                 frame[col] = pd.to_numeric(frame[col], errors="ignore")
         return frame.to_dict(orient="records")
+
+    def get_economic_calendar(
+        self,
+        *,
+        start: str | None = None,
+        end: str | None = None,
+    ) -> list[dict]:
+        """Return scheduled economic calendar events from FMP."""
+        params = {}
+        if start is not None:
+            params["from"] = start
+        if end is not None:
+            params["to"] = end
+        return self._extract_rows(self._request_json("economic-calendar", params))
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -113,6 +134,64 @@ class FMPClient:
             .sort_values("date")
             .reset_index(drop=True)
         )
+
+    def _with_dividend_adjusted_close(
+        self,
+        frame: pd.DataFrame,
+        symbol: str,
+        *,
+        period: str | None,
+        start: str | None,
+        end: str | None,
+    ) -> pd.DataFrame:
+        """Overlay dividend-adjusted close values from FMP when available."""
+        rows = self._extract_rows(
+            self._request_json(
+                "historical-price-eod/dividend-adjusted",
+                self._dividend_adjusted_params(symbol, period=period, start=start, end=end),
+            )
+        )
+        if not rows:
+            return frame
+
+        adjusted = pd.DataFrame(rows).rename(columns={"adjClose": "adj_close"})
+        if "date" not in adjusted.columns or "adj_close" not in adjusted.columns:
+            return frame
+        adjusted["date"] = pd.to_datetime(adjusted["date"]).dt.strftime("%Y-%m-%d")
+        adjusted["adj_close"] = pd.to_numeric(adjusted["adj_close"], errors="coerce")
+        adjusted = (
+            adjusted[["date", "adj_close"]]
+            .dropna(subset=["date", "adj_close"])
+            .drop_duplicates(subset=["date"], keep="last")
+        )
+        if adjusted.empty:
+            return frame
+
+        merged = frame.merge(
+            adjusted.rename(columns={"adj_close": "dividend_adj_close"}),
+            on="date",
+            how="left",
+        )
+        merged["adj_close"] = merged["dividend_adj_close"].fillna(merged["adj_close"])
+        return merged.drop(columns=["dividend_adj_close"])
+
+    def _dividend_adjusted_params(
+        self,
+        symbol: str,
+        *,
+        period: str | None,
+        start: str | None,
+        end: str | None,
+    ) -> dict[str, str]:
+        """Return request params for the dividend-adjusted endpoint."""
+        params = {"symbol": symbol}
+        if start is not None:
+            params["from"] = start
+        elif period is not None and (cutoff := self._period_cutoff(period)) is not None:
+            params["from"] = cutoff
+        if end is not None:
+            params["to"] = end
+        return params
 
     def _trim_price_frame(
         self,

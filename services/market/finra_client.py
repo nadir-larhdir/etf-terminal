@@ -29,6 +29,18 @@ _USER_AGENT = (
     "Version/26.3.1 Safari/605.1.15"
 )
 _SESSION_TTL = 25 * 60  # 25 minutes
+_SECURITY_DATASETS = {
+    "corporate": {
+        "securities": "CorporateAndAgencySecurities",
+        "price_yield": "EndOfDayPriceYield",
+        "trade_history": "CorporateAndAgencyTradeHistory",
+    },
+    "treasury": {
+        "securities": "TreasurySecurities",
+        "price_yield": "TreasuryEndOfDayPriceYield",
+        "trade_history": "TreasuryTradeActivity",
+    },
+}
 
 
 @dataclass
@@ -49,6 +61,8 @@ class BondInfo:
     implied_ytm_pct: float = 0.0
     curve_pv: float = 0.0
     credit_spread_bps: float = 0.0
+    benchmark_tenor: float = 0.0
+    benchmark_yield_pct: float = 0.0
 
 
 class USTCurve:
@@ -65,6 +79,13 @@ class USTCurve:
         30: "DGS30",
     }
     _cache: dict[str, CubicSpline] = {}
+
+    @classmethod
+    def benchmark_tenor(cls, years_to_maturity: float) -> float:
+        """Return the closest available Treasury tenor for a bond maturity."""
+        tenors = sorted(cls._TICKERS)
+        years = max(float(years_to_maturity), tenors[0])
+        return min(tenors, key=lambda tenor: (abs(tenor - years), tenor))
 
     @classmethod
     def get(cls, trade_date: str) -> CubicSpline:
@@ -368,10 +389,10 @@ class FINRAClient:
 
     # ── Hidden endpoint: Bond data ─────────────────────────────────────────────
 
-    async def get_bond_details(self, cusip: str) -> dict:
+    async def get_bond_details(self, cusip: str, *, security_type: str = "corporate") -> dict:
         await self._ensure_fresh_session()
         rows = self._hidden_post(
-            "CorporateAndAgencySecurities",
+            self._security_dataset(security_type, "securities"),
             {
                 "fields": [
                     "cusip",
@@ -391,10 +412,15 @@ class FINRAClient:
         )
         return rows[0] if rows else {}
 
-    async def get_price_yield(self, cusip: str, trade_date: str) -> dict[str, float | None]:
+    async def get_treasury_details(self, cusip: str) -> dict:
+        return await self.get_bond_details(cusip, security_type="treasury")
+
+    async def get_price_yield(
+        self, cusip: str, trade_date: str, *, security_type: str = "corporate"
+    ) -> dict[str, float | None]:
         await self._ensure_fresh_session()
         rows = self._hidden_post(
-            "EndOfDayPriceYield",
+            self._security_dataset(security_type, "price_yield"),
             {
                 "fields": ["cusip", "lastSalePrice", "lastSaleYield", "tradeDate"],
                 "orFilters": [{"compareFilters": self._instrument_filters(cusip)}],
@@ -409,13 +435,18 @@ class FINRAClient:
         return {"price": rows[0].get("lastSalePrice"), "ytm": rows[0].get("lastSaleYield")}
 
     async def get_price_yield_history(
-        self, cusip: str, start: str = "2021-01-01", end: str | None = None
+        self,
+        cusip: str,
+        start: str = "2021-01-01",
+        end: str | None = None,
+        *,
+        security_type: str = "corporate",
     ) -> pd.DataFrame:
         await self._ensure_fresh_session()
         end = end or date.today().isoformat()
         frame = pd.DataFrame(
             self._hidden_post(
-                "EndOfDayPriceYield",
+                self._security_dataset(security_type, "price_yield"),
                 {
                     "fields": ["cusip", "lastSalePrice", "lastSaleYield", "tradeDate"],
                     "orFilters": [{"compareFilters": self._instrument_filters(cusip)}],
@@ -439,17 +470,33 @@ class FINRAClient:
         )
 
     async def get_trade_history(
-        self, symbol: str, start: str, end: str | None = None, limit: int = 5000
+        self,
+        symbol: str,
+        start: str,
+        end: str | None = None,
+        limit: int = 5000,
+        *,
+        security_type: str = "corporate",
     ) -> pd.DataFrame:
         """
-        Tick-by-tick TRACE history.
-        symbol: issueSymbolIdentifier from get_bond_details() e.g. 'AAPL4001810'
+        Trade history for a FINRA issueSymbolIdentifier.
+
+        Corporate/agency returns tick-by-tick TRACE rows. Treasury uses FINRA's
+        TreasuryTradeActivity dataset, which is activity-style rows by trade date/time.
         """
         await self._ensure_fresh_session()
         end = end or date.today().isoformat()
+        if security_type.lower() == "treasury":
+            return self._normalize_treasury_trade_activity(
+                self._hidden_post(
+                    self._security_dataset("treasury", "trade_history"),
+                    self._treasury_trade_activity_payload(symbol, start, end, limit),
+                )
+            )
+
         frame = pd.DataFrame(
             self._hidden_post(
-                "CorporateAndAgencyTradeHistory",
+                self._security_dataset(security_type, "trade_history"),
                 {
                     "fields": [
                         "issueSymbolIdentifier",
@@ -492,6 +539,56 @@ class FINRAClient:
             frame[col] = pd.to_numeric(frame[col], errors="coerce")
         return frame.sort_values("tradeExecutionTime").reset_index(drop=True)
 
+    def _treasury_trade_activity_payload(
+        self, symbol: str, start: str, end: str, limit: int
+    ) -> dict:
+        """Return FINRA TreasuryTradeActivity request payload."""
+        return {
+            "fields": [
+                "issueSymbolIdentifier",
+                "benchmarkTermCode",
+                "tradeDate",
+                "tradeTime",
+                "reportedTradeVolume",
+                "priceType",
+                "lastSalePrice",
+                "lastSaleYield",
+                "tradeStatus",
+                "reportingSideCode",
+                "contraPartyTypeCode",
+                "productSubTypeCode",
+            ],
+            "dateRangeFilters": [self._date_range("tradeDate", start, end)],
+            "domainFilters": [],
+            "compareFilters": [
+                {
+                    "fieldName": "issueSymbolIdentifier",
+                    "compareType": "EQUAL",
+                    "fieldValue": symbol,
+                }
+            ],
+            "multiFieldMatchFilters": [],
+            "orFilters": [],
+            "aggregationFilter": None,
+            "sortFields": ["-tradeDate", "-tradeTime"],
+            "limit": limit,
+            "offset": 0,
+            "delimiter": None,
+            "quoteValues": False,
+        }
+
+    def _normalize_treasury_trade_activity(self, rows: list[dict]) -> pd.DataFrame:
+        """Return cleaned TreasuryTradeActivity rows."""
+        frame = pd.DataFrame(rows)
+        if frame.empty:
+            return frame
+        frame["tradeExecutionTime"] = pd.to_datetime(
+            frame["tradeDate"] + " " + frame["tradeTime"], errors="coerce"
+        )
+        for col in ["lastSalePrice", "lastSaleYield", "reportedTradeVolume"]:
+            frame[col] = pd.to_numeric(frame[col], errors="coerce")
+        return frame.sort_values("tradeExecutionTime").reset_index(drop=True)
+
     async def search_bond_by_name(
         self, issuer_name: str, coupon: float, maturity: str
     ) -> dict | None:
@@ -524,11 +621,16 @@ class FINRAClient:
         return rows[0] if rows else None
 
     async def get_bond_analytics(
-        self, cusip: str, trade_date: str, use_curve: bool = True
+        self,
+        cusip: str,
+        trade_date: str,
+        use_curve: bool = True,
+        *,
+        security_type: str = "corporate",
     ) -> BondInfo:
         await self._ensure_fresh_session()
-        details = await self.get_bond_details(cusip)
-        price_yield = await self.get_price_yield(cusip, trade_date)
+        details = await self.get_bond_details(cusip, security_type=security_type)
+        price_yield = await self.get_price_yield(cusip, trade_date, security_type=security_type)
 
         if not details or price_yield["price"] is None:
             raise ValueError(f"No data for CUSIP {cusip} on {trade_date}")
@@ -541,10 +643,14 @@ class FINRAClient:
         if use_curve:
             curve = USTCurve.get(trade_date)
             duration = BondAnalytics.duration_from_curve(price, coupon, maturity, curve)
-            credit_spread = (duration["implied_ytm_pct"] - float(curve(10)) * 100) * 100
+            benchmark_tenor = USTCurve.benchmark_tenor(duration["years_to_maturity"])
+            benchmark_yield_pct = float(curve(benchmark_tenor)) * 100
+            credit_spread = (duration["implied_ytm_pct"] - benchmark_yield_pct) * 100
         else:
             duration = BondAnalytics.duration_from_ytm(price, coupon, ytm / 100, maturity)
             credit_spread = float("nan")
+            benchmark_tenor = 0.0
+            benchmark_yield_pct = float("nan")
 
         return BondInfo(
             cusip=cusip,
@@ -557,6 +663,8 @@ class FINRAClient:
             price=price,
             ytm=ytm,
             credit_spread_bps=round(credit_spread, 2),
+            benchmark_tenor=benchmark_tenor,
+            benchmark_yield_pct=round(benchmark_yield_pct, 4),
             **duration,
         )
 
@@ -618,6 +726,15 @@ class FINRAClient:
             return data
         raw = data.get("returnBody", {}).get("data", "[]")
         return json.loads(raw) if isinstance(raw, str) else raw
+
+    def _security_dataset(self, security_type: str, dataset: str) -> str:
+        try:
+            return _SECURITY_DATASETS[security_type.lower()][dataset]
+        except KeyError as exc:
+            valid = ", ".join(sorted(_SECURITY_DATASETS))
+            raise ValueError(
+                f"Unknown FINRA security_type '{security_type}'. Use: {valid}"
+            ) from exc
 
     def _instrument_filters(self, value: str) -> list[dict[str, str]]:
         return [

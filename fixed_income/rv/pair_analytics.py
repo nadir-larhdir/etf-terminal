@@ -14,8 +14,8 @@ from fixed_income.rv.spread_definition import RVAnalyticsSnapshot, SpreadDefinit
 
 
 def aligned_prices(left, right) -> pd.DataFrame:
-    left_close = left.close_series().rename("close_left")
-    right_close = right.close_series().rename("close_right")
+    left_close = left.adj_close_series().rename("close_left")
+    right_close = right.adj_close_series().rename("close_right")
     if left_close.empty or right_close.empty:
         return pd.DataFrame(columns=["close_left", "close_right"])
     return pd.concat([left_close, right_close], axis=1).dropna()

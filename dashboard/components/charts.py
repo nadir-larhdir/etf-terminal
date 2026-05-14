@@ -191,10 +191,15 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
     filtered = _filter_by_dates(hist, start_date, end_date)
 
     volume_series = filtered["volume"]
-    mean_volume = float(volume_series.mean())
+    rolling_30d_volume = (
+        pd.to_numeric(hist["volume"], errors="coerce")
+        .rolling(30, min_periods=1)
+        .mean()
+        .reindex(filtered.index)
+    )
     bar_colors = [
-        "rgba(93,168,97,0.75)" if value >= mean_volume else "rgba(196,106,90,0.65)"
-        for value in volume_series
+        "rgba(93,168,97,0.75)" if value >= avg else "rgba(196,106,90,0.65)"
+        for value, avg in zip(volume_series, rolling_30d_volume, strict=False)
     ]
 
     max_volume = float(volume_series.max())
@@ -220,7 +225,7 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
     fig.add_trace(
         go.Scatter(
             x=filtered.index,
-            y=[mean_volume] * len(filtered),
+            y=rolling_30d_volume,
             mode="lines",
             name="30D Avg",
             line=dict(color=CHART_OLIVE, width=1.4),
@@ -335,7 +340,7 @@ def render_zscore_chart(
 
     _apply_terminal_chart_layout(
         fig,
-        title=title or f"Z-Score ({ticker_a} / {ticker_b})",
+        title=title or f"Return Spread Z-Score ({ticker_a} / {ticker_b})",
         height=380,
         margin=dict(l=16, r=44, t=24, b=24),
     )
@@ -388,7 +393,7 @@ def render_return_spread_chart(
 
     _apply_terminal_chart_layout(
         fig,
-        title=title or f"Spread ({ticker_a} / {ticker_b})",
+        title=title or f"Cumulative Return Spread ({ticker_a} / {ticker_b})",
         height=380,
         margin=dict(l=16, r=16, t=24, b=24),
     )
