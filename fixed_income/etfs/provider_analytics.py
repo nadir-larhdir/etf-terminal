@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from dataclasses import dataclass
@@ -12,7 +13,7 @@ ISHARES_FUNDS = {
     "AGG": ("239458", "ishares-core-us-aggregate-bond-etf"),
     "EMB": ("239572", "ishares-jp-morgan-usd-emerging-markets-bond-etf"),
     "FLOT": ("239534", "ishares-floating-rate-bond-etf"),
-    "GOVT": ("239458", "ishares-us-treasury-bond-etf"),
+    "GOVT": ("239468", "ishares-us-treasury-bond-etf"),
     "HYG": ("239565", "ishares-iboxx-high-yield-corporate-bond-etf"),
     "IEF": ("239456", "ishares-7-10-year-treasury-bond-etf"),
     "IEI": ("239455", "ishares-3-7-year-treasury-bond-etf"),
@@ -57,8 +58,9 @@ SSGA_FUNDS = {
     "SPTL": "spdr-portfolio-long-term-treasury-etf-sptl",
 }
 
+# ticker → (cusip, page-slug)  slug needed for the new URL structure
 INVESCO_FUNDS = {
-    "PCY": "46138E784",
+    "PCY": ("46138E784", "invesco-emerging-markets-sovereign-debt-etf"),
 }
 
 PROVIDER_BY_TICKER = {
@@ -68,26 +70,32 @@ PROVIDER_BY_TICKER = {
     **dict.fromkeys(INVESCO_FUNDS, "Invesco"),
 }
 
+_INVESCO_PRODUCT_BASE = "https://www.invesco.com/us/en/financial-products/etfs"
+_INVESCO_DNG_BASE = "https://dng-api.invesco.com"
+_INVESCO_CHAR_LABEL_MAP = {
+    "Effective duration": "effective_duration",
+    "Modified duration": "modified_duration",
+    "Yield to maturity": "ytm",
+    "Yield to worst": "ytw",
+    "Years to maturity": "avg_maturity",
+    "Weighted avg coupon": "avg_coupon",
+}
+
 _ISHARES_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15",
     "Referer": "https://www.ishares.com/us/",
 }
+_ISHARES_PRODUCT_DATA_URL = (
+    "https://www.blackrock.com/varnish-api/blk-one01-product-data"
+    "/product-data/api/v2/get-product-data"
+)
 _SSGA_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15",
 }
 _VANGUARD_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15",
 }
-_INVESCO_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3.1 Safari/605.1.15",
-    "Accept": "*/*",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Origin": "https://www.invesco.com",
-    "Referer": "https://www.invesco.com/",
-    "Sec-Fetch-Dest": "empty",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Site": "same-site",
-}
+
 
 _RATING_BUCKETS = ["AAA", "AA", "A", "BBB", "BB", "B", "CCC", "CC", "C", "D", "NR"]
 
@@ -126,6 +134,35 @@ def _parse_number(value) -> float | None:
         return float(value)
     match = re.search(r"[-+]?\d[\d,]*\.?\d*", str(value).replace(",", ""))
     return float(match.group().replace(",", "")) if match else None
+
+
+def _parse_ishares_as_of(value) -> str | None:
+    text = str(value or "").strip()
+    if len(text) != 8 or not text.isdigit():
+        return None
+    return f"{text[:4]}-{text[4:6]}-{text[6:]}"
+
+
+def _ishares_product_data_params(product_id: str, component: str) -> dict[str, str]:
+    return {
+        "appSubType": "ISHARES",
+        "appType": "PRODUCT_PAGE",
+        "component": component,
+        "locale": "en_US",
+        "portfolioId": product_id,
+        "targetSite": "us-ishares",
+        "userType": "individual",
+        "excludeContent": "true",
+        "asOfDate": "",
+        "includeConfig": "true",
+    }
+
+
+def _ishares_data_points(component: dict) -> dict:
+    """Return the default iShares datapoints map for an API component payload."""
+    return (
+        component.get("containersByNameMap", {}).get("default", {}).get("dataPointsByNameMap", {})
+    )
 
 
 def _normalize_rating(value: str) -> str:
@@ -223,58 +260,55 @@ class ETFAnalyticsClient:
         )
 
     def _fetch_ishares(self) -> ETFAnalytics:
-        product_id, slug = ISHARES_FUNDS[self.ticker]
-        response = self.session.get(
-            f"https://www.ishares.com/us/products/{product_id}/{slug}",
-            headers=_ISHARES_HEADERS,
-            timeout=20,
-        )
-        response.raise_for_status()
+        component = self._fetch_ishares_component("fundamentalsAndRisk")
+        data_points = _ishares_data_points(component)
 
-        soup = BeautifulSoup(response.text, "html.parser")
-        section = soup.find("div", attrs={"data-componentname": "Fundamentals And Risk"})
-        if not section:
-            raise RuntimeError(f"[{self.ticker}] iShares fundamentals section not found")
+        def value(name: str) -> float | None:
+            return _parse_number(data_points.get(name, {}).get("value"))
 
-        raw: dict[str, float | None] = {}
-        for item in section.select("div.product-data-item"):
-            caption = item.select_one("div.caption")
-            data = item.select_one("div.data")
-            if not caption or not data:
-                continue
-            label = caption.find(string=True, recursive=False)
-            if label:
-                raw[label.strip()] = _parse_number(data.get_text(strip=True))
+        as_of = None
+        for name in ("modelOad", "fxHedgedYield", "optionAdjustedSpread"):
+            as_of = _parse_ishares_as_of(data_points.get(name, {}).get("asOfDate"))
+            if as_of:
+                break
 
         return ETFAnalytics(
             ticker=self.ticker,
             provider="iShares",
-            effective_duration=raw.get("Effective Duration"),
-            modified_duration=raw.get("Modified Duration"),
-            ytm=raw.get("Average Yield to Maturity"),
-            ytw=raw.get("Yield to Worst") or raw.get("Average Yield To Worst"),
-            oas=raw.get("Option Adjusted Spread"),
-            convexity=raw.get("Convexity"),
-            avg_maturity=raw.get("Weighted Avg Maturity"),
-            avg_coupon=raw.get("Weighted Avg Coupon"),
+            effective_duration=value("modelOad"),
+            ytm=value("fxHedgedYield"),
+            oas=value("optionAdjustedSpread"),
+            convexity=value("convexity"),
+            avg_maturity=value("weightedAvgLife"),
+            avg_coupon=value("weightedAvgCouponFi"),
+            as_of=as_of,
         )
 
-    def _fetch_ishares_credit_quality(self) -> dict[str, float]:
-        product_id, slug = ISHARES_FUNDS[self.ticker]
+    def _fetch_ishares_component(self, component_name: str) -> dict:
+        product_id, _ = ISHARES_FUNDS[self.ticker]
         response = self.session.get(
-            f"https://www.ishares.com/us/products/{product_id}/{slug}",
+            _ISHARES_PRODUCT_DATA_URL,
+            params=_ishares_product_data_params(product_id, component_name),
             headers=_ISHARES_HEADERS,
             timeout=20,
         )
         response.raise_for_status()
-        match = re.search(r"tabsRatingDataTable\s*=\s*(\[.*?\])\s*;", response.text, re.DOTALL)
-        if not match:
+        component = response.json().get("componentsByNameMap", {}).get(component_name)
+        if not component:
+            raise RuntimeError(f"[{self.ticker}] iShares {component_name} component not found")
+        return component
+
+    def _fetch_ishares_credit_quality(self) -> dict[str, float]:
+        component = self._fetch_ishares_component("exposureBreakdowns")
+        rating = component.get("containersByNameMap", {}).get("rating", {})
+        data_points = rating.get("dataPointsByNameMap", {})
+        labels = data_points.get("type", {}).get("value") or []
+        weights = data_points.get("fund", {}).get("value") or []
+        if not labels or not weights:
             return {}
-        items = json.loads(re.sub(r",(\s*[}\]])", r"\1", match.group(1)))
         return {
-            str(item.get("name") or ""): float(item.get("value") or 0.0)
-            for item in items
-            if item.get("name") is not None
+            str(label).replace(" Rated", ""): float(weight or 0.0)
+            for label, weight in zip(labels, weights, strict=False)
         }
 
     def _fetch_vanguard(self) -> ETFAnalytics:
@@ -394,45 +428,104 @@ class ETFAnalyticsClient:
         }
 
     def _fetch_invesco(self) -> ETFAnalytics:
-        response = self.session.get(
-            f"https://dng-api.invesco.com/cache/v1/accounts/en_US/shareclasses/{INVESCO_FUNDS[self.ticker]}",
-            params={
-                "expand": "nav",
-                "idType": "cusip",
-                "variationType": "fundCharacteristics",
-                "productType": "ETF",
-            },
-            headers=_INVESCO_HEADERS,
-            timeout=20,
-        )
-        response.raise_for_status()
-        data = response.json()
-
+        html = self._fetch_invesco_page_html()
+        chars = self._parse_invesco_characteristics(html)
         return ETFAnalytics(
             ticker=self.ticker,
             provider="Invesco",
-            effective_duration=_parse_number(data.get("unauditedEffectiveDuration")),
-            modified_duration=_parse_number(data.get("unauditedModifiedDuration")),
-            ytm=_parse_number(data.get("unauditedYieldToMaturity")),
-            ytw=_parse_number(data.get("unauditedYieldToWorst")),
-            avg_maturity=_parse_number(data.get("unauditedYearsToMaturity")),
-            avg_coupon=_parse_number(data.get("unauditedWeightedAverageCoupon")),
-            as_of=data.get("effectiveDate"),
+            effective_duration=chars.get("effective_duration"),
+            modified_duration=chars.get("modified_duration"),
+            ytm=chars.get("ytm"),
+            ytw=chars.get("ytw"),
+            avg_maturity=chars.get("avg_maturity"),
+            avg_coupon=chars.get("avg_coupon"),
         )
 
     def _fetch_invesco_credit_quality(self) -> dict[str, float]:
-        response = self.session.get(
-            f"https://dng-api.invesco.com/cache/v1/accounts/en_US/shareclasses/{INVESCO_FUNDS[self.ticker]}/holdings/fund",
-            params={"idType": "cusip", "productType": "ETF"},
-            headers=_INVESCO_HEADERS,
-            timeout=20,
+        cusip, _ = INVESCO_FUNDS[self.ticker]
+        weights = asyncio.run(self._fetch_invesco_breakdown_async(cusip, "creditRating"))
+        return {item["name"]: float(item["value"]) for item in weights if item.get("name")}
+
+    def _fetch_invesco_page_html(self) -> str:
+        """Load the Invesco product page via Playwright to get past IP-based bot protection."""
+        cusip, slug = INVESCO_FUNDS[self.ticker]
+        return asyncio.run(self._fetch_invesco_html_async(cusip, slug))
+
+    @staticmethod
+    async def _fetch_invesco_html_async(cusip: str, slug: str) -> str:
+        from playwright.async_api import async_playwright
+
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto(
+                f"{_INVESCO_PRODUCT_BASE}/{slug}.html",
+                wait_until="networkidle",
+                timeout=60_000,
+            )
+            html = await page.content()
+            await browser.close()
+        return html
+
+    @staticmethod
+    async def _fetch_invesco_breakdown_async(cusip: str, breakdown: str) -> list[dict]:
+        """Intercept the weightedHoldings breakdown API call made by the Invesco product page."""
+        from playwright.async_api import async_playwright
+
+        _, slug = next(
+            (cusip_, slug_) for _, (cusip_, slug_) in INVESCO_FUNDS.items() if cusip_ == cusip
         )
-        response.raise_for_status()
-        holdings = pd.DataFrame(response.json().get("holdings", []))
-        if holdings.empty or "spMoodysRating" not in holdings.columns:
-            return {}
-        grouped = holdings.groupby("spMoodysRating")["percentageOfTotalNetAssets"].sum()
-        return grouped.to_dict()
+        captured: list[dict] = []
+
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(headless=True)
+            page = await browser.new_page()
+
+            async def _intercept(route, request):
+                resp = await route.fetch()
+                url = request.url
+                if (
+                    cusip in url
+                    and _INVESCO_DNG_BASE in url
+                    and f"breakdown={breakdown}" in url
+                    and not captured
+                ):
+                    try:
+                        data = await resp.json()
+                        captured.extend(data.get("holdingWeights", []))
+                    except Exception:
+                        pass
+                await route.fulfill(response=resp)
+
+            await page.route("**/*", _intercept)
+            await page.goto(
+                f"{_INVESCO_PRODUCT_BASE}/{slug}.html",
+                wait_until="networkidle",
+                timeout=60_000,
+            )
+            await browser.close()
+
+        return captured
+
+    @staticmethod
+    def _parse_invesco_characteristics(html: str) -> dict[str, float | None]:
+        soup = BeautifulSoup(html, "html.parser")
+        raw: dict[str, str] = {}
+        for row in soup.find_all(class_="tabular-list__list"):
+            label_el = row.find(class_="tabular-list__label")
+            value_el = row.find(class_="tabular-list__value")
+            if label_el and value_el:
+                label = re.sub(r"\s*\(as of [^)]+\)", "", label_el.get_text(strip=True))
+                raw[label] = value_el.get_text(strip=True)
+        result: dict[str, float | None] = {}
+        for label, key in _INVESCO_CHAR_LABEL_MAP.items():
+            text = raw.get(label, "").strip()
+            if text in ("", "--", "-"):
+                result[key] = None
+            else:
+                m = re.search(r"[-+]?[\d,]+\.?\d*", text.replace(",", ""))
+                result[key] = float(m.group()) if m else None
+        return result
 
 
 def get_credit_quality(ticker: str, *, normalize: bool = True) -> pd.DataFrame:
