@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO, StringIO
 
@@ -10,7 +11,7 @@ ISHARES_HOLDINGS_FUNDS = {
     "AGG": ("239458", "ishares-core-us-aggregate-bond-etf"),
     "EMB": ("239572", "ishares-jp-morgan-usd-emerging-markets-bond-etf"),
     "FLOT": ("239534", "ishares-floating-rate-bond-etf"),
-    "GOVT": ("239456", "ishares-us-treasury-bond-etf"),
+    "GOVT": ("239468", "ishares-us-treasury-bond-etf"),
     "HYG": ("239565", "ishares-iboxx-high-yield-corporate-bond-etf"),
     "IEF": ("239456", "ishares-7-10-year-treasury-bond-etf"),
     "IEI": ("239455", "ishares-3-7-year-treasury-bond-etf"),
@@ -55,8 +56,9 @@ SSGA_HOLDINGS_FUNDS = {
     "FLRN": "flrn",
 }
 
+# ticker → (cusip, page-slug)
 INVESCO_HOLDINGS_FUNDS = {
-    "PCY": "46138E784",
+    "PCY": ("46138E784", "invesco-emerging-markets-sovereign-debt-etf"),
 }
 
 _UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15"
@@ -64,18 +66,13 @@ _UA_FULL = f"{_UA} (KHTML, like Gecko) Version/26.3.1 Safari/605.1.15"
 _SSGA_HOLDINGS_BASE = (
     "https://www.ssga.com/us/en/intermediary/library-content/products/fund-data/etfs/us"
 )
+_ISHARES_HOLDINGS_DOCUMENT_URL = (
+    "https://www.blackrock.com/varnish-api/blk-one01-product-data"
+    "/product-data/api/v1/get-fund-document"
+)
 
 _VANGUARD_HEADERS = {"User-Agent": _UA}
 _ISHARES_HEADERS = {"User-Agent": _UA, "Referer": "https://www.ishares.com/us/"}
-_INVESCO_HEADERS = {
-    "User-Agent": _UA_FULL,
-    "Accept": "*/*",
-    "Origin": "https://www.invesco.com",
-    "Referer": "https://www.invesco.com/",
-    "Sec-Fetch-Dest": "empty",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Site": "same-site",
-}
 
 
 def _to_num(series: pd.Series) -> pd.Series:
@@ -98,6 +95,31 @@ def _mbs_date(value) -> str | None:
         return None
     parts = str(value).split("-")
     return parts[-1].strip() if len(parts) > 1 else parts[0].strip()
+
+
+def _ishares_csv_header_row(text: str) -> int:
+    """Return the row index of the holdings CSV header in an iShares response."""
+    for idx, line in enumerate(text.splitlines()):
+        columns = [part.strip().strip('"') for part in line.split(",")]
+        if {"Name", "Sector", "Weight (%)"}.issubset(columns):
+            return idx
+    preview = text.lstrip()[:80].replace("\n", " ")
+    if preview.lower().startswith(("<!doctype html", "<html")):
+        raise RuntimeError("iShares returned an HTML page instead of holdings CSV.")
+    raise RuntimeError("iShares holdings CSV header row not found.")
+
+
+def _ishares_fund_document_params(product_id: str) -> dict[str, str]:
+    return {
+        "appType": "PRODUCT_PAGE",
+        "appSubType": "ISHARES",
+        "targetSite": "us-ishares",
+        "locale": "en_US",
+        "portfolioId": product_id,
+        "component": "holdings",
+        "userType": "individual",
+        "asOfDate": "",
+    }
 
 
 class ETFHoldings:
@@ -134,16 +156,11 @@ class ETFHoldings:
 
     def _load_ishares(self) -> pd.DataFrame:
         product_id, slug = ISHARES_HOLDINGS_FUNDS[self.ticker]
-        url = (
-            f"https://www.ishares.com/us/products/{product_id}/{slug}"
-            "/1467271812596.ajax?tab=portfolio&fileType=csv"
-        )
-        response = self.session.get(url, headers=_ISHARES_HEADERS, timeout=30)
-        response.raise_for_status()
+        csv_text, header_row = self._fetch_ishares_holdings_csv(product_id, slug)
         frame = (
             pd.read_csv(
-                StringIO(response.text),
-                skiprows=9,
+                StringIO(csv_text),
+                skiprows=header_row,
                 thousands=",",
                 na_values=["-", "--", ""],
             )
@@ -177,6 +194,29 @@ class ETFHoldings:
                 .isin(["bond", "fixed income", "corporate bond", "treasury", "agency", "municipal"])
             ]
         return self._finalize(frame)
+
+    def _fetch_ishares_holdings_csv(self, product_id: str, slug: str) -> tuple[str, int]:
+        urls = [
+            (_ISHARES_HOLDINGS_DOCUMENT_URL, _ishares_fund_document_params(product_id)),
+            (
+                f"https://www.ishares.com/us/products/{product_id}/{slug}" "/1467271812596.ajax",
+                {"tab": "portfolio", "fileType": "csv"},
+            ),
+        ]
+        errors: list[str] = []
+        for url, params in urls:
+            try:
+                response = self.session.get(
+                    url,
+                    params=params,
+                    headers=_ISHARES_HEADERS,
+                    timeout=30,
+                )
+                response.raise_for_status()
+                return response.text, _ishares_csv_header_row(response.text)
+            except Exception as exc:
+                errors.append(f"{url}: {exc}")
+        raise RuntimeError("iShares holdings CSV unavailable. " + " | ".join(errors))
 
     def _load_vanguard(self) -> pd.DataFrame:
         url = f"https://investor.vanguard.com/vmf/api" f"/{self.ticker}/portfolio-holding/bond.json"
@@ -258,35 +298,65 @@ class ETFHoldings:
         return self._finalize(frame)
 
     def _load_invesco(self) -> pd.DataFrame:
-        cusip = INVESCO_HOLDINGS_FUNDS[self.ticker]
-        response = self.session.get(
-            f"https://dng-api.invesco.com/cache/v1/accounts/en_US/shareclasses/{cusip}/holdings/fund",
-            params={"idType": "cusip", "productType": "ETF"},
-            headers=_INVESCO_HEADERS,
-            timeout=30,
-        )
-        response.raise_for_status()
+        cusip, slug = INVESCO_HOLDINGS_FUNDS[self.ticker]
+        holdings_raw = asyncio.run(self._fetch_invesco_holdings_async(cusip, slug))
         rows = []
-        for holding in response.json().get("holdings", []):
-            market_value = holding.get("marketValueBase")
-            face_amount = holding.get("units")
+        for h in holdings_raw:
+            mv = h.get("marketValueBase")
+            fa = h.get("units")
             rows.append(
                 {
-                    "name": holding.get("issuerName"),
-                    "cusip": holding.get("cusip"),
-                    "weight": holding.get("percentageOfTotalNetAssets"),
-                    "coupon": holding.get("coupon"),
-                    "maturity_dt": holding.get("maturityDate"),
-                    "market_value": market_value,
-                    "face_amount": face_amount,
-                    "price": (
-                        (market_value / face_amount * 100) if market_value and face_amount else None
-                    ),
+                    "name": h.get("issuerName"),
+                    "cusip": h.get("cusip"),
+                    "weight": h.get("percentageOfTotalNetAssets"),
+                    "coupon": h.get("coupon"),
+                    "maturity_dt": h.get("maturityDate"),
+                    "market_value": mv,
+                    "face_amount": fa,
+                    "price": (mv / fa * 100) if mv and fa else None,
                 }
             )
         frame = pd.DataFrame(rows)
         frame["maturity_dt"] = _to_date(frame["maturity_dt"])
         return self._finalize(frame)
+
+    @staticmethod
+    async def _fetch_invesco_holdings_async(cusip: str, slug: str) -> list[dict]:
+        """Intercept the holdings/fund XHR made by the Invesco product page.
+
+        dng-api.invesco.com returns 406 to bare programmatic requests; loading the
+        product page first via Playwright plants the session cookies the CDN requires.
+        """
+        from playwright.async_api import async_playwright
+
+        _base = "https://www.invesco.com/us/en/financial-products/etfs"
+        _dng = "https://dng-api.invesco.com"
+        captured: list[dict] = []
+
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(headless=True)
+            page = await browser.new_page()
+
+            async def _intercept(route, request):
+                resp = await route.fetch()
+                url = request.url
+                if cusip in url and _dng in url and "holdings/fund" in url and not captured:
+                    try:
+                        data = await resp.json()
+                        captured.extend(data.get("holdings", []))
+                    except Exception:
+                        pass
+                await route.fulfill(response=resp)
+
+            await page.route("**/*", _intercept)
+            await page.goto(
+                f"{_base}/{slug}.html",
+                wait_until="networkidle",
+                timeout=60_000,
+            )
+            await browser.close()
+
+        return captured
 
     def _finalize(self, frame: pd.DataFrame) -> pd.DataFrame:
         frame["ticker"] = self.ticker

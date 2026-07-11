@@ -7,7 +7,12 @@ from fixed_income.analytics.duration_estimator import (
     duration_source_details,
     issuer_from_long_name,
 )
-from fixed_income.etfs.provider_analytics import ISHARES_FUNDS, ETFAnalytics
+from fixed_income.etfs.provider_analytics import (
+    ISHARES_FUNDS,
+    ETFAnalytics,
+    _ishares_data_points,
+    _parse_ishares_as_of,
+)
 
 
 class FakeDurationEstimator:
@@ -67,7 +72,7 @@ def test_ishares_registry_keeps_known_product_ids() -> None:
         "AGG": "239458",
         "EMB": "239572",
         "FLOT": "239534",
-        "GOVT": "239458",
+        "GOVT": "239468",
         "HYG": "239565",
         "IEF": "239456",
         "IEI": "239455",
@@ -86,6 +91,25 @@ def test_ishares_registry_keeps_known_product_ids() -> None:
 
     for ticker, product_id in expected_ids.items():
         assert ISHARES_FUNDS[ticker][0] == product_id
+
+
+def test_ishares_api_helpers_parse_default_datapoints() -> None:
+    component = {
+        "containersByNameMap": {
+            "default": {
+                "dataPointsByNameMap": {
+                    "modelOad": {
+                        "value": 7.93004,
+                        "asOfDate": 20260520,
+                    }
+                }
+            }
+        }
+    }
+
+    assert _ishares_data_points(component)["modelOad"]["value"] == 7.93004
+    assert _parse_ishares_as_of(20260520) == "2026-05-20"
+    assert _parse_ishares_as_of(None) is None
 
 
 def test_build_metadata_row_sets_issuer_from_long_name_and_duration(monkeypatch) -> None:
