@@ -7,16 +7,36 @@ CI fails on the same commit. These tests fail fast when the environment has drif
 
 from __future__ import annotations
 
+import ast
 import pathlib
-from importlib.metadata import PackageNotFoundError, version
+import sys
+from importlib.metadata import (
+    PackageNotFoundError,
+    packages_distributions,
+    version,
+)
 
 import pytest
 
 REQUIREMENTS = pathlib.Path("requirements.txt")
 REQUIREMENTS_DEV = pathlib.Path("requirements-dev.txt")
 
-# Imported at runtime but easy to have locally and forget to declare.
-DECLARED_RUNTIME_IMPORTS = {"statsmodels": "fixed_income/rv/spread_diagnostics.py"}
+LOCAL_PACKAGES = {
+    "config",
+    "db",
+    "stores",
+    "services",
+    "fixed_income",
+    "dashboard",
+    "scripts",
+    "tests",
+    "main",
+}
+
+# Imports that may legitimately be absent because the code degrades without them.
+OPTIONAL_IMPORTS = {
+    "nest_asyncio": "Jupyter-only convenience in finra_client; the ImportError is passed",
+}
 
 
 def _packages(path: pathlib.Path) -> list[str]:
@@ -42,14 +62,60 @@ def test_every_runtime_dependency_is_declared_and_installed(package: str) -> Non
         pytest.fail(f"{package!r} is in requirements.txt but not installed here")
 
 
-@pytest.mark.parametrize(("module", "used_by"), sorted(DECLARED_RUNTIME_IMPORTS.items()))
-def test_optionally_imported_modules_are_declared_dependencies(module: str, used_by: str) -> None:
-    """`spread_diagnostics` imports statsmodels in a try/except and degrades to None.
+def _declared_distributions() -> set[str]:
+    return {
+        package.split("[")[0].lower().replace("_", "-")
+        for path in (REQUIREMENTS, REQUIREMENTS_DEV)
+        for package in _packages(path)
+    }
 
-    Undeclared, that degradation is silent: every ADF result is None and the stability
-    score takes its penalty branch for every pair.
+
+def _third_party_imports() -> dict[str, list[str]]:
+    """Every non-stdlib, non-local module imported anywhere in the project."""
+    found: dict[str, list[str]] = {}
+    for path in pathlib.Path(".").rglob("*.py"):
+        if any(part in {".venv", "venv", "notebooks", ".git"} for part in path.parts):
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError:  # pragma: no cover - a syntax error fails elsewhere
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                modules = [alias.name for alias in node.names]
+            elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
+                modules = [node.module]
+            else:
+                continue
+            for module in modules:
+                root = module.split(".")[0]
+                if root in LOCAL_PACKAGES or root in sys.stdlib_module_names:
+                    continue
+                found.setdefault(root, []).append(str(path))
+    return found
+
+
+def test_the_project_imports_third_party_code_at_all() -> None:
+    assert _third_party_imports(), "import scan found nothing; the audit would pass vacuously"
+
+
+@pytest.mark.parametrize("module", sorted(_third_party_imports()))
+def test_every_third_party_import_is_a_declared_dependency(module: str) -> None:
+    """Relying on a transitive dependency is fragile: an upgrade upstream can drop it.
+
+    statsmodels was imported this way and undeclared, so a clean install produced None
+    for every ADF result and understated every RV stability score.
     """
-    assert module in _packages(REQUIREMENTS), f"{module} is imported by {used_by} but undeclared"
+    if module in OPTIONAL_IMPORTS:
+        pytest.skip(f"{module}: {OPTIONAL_IMPORTS[module]}")
+
+    distributions = {
+        dist.lower().replace("_", "-") for dist in packages_distributions().get(module, [module])
+    }
+    used_by = sorted(set(_third_party_imports()[module]))[:3]
+    assert (
+        distributions & _declared_distributions()
+    ), f"{module} is imported by {used_by} but is in neither requirements file"
 
 
 @pytest.mark.parametrize("package", _required_packages())
