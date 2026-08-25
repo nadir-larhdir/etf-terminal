@@ -21,17 +21,6 @@ from stores.market import ETFUniverseStore, MetadataStore, PriceStore
 logger = logging.getLogger(__name__)
 
 
-def _metadata_duration(metadata: dict) -> float | None:
-    """Extract a numeric duration from a metadata dict, returning None for missing or N/A values."""
-    raw_value = metadata.get("duration")
-    if raw_value in (None, "", "N/A"):
-        return None
-    try:
-        return float(raw_value)
-    except (TypeError, ValueError):
-        return None
-
-
 def build_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser for the precompute_analytics script."""
     parser = argparse.ArgumentParser(description="Precompute fixed-income analytics snapshots.")
@@ -125,7 +114,7 @@ def run_precompute_analytics(
         ticker = str(row["ticker"])
         latest_price_date = latest_price_dates.get(ticker)
         metadata = metadata_map.get(ticker, {})
-        metadata_duration = _metadata_duration(metadata)
+        metadata_duration = ETF(ticker, metadata=metadata).metadata_number("duration")
         snapshot = None
         if ticker in latest_snapshot_map:
             snapshot = ETFAnalyticsSnapshot.from_record(latest_snapshot_map[ticker])

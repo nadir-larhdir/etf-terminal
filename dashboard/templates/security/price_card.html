@@ -1,0 +1,8 @@
+<div class="db-price-card">
+  <div class="db-price-ticker">{{ card.ticker }} · PX_LAST</div>
+  <div class="db-price-value">{{ card.price }}</div>
+  <div class="db-price-chg-row">
+    <span class="db-price-chg {{ card.change_class }}">{{ card.change }}</span>
+    <span class="db-price-chg {{ card.change_class }}">{{ card.change_percent }}</span>
+  </div>
+</div>

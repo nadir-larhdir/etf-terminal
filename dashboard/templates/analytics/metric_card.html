@@ -1,0 +1,9 @@
+<div class="an-metric-card" style="border-bottom:1px solid {{ card.accent if card.show_bottom_border else '#EAE4D8' }};">
+  <div class="an-metric-label">{{ card.label }}</div>
+  <div class="an-metric-body">
+    <div class="an-metric-value" style="color:{{ card.color }};">{{ card.value }}</div>
+    {% if footer %}
+    <div class="an-metric-footer">{{ footer }}</div>
+    {% endif %}
+  </div>
+</div>

@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime
 
 import pandas as pd
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
 from db.schema import create_tables
 from db.sql import pandas_to_sql_kwargs, qualified_table
@@ -32,7 +33,7 @@ class HoldingsStore:
         "fetched_at",
     ]
 
-    def __init__(self, engine):
+    def __init__(self, engine: Engine) -> None:
         self.engine = engine
         self._schema_ready = False
 
@@ -127,9 +128,10 @@ class HoldingsStore:
         self._schema_ready = True
 
     @staticmethod
-    def _normalize_as_of_date(as_of_date: str | date | None) -> str:
+    def _normalize_as_of_date(as_of_date: str | date | None) -> date:
+        """Coerce a caller-supplied snapshot date to a `date`, defaulting to today."""
         if as_of_date is None:
             return date.today()
         if isinstance(as_of_date, date):
             return as_of_date
-        return pd.to_datetime(as_of_date).date()
+        return date.fromisoformat(str(pd.Timestamp(as_of_date).date()))

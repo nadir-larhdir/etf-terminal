@@ -1,0 +1,7 @@
+<div class="an-scale">
+  <span>0Y</span>
+  <div class="an-scale-track">
+    <div class="an-scale-marker" style="left:calc({{ '%.1f' | format(scale.percent) }}% - 5px);"></div>
+  </div>
+  <span>{{ scale.max_years | int }}Y</span>
+</div>

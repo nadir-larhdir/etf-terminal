@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as pd
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
 from db.sql import qualified_table
 from stores.query_utils import append_date_filters, pivot_time_series, sql_in_clause_params
@@ -15,7 +18,7 @@ class MacroFeatureStore:
     SUPABASE_CHUNK_SIZE = 2_000
     DEFAULT_CHUNK_SIZE = 10_000
 
-    def __init__(self, engine):
+    def __init__(self, engine: Engine) -> None:
         self.engine = engine
 
     # ------------------------------------------------------------------
@@ -48,7 +51,7 @@ class MacroFeatureStore:
     ) -> None:
         """Delete feature rows optionally bounded by a date range."""
         query = f"DELETE FROM {qualified_table(self.engine, 'macro_features')} WHERE 1 = 1"
-        params: dict = {}
+        params: dict[str, Any] = {}
         query, params = append_date_filters(query, params, start_date=start_date, end_date=end_date)
         with self.engine.begin() as conn:
             conn.execute(text(query), params)
@@ -66,6 +69,20 @@ class MacroFeatureStore:
         """Return a wide date × feature_name matrix of macro feature values."""
         normalized = tuple(sorted(dict.fromkeys(feature_names))) if feature_names else None
         return self._feature_matrix(normalized, start_date, end_date).copy()
+
+    def get_recent_feature_matrix(
+        self, feature_names: list[str], sessions: int = 2
+    ) -> pd.DataFrame:
+        """Return a wide matrix holding only the newest `sessions` observations per feature.
+
+        The homepage strip shows a level and its change, so it needs two observations per
+        feature rather than every one ever stored. Features keep their own calendars, so
+        the result is sparse by design; callers drop nulls per column.
+        """
+        normalized = tuple(sorted(dict.fromkeys(feature_names)))
+        if not normalized or sessions < 1:
+            return pd.DataFrame()
+        return self._recent_feature_matrix(normalized, sessions).copy()
 
     def get_latest_feature_values(self, feature_names: list[str]) -> pd.DataFrame:
         """Return the most recent value for each requested feature name."""
@@ -104,7 +121,7 @@ class MacroFeatureStore:
         end_date: str | None,
     ) -> pd.DataFrame:
         query = f"SELECT feature_name, date, value FROM {qualified_table(self.engine, 'macro_features')} WHERE 1 = 1"
-        params: dict = {}
+        params: dict[str, Any] = {}
         if feature_names:
             placeholders, params = sql_in_clause_params("feature", feature_names)
             query += f" AND feature_name IN ({placeholders})"
@@ -129,6 +146,23 @@ class MacroFeatureStore:
         """
         with self.engine.connect() as conn:
             return pd.read_sql(text(query), conn, params=params)
+
+    def _recent_feature_matrix(self, feature_names: tuple[str, ...], sessions: int) -> pd.DataFrame:
+        """Return the newest `sessions` rows per feature, pivoted wide and sorted by date."""
+        placeholders, name_params = sql_in_clause_params("feature", feature_names)
+        params: dict[str, Any] = {**name_params, "sessions": sessions}
+        query = f"""
+        WITH ranked AS (
+            SELECT feature_name, date, value,
+                   ROW_NUMBER() OVER (PARTITION BY feature_name ORDER BY date DESC) AS rn
+            FROM {qualified_table(self.engine, 'macro_features')}
+            WHERE feature_name IN ({placeholders})
+        )
+        SELECT feature_name, date, value FROM ranked WHERE rn <= :sessions
+        """
+        with self.engine.connect() as conn:
+            df = pd.read_sql(text(query), conn, params=params)
+        return pivot_time_series(df, column_column="feature_name")
 
     def _write_chunk_size(self, record_count: int) -> int:
         """Return a chunk size appropriate for the backend to avoid long single upserts."""

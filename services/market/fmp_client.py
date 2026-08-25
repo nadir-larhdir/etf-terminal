@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pandas as pd
-import requests
+
+from services.http import JsonApiClient
 
 # Calendar-day lookback per label — padded to account for weekends and holidays.
 _PERIOD_DAY_MAP = {
@@ -23,13 +25,15 @@ _PERIOD_DAY_MAP = {
 _OHLCV_COLUMNS = ["open", "high", "low", "close", "adj_close", "volume"]
 
 
-class FMPClient:
+class FMPClient(JsonApiClient):
     """Fetch ETF end-of-day prices, profile data, and holdings from Financial Modeling Prep."""
 
-    def __init__(self, api_key: str, base_url: str, session: requests.Session | None = None):
+    def __init__(self, api_key: str, base_url: str, session: Any = None, **kwargs: Any) -> None:
+        super().__init__(base_url=base_url, session=session, service_name="FMP", **kwargs)
         self.api_key = api_key
-        self.base_url = base_url.rstrip("/")
-        self.session = session or requests.Session()
+
+    def default_params(self) -> dict[str, str]:
+        return {"apikey": self.api_key}
 
     # ------------------------------------------------------------------
     # Public endpoints
@@ -48,9 +52,7 @@ class FMPClient:
         Prefers start/end over period when both are provided.
         Returns an empty DataFrame (with correct columns) when FMP returns no rows.
         """
-        rows = self._extract_rows(
-            self._request_json("historical-price-eod/full", {"symbol": symbol})
-        )
+        rows = self._extract_rows(self.get_json("historical-price-eod/full", {"symbol": symbol}))
         if not rows:
             return pd.DataFrame(columns=["date", *_OHLCV_COLUMNS, "ticker"])
 
@@ -65,56 +67,53 @@ class FMPClient:
 
         return self._trim_price_frame(frame, period=period, start=start, end=end)
 
-    def get_security_profile(self, symbol: str) -> dict:
+    def get_security_profile(self, symbol: str) -> dict[str, Any]:
         """Return the FMP profile record for a symbol (company name, type, description, etc.)."""
-        return self._extract_record(self._request_json("profile", {"symbol": symbol}))
+        return self._extract_record(self.get_json("profile", {"symbol": symbol}))
 
-    def get_etf_info(self, symbol: str) -> dict:
+    def get_etf_info(self, symbol: str) -> dict[str, Any]:
         """Return FMP ETF-specific metadata (expense ratio, AUM, category, etc.)."""
-        return self._extract_record(self._request_json("etf/info", {"symbol": symbol}))
+        return self._extract_record(self.get_json("etf/info", {"symbol": symbol}))
 
-    def get_etf_holdings(self, symbol: str) -> list[dict]:
+    def get_etf_holdings(self, symbol: str) -> list[dict[str, Any]]:
         """Return live ETF holdings rows for a symbol, or an empty list if unavailable."""
-        rows = self._extract_rows(self._request_json(f"etf-holder/{symbol}", {}))
+        rows = self._extract_rows(self.get_json(f"etf-holder/{symbol}", {}))
         if not rows:
             return []
         frame = pd.DataFrame(rows)
         if frame.empty:
             return []
         for col in ["weightPercentage", "weight", "sharesNumber", "marketValue"]:
-            if col in frame.columns:
-                frame[col] = pd.to_numeric(frame[col], errors="ignore")
-        return frame.to_dict(orient="records")
+            if col not in frame.columns:
+                continue
+            # errors="ignore" is deprecated; keep its all-or-nothing behaviour explicitly so a
+            # column of genuinely non-numeric labels is passed through rather than blanked.
+            try:
+                frame[col] = pd.to_numeric(frame[col])
+            except (TypeError, ValueError):
+                continue
+        holdings: list[dict[str, Any]] = frame.to_dict(orient="records")
+        return holdings
 
     def get_economic_calendar(
         self,
         *,
         start: str | None = None,
         end: str | None = None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Return scheduled economic calendar events from FMP."""
         params = {}
         if start is not None:
             params["from"] = start
         if end is not None:
             params["to"] = end
-        return self._extract_rows(self._request_json("economic-calendar", params))
+        return self._extract_rows(self.get_json("economic-calendar", params))
 
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _request_json(self, endpoint: str, params: dict) -> dict | list:
-        """Execute a GET request and return the parsed JSON response."""
-        response = self.session.get(
-            f"{self.base_url}/{endpoint.lstrip('/')}",
-            params={**params, "apikey": self.api_key},
-            timeout=30,
-        )
-        response.raise_for_status()
-        return response.json()
-
-    def _normalise_price_rows(self, rows: list[dict], symbol: str) -> pd.DataFrame:
+    def _normalise_price_rows(self, rows: list[dict[str, Any]], symbol: str) -> pd.DataFrame:
         """Return FMP price rows in the store-ready column shape."""
         frame = pd.DataFrame(rows).rename(columns={"symbol": "ticker", "adjClose": "adj_close"})
         for col in _OHLCV_COLUMNS:
@@ -146,7 +145,7 @@ class FMPClient:
     ) -> pd.DataFrame:
         """Overlay dividend-adjusted close values from FMP when available."""
         rows = self._extract_rows(
-            self._request_json(
+            self.get_json(
                 "historical-price-eod/dividend-adjusted",
                 self._dividend_adjusted_params(symbol, period=period, start=start, end=end),
             )
@@ -210,7 +209,7 @@ class FMPClient:
             frame = frame.loc[frame["date"] < str(end)]
         return frame.reset_index(drop=True)
 
-    def _extract_rows(self, payload: dict | list) -> list[dict]:
+    def _extract_rows(self, payload: Any) -> list[dict[str, Any]]:
         """Unwrap a list of rows from FMP's varied response shapes."""
         if isinstance(payload, dict):
             return payload.get("historical", []) or payload.get("data", []) or []
@@ -218,7 +217,7 @@ class FMPClient:
             return payload
         return []
 
-    def _extract_record(self, payload: dict | list) -> dict:
+    def _extract_record(self, payload: Any) -> dict[str, Any]:
         """Return the first record from FMP's single-item response shapes."""
         if isinstance(payload, list):
             return payload[0] if payload else {}

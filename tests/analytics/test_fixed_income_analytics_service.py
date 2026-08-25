@@ -5,36 +5,7 @@ import pandas as pd
 
 from fixed_income.analytics import FixedIncomeAnalyticsService, RiskProxySelector
 from fixed_income.etfs import ETF
-
-
-class FakePriceStore:
-    def __init__(self, histories: dict[str, pd.DataFrame]) -> None:
-        self.histories = histories
-
-    def get_ticker_price_history(self, ticker: str, start_date=None, end_date=None) -> pd.DataFrame:
-        frame = self.histories.get(ticker, pd.DataFrame()).copy()
-        if frame.empty:
-            return frame
-        if start_date is not None:
-            frame = frame.loc[frame.index >= pd.Timestamp(start_date)]
-        if end_date is not None:
-            frame = frame.loc[frame.index <= pd.Timestamp(end_date)]
-        return frame
-
-
-class FakeMacroStore:
-    def __init__(self, matrix: pd.DataFrame) -> None:
-        self.matrix = matrix
-
-    def get_series_matrix(self, series_ids=None, start_date=None, end_date=None) -> pd.DataFrame:
-        frame = self.matrix.copy()
-        if start_date is not None:
-            frame = frame.loc[frame.index >= pd.Timestamp(start_date)]
-        if end_date is not None:
-            frame = frame.loc[frame.index <= pd.Timestamp(end_date)]
-        if series_ids:
-            frame = frame.loc[:, list(series_ids)]
-        return frame
+from tests.fakes import FakeMacroStore, FakePriceStore
 
 
 def _price_history_from_returns(returns: np.ndarray, *, start_price: float = 100.0) -> pd.DataFrame:

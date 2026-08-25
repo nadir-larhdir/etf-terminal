@@ -1,3 +1,6 @@
-from fixed_income.etfs import ETF
+"""Fixed-income domain layer: ETF objects, analytics, and relative-value models.
 
-__all__ = ["ETF"]
+Intentionally empty of re-exports — importing from the package root would force every
+submodule to load the ETF object, which cycles back through the shared primitives.
+Import from the specific subpackage instead (`fixed_income.etfs`, `fixed_income.series`).
+"""

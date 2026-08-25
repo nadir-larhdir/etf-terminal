@@ -49,6 +49,24 @@ def cached_multi_price_history(
 
 
 @st.cache_data(ttl=900, show_spinner=False)
+def cached_recent_price_history(
+    cache_key: str, tickers: tuple[str, ...], sessions: int, _price_store
+) -> dict[str, pd.DataFrame]:
+    """Return the last `sessions` rows per ticker in one query, cached for 15 minutes."""
+    return _price_store.get_recent_price_history(list(tickers), sessions=sessions)
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def cached_recent_feature_matrix(
+    cache_key: str, feature_names: tuple[str, ...], sessions: int, _macro_feature_store
+) -> pd.DataFrame:
+    """Return the newest `sessions` observations per feature, cached for 15 minutes."""
+    return _macro_feature_store.get_recent_feature_matrix(
+        list(feature_names), sessions=sessions
+    ).copy()
+
+
+@st.cache_data(ttl=900, show_spinner=False)
 def cached_feature_matrix(
     cache_key: str, feature_names: tuple[str, ...], start_date, end_date, _macro_feature_store
 ) -> pd.DataFrame:

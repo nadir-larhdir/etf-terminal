@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as pd
 from sqlalchemy import inspect, text
+from sqlalchemy.engine import Engine
 
 from db.schema import create_tables
 from db.sql import pandas_to_sql_kwargs, qualified_table, schema_name
@@ -12,7 +15,7 @@ from db.sql import pandas_to_sql_kwargs, qualified_table, schema_name
 class ETFUniverseStore:
     """Persist and manage the active ETF universe stored in the etf_universe table."""
 
-    def __init__(self, engine):
+    def __init__(self, engine: Engine) -> None:
         self.engine = engine
         self._schema_ready = False
 
@@ -20,7 +23,7 @@ class ETFUniverseStore:
     # Writes
     # ------------------------------------------------------------------
 
-    def replace_etf_universe(self, rows: list[dict]) -> None:
+    def replace_etf_universe(self, rows: list[dict[str, Any]]) -> None:
         """Delete all existing etf_universe and insert the provided rows wholesale."""
         self._ensure_schema()
         with self.engine.begin() as conn:
@@ -33,7 +36,7 @@ class ETFUniverseStore:
                 **pandas_to_sql_kwargs(self.engine),
             )
 
-    def upsert_etfs(self, rows: list[dict], update_existing: bool = True) -> None:
+    def upsert_etfs(self, rows: list[dict[str, Any]], update_existing: bool = True) -> None:
         """Insert etf_universe, optionally updating name/asset_class on conflict."""
         if not rows:
             return

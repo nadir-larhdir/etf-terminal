@@ -1,0 +1,10 @@
+<div class="bb-macro-card">
+  <div class="bb-macro-card-label">{{ card.label | upper }}</div>
+  <div class="bb-macro-card-value">{{ card.value }}</div>
+  <div class="bb-macro-card-delta {{ card.delta_tone.delta_class }}">Latest change: {{ card.delta_tone.arrow }} {{ card.delta }}</div>
+  {% if card.badge %}
+  <div class="bb-macro-badge-row">
+    <span class="bb-regime-badge" style="border:1px solid {{ card.badge_tone.color }};background:{{ card.badge_tone.background }};color:{{ card.badge_tone.color }};">{{ card.badge }}</span>
+  </div>
+  {% endif %}
+</div>

@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fixed_income.config.text_utils import etf_text_blob
+
+if TYPE_CHECKING:
+    from fixed_income.etfs import ETF
 
 # Default OAS proxy series per broad bucket — used for bucketed analytics.
 SPREAD_PROXY_BY_BUCKET = {
@@ -11,7 +16,7 @@ SPREAD_PROXY_BY_BUCKET = {
 }
 
 
-def spread_proxy_for_bucket(bucket: str, etf) -> str | None:
+def spread_proxy_for_bucket(bucket: str, etf: ETF) -> str | None:
     """Return the most appropriate OAS proxy FRED series ID for this ETF.
 
     Refines the default bucket proxy by inspecting the ETF's text blob:

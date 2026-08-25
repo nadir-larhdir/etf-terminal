@@ -1,0 +1,7 @@
+{% if net > 0 %}
+<span class="home-table-up">▲ {{ net }}</span> <span class="home-table-note">{{ label }}</span>
+{% elif net < 0 %}
+<span class="home-table-down">▼ {{ net | abs }}</span> <span class="home-table-note">{{ label }}</span>
+{% else %}
+<span class="home-table-flat">—</span> <span class="home-table-note">{{ label }}</span>
+{% endif %}

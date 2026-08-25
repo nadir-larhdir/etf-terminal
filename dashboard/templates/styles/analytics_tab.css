@@ -1,0 +1,90 @@
+[class^="an-"], [class^="an-"] * {
+    font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+}
+.an-metric-card {
+    background: rgba(251, 248, 241, 0.38);
+    border: 1px solid #E4E0D8;
+    border-radius: 8px;
+    padding: 13px 15px 11px 15px;
+    height: 126px;
+}
+.an-metric-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.55px;
+    color: #8D8779;
+    font-weight: 600;
+    margin-bottom: 7px;
+}
+.an-metric-body {
+    height: calc(100% - 18px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+.an-metric-value {
+    font-size: 2.15rem;
+    font-weight: 700;
+    line-height: 1.05;
+}
+.an-metric-footer {
+    width: 100%;
+    margin-top: 8px;
+    padding-top: 7px;
+    border-top: 1px solid #EDE9E0;
+    color: #8D8779;
+    font-size: 0.70rem;
+    line-height: 1.35;
+    text-align: left;
+}
+
+.an-gauge-track {
+    margin-top: 0.35rem;
+    height: 6px;
+    background: rgba(111, 123, 70, 0.12);
+    border-radius: 999px;
+}
+.an-gauge-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #7FB9AA, #8AA05A);
+}
+.an-metric-footnote { margin-top: 0.35rem; }
+.an-scale { display: flex; align-items: center; gap: 0.45rem; }
+.an-scale-track {
+    position: relative;
+    flex: 1;
+    height: 4px;
+    background: rgba(111, 123, 70, 0.12);
+    border-radius: 999px;
+}
+.an-scale-marker {
+    position: absolute;
+    top: -3px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #7FB9AA;
+}
+.an-section-divider {
+    height: 1px;
+    margin: 0.8rem 0 1.0rem 0;
+    background: linear-gradient(90deg, rgba(95,141,132,0.0), rgba(95,141,132,0.45), rgba(111,123,70,0.35), rgba(111,123,70,0.0));
+}
+.an-panel-kicker {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.55px;
+    color: #8D8779;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+.an-panel-headline {
+    color: #1F271C;
+    font-size: 0.98rem;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+}
+.an-panel-body { color: #4F5A49; font-size: 0.88rem; line-height: 1.55; }

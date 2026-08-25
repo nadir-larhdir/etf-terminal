@@ -9,6 +9,7 @@ description = "ETF Terminal fixed-income analytics and Streamlit app"
 requires-python = ">=3.11"
 dependencies = [
     "streamlit",
+    "jinja2",
     "pandas",
     "numpy",
     "scipy",
@@ -27,9 +28,11 @@ dev = [
     "black",
     "pre-commit",
     "pytest",
+    "pytest-cov",
     "ruff",
     "mypy",
     "pandas-stubs",
+    "types-requests",
 ]
 
 [tool.setuptools.packages.find]
@@ -62,12 +65,46 @@ ignore = ["E501"]
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true
-disallow_untyped_defs = true
-warn_unused_ignores = true
-warn_return_any = false
 no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+
+# Domain layer: full strictness. This is the code that computes numbers, so an
+# unannotated boundary here is a correctness risk, not a style nit.
+[[tool.mypy.overrides]]
+module = ["config.*", "db.*", "stores.*", "services.*", "fixed_income.*"]
+disallow_any_generics = true
+disallow_untyped_calls = true
+disallow_incomplete_defs = true
+disallow_untyped_decorators = true
+warn_return_any = true
+no_implicit_reexport = true
+strict_equality = true
+
+# Render and CLI glue: annotations required, but no ceremony around Streamlit/argparse.
+[[tool.mypy.overrides]]
+module = ["dashboard.*", "scripts.*", "main"]
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q --tb=short"
+
+[tool.coverage.run]
+branch = true
+source = ["config", "db", "stores", "services", "fixed_income", "dashboard"]
+omit = ["*/__init__.py"]
+
+[tool.coverage.report]
+show_missing = true
+# Ratchet: raise this as coverage climbs, never lower it. What remains uncovered is
+# Streamlit render glue and the network scrapers, which need a live runtime or vendor.
+fail_under = 65
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError", "\\.\\.\\."]

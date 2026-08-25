@@ -5,6 +5,16 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class RegimeSnapshot:
+    """Cross-market risk regime signal: label, the underlying composite z-score, and a
+    0-100 gauge position that scales continuously with the z-score."""
+
+    label: str
+    composite_zscore: float
+    position: float
+
+
+@dataclass(frozen=True)
 class RiskProxySelection:
     asset_bucket: str
     spread_proxy_series_id: str | None
@@ -55,24 +65,21 @@ class ETFAnalyticsSnapshot:
     def dv01_per_share(self) -> float | None:
         return self.rate_risk.dv01_per_share
 
-    def _spread_value(self, field_name: str):
-        return None if self.spread_risk is None else getattr(self.spread_risk, field_name)
-
     @property
     def spread_beta_per_bp(self) -> float | None:
-        return self._spread_value("beta_per_bp")
+        return None if self.spread_risk is None else self.spread_risk.beta_per_bp
 
     @property
     def spread_model_r2(self) -> float | None:
-        return self._spread_value("regression_r2")
+        return None if self.spread_risk is None else self.spread_risk.regression_r2
 
     @property
     def spread_proxy_used(self) -> str | None:
-        return self._spread_value("proxy_used")
+        return None if self.spread_risk is None else self.spread_risk.proxy_used
 
     @property
     def spread_dv01_proxy_per_share(self) -> float | None:
-        return self._spread_value("dv01_proxy_per_share")
+        return None if self.spread_risk is None else self.spread_risk.dv01_proxy_per_share
 
     @property
     def observations_used(self) -> int | None:

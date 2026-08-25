@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from fixed_income.config.text_utils import etf_text_blob
 
+if TYPE_CHECKING:
+    from fixed_income.etfs import ETF
 
-def classify_bucket(etf) -> str:
+
+def classify_bucket(etf: ETF) -> str:
     """Return the canonical asset bucket for an ETF.
 
     Checks the structured asset_class field first, then falls back to keyword
@@ -51,6 +56,6 @@ def classify_bucket(etf) -> str:
     return "Unknown"
 
 
-def duration_hint(etf) -> str:
+def duration_hint(etf: ETF) -> str:
     """Return the full text blob for an ETF, used as a duration classification hint."""
     return etf_text_blob(etf)

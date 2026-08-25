@@ -1,5 +1,7 @@
 """Small helpers for shaping database query results into app-friendly objects."""
 
+from typing import Any
+
 import pandas as pd
 
 
@@ -16,12 +18,12 @@ def sql_in_clause_params(
 
 def append_date_filters(
     query: str,
-    params: dict,
+    params: dict[str, Any],
     *,
-    start_date=None,
-    end_date=None,
+    start_date: object = None,
+    end_date: object = None,
     column: str = "date",
-) -> tuple[str, dict]:
+) -> tuple[str, dict[str, Any]]:
     """Append optional inclusive date filters to a SQL query and params dict."""
     if start_date is not None:
         query += f" AND {column} >= :start_date"

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO, StringIO
+from typing import Any
 
 import pandas as pd
 import requests
@@ -83,14 +84,14 @@ def _to_date(series: pd.Series) -> pd.Series:
     return pd.to_datetime(series, errors="coerce")
 
 
-def _normalize_cusip(value) -> str | None:
+def _normalize_cusip(value: object) -> str | None:
     text = None if value is None or pd.isna(value) else str(value).strip()
     if not text or text == "-":
         return None
     return text[2:-1] if len(text) == 12 else text
 
 
-def _mbs_date(value) -> str | None:
+def _mbs_date(value: object) -> str | None:
     if not value:
         return None
     parts = str(value).split("-")
@@ -232,7 +233,7 @@ class ETFHoldings:
         total = int(payload.get("size", 0))
         entities = list(payload.get("fund", {}).get("entity", []))  # ← safe get
 
-        def fetch_page(start: int) -> list[dict]:
+        def fetch_page(start: int) -> list[dict[str, Any]]:
             r = self.session.get(
                 url,
                 params={"start": start, "count": 500},
@@ -240,7 +241,8 @@ class ETFHoldings:
                 timeout=20,
             )
             r.raise_for_status()
-            return r.json().get("fund", {}).get("entity", [])  # ← safe get
+            page_rows: list[dict[str, Any]] = r.json().get("fund", {}).get("entity", [])
+            return page_rows
 
         if total > 500:
             with ThreadPoolExecutor(max_workers=8) as executor:
@@ -321,7 +323,7 @@ class ETFHoldings:
         return self._finalize(frame)
 
     @staticmethod
-    async def _fetch_invesco_holdings_async(cusip: str, slug: str) -> list[dict]:
+    async def _fetch_invesco_holdings_async(cusip: str, slug: str) -> list[dict[str, Any]]:
         """Intercept the holdings/fund XHR made by the Invesco product page.
 
         dng-api.invesco.com returns 406 to bare programmatic requests; loading the
@@ -331,13 +333,13 @@ class ETFHoldings:
 
         _base = "https://www.invesco.com/us/en/financial-products/etfs"
         _dng = "https://dng-api.invesco.com"
-        captured: list[dict] = []
+        captured: list[dict[str, Any]] = []
 
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=True)
             page = await browser.new_page()
 
-            async def _intercept(route, request):
+            async def _intercept(route: Any, request: Any) -> None:
                 resp = await route.fetch()
                 url = request.url
                 if cusip in url and _dng in url and "holdings/fund" in url and not captured:

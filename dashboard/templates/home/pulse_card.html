@@ -1,0 +1,15 @@
+<div class="home-panel-kicker">Market Pulse</div>
+<div class="home-side-title">Morning framing</div>
+<div class="home-tag-row home-tag-row--tight">
+  <span class="home-signal-tag home-signal-tag--alert">Risk Off</span>
+  <span class="home-signal-tag">Credit Weakening</span>
+</div>
+<div class="home-pulse-list">
+  {% for row in rows %}
+  <div class="home-pulse-row">
+    <div class="home-pulse-icon">↗</div>
+    <div class="home-pulse-text"><strong>{{ row.title }}</strong>: {{ row.body }}</div>
+    <div class="home-pulse-tag home-pulse-tag--{{ row.tag_class }}">{{ row.tag }}</div>
+  </div>
+  {% endfor %}
+</div>

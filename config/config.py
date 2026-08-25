@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -24,10 +25,11 @@ def get_app_env() -> str:
     return raw if raw in ENV_DB_FILENAMES else "prod"
 
 
-def load_config() -> dict:
+def load_config() -> dict[str, Any]:
     """Load and return the JSON configuration file as a plain dict."""
     with open(CONFIG_PATH, encoding="utf-8") as f:
-        return json.load(f)
+        config: dict[str, Any] = json.load(f)
+    return config
 
 
 APP_ENV = get_app_env()

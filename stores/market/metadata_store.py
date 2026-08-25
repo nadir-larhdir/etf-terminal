@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from threading import Lock
+from typing import Any
 
 import pandas as pd
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
 from db.schema import create_tables
 from db.sql import qualified_table
@@ -41,7 +43,7 @@ class MetadataStore:
         "updated_at",
     ]
 
-    def __init__(self, engine):
+    def __init__(self, engine: Engine) -> None:
         self.engine = engine
         self._schema_ready = False
 
@@ -49,7 +51,7 @@ class MetadataStore:
     # Writes
     # ------------------------------------------------------------------
 
-    def upsert_metadata(self, rows: list[dict]) -> None:
+    def upsert_metadata(self, rows: list[dict[str, Any]]) -> None:
         """Insert or update metadata rows, aligning columns to BASE_COLUMNS."""
         if not rows:
             return
@@ -111,7 +113,7 @@ class MetadataStore:
         self._ensure_schema()
         return self._existing_tickers()
 
-    def get_ticker_metadata(self, ticker: str) -> dict | None:
+    def get_ticker_metadata(self, ticker: str) -> dict[str, Any] | None:
         """Return the metadata dict for a single ticker, or None if not found."""
         self._ensure_schema()
         return self._ticker_metadata(ticker)
@@ -137,7 +139,7 @@ class MetadataStore:
             )
         return set(df["ticker"].tolist()) if not df.empty else set()
 
-    def _ticker_metadata(self, ticker: str) -> dict | None:
+    def _ticker_metadata(self, ticker: str) -> dict[str, Any] | None:
         query = text(f"""
             SELECT * FROM {qualified_table(self.engine, 'etf_metadata')}
             WHERE ticker = :ticker LIMIT 1

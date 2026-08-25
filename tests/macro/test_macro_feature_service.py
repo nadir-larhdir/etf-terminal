@@ -4,41 +4,7 @@ import pandas as pd
 import pytest
 
 from services.macro.macro_feature_service import MacroFeatureService
-
-
-class FakeMacroStore:
-    def __init__(self, matrix: pd.DataFrame) -> None:
-        self.matrix = matrix
-
-    def get_series_matrix(self, series_ids=None, start_date=None, end_date=None) -> pd.DataFrame:
-        frame = self.matrix.copy()
-        if start_date is not None:
-            frame = frame.loc[frame.index >= pd.Timestamp(start_date)]
-        if end_date is not None:
-            frame = frame.loc[frame.index <= pd.Timestamp(end_date)]
-        if series_ids:
-            frame = frame.loc[:, list(series_ids)]
-        return frame
-
-
-class FakeMacroFeatureStore:
-    def __init__(self, latest_date: str | None = None) -> None:
-        self.latest_date = latest_date
-        self.deleted_ranges: list[tuple[str | None, str | None]] = []
-
-    def upsert_features(self, df: pd.DataFrame) -> None:
-        self.last_frame = df.copy()
-
-    def get_latest_feature_date(self) -> str | None:
-        return self.latest_date
-
-    def delete_features(
-        self,
-        *,
-        start_date: str | None = None,
-        end_date: str | None = None,
-    ) -> None:
-        self.deleted_ranges.append((start_date, end_date))
+from tests.fakes import FakeMacroFeatureStore, FakeMacroStore
 
 
 def test_macro_feature_service_builds_credit_oas_features() -> None:

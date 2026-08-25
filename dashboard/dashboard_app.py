@@ -4,16 +4,15 @@ import streamlit as st
 
 from config import APP_ENV, DATA_BACKEND
 from dashboard.cache import app_cache_key, cached_active_etfs
+from dashboard.navigation import VIEWS, active_view, adopt_requested_view, nav_button
 from dashboard.pages import DashboardPage, HomePage, MacroPage, NewsPage
 from dashboard.perf import timed_block
 from dashboard.styles import apply_dashboard_theme
 from db.connection import get_engine
-from fixed_income.analytics import FixedIncomeAnalyticsService, RiskProxySelector
+from fixed_income.analytics import FixedIncomeAnalyticsService, RegimeAnalytics, RiskProxySelector
 from stores.analytics import AnalyticsSnapshotStore
 from stores.macro import MacroFeatureStore, MacroStore
 from stores.market import ETFUniverseStore, HoldingsStore, MetadataStore, PriceStore
-
-NAVIGATION_VIEWS = ("Home", "Dashboard", "News", "Macro")
 
 
 @st.cache_resource(show_spinner=False)
@@ -22,6 +21,7 @@ def get_cached_app_dependencies(data_backend: str, app_env: str):
     engine = get_engine(data_backend=data_backend, app_env=app_env)
     price_store = PriceStore(engine)
     macro_store = MacroStore(engine)
+    macro_feature_store = MacroFeatureStore(engine)
     risk_proxy_selector = RiskProxySelector()
     analytics_snapshot_store = AnalyticsSnapshotStore(engine)
     return {
@@ -31,12 +31,13 @@ def get_cached_app_dependencies(data_backend: str, app_env: str):
         "price_store": price_store,
         "metadata_store": MetadataStore(engine),
         "macro_store": macro_store,
-        "macro_feature_store": MacroFeatureStore(engine),
+        "macro_feature_store": macro_feature_store,
         "analytics_snapshot_store": analytics_snapshot_store,
         "risk_proxy_selector": risk_proxy_selector,
         "analytics_service": FixedIncomeAnalyticsService(
             price_store, macro_store, risk_proxy_selector, analytics_snapshot_store
         ),
+        "regime_analytics": RegimeAnalytics(macro_feature_store),
     }
 
 
@@ -52,13 +53,14 @@ class DashboardApp:
         macro_feature_store,
         analytics_service,
         holdings_store,
+        regime_analytics,
     ):
         self.etf_universe_store = etf_universe_store
         self.price_store = price_store
         self.metadata_store = metadata_store
         self.macro_store = macro_store
         self.macro_feature_store = macro_feature_store
-        self.home_page = HomePage(price_store, macro_feature_store)
+        self.home_page = HomePage(price_store, macro_feature_store, regime_analytics)
         self.news_page = NewsPage(macro_feature_store, price_store)
         self.dashboard_page = DashboardPage(
             price_store, metadata_store, analytics_service, holdings_store
@@ -76,24 +78,18 @@ class DashboardApp:
             st.warning("No active ETFs found in the database.")
             return
 
-        if "active_view" not in st.session_state:
-            st.session_state["active_view"] = "Home"
-
-        requested_view = str(st.query_params.get("view", "")).strip().title()
-        if requested_view in NAVIGATION_VIEWS and requested_view != st.session_state["active_view"]:
-            st.session_state["active_view"] = requested_view
-
+        adopt_requested_view()
         self._render_shell(etf_universe)
 
-        if st.session_state["active_view"] == "Home":
+        if active_view() == "Home":
             self._render_tab_safe("Home", self.home_page.render, etf_universe)
             return
 
-        if st.session_state["active_view"] == "News":
+        if active_view() == "News":
             self._render_tab_safe("News", self.news_page.render)
             return
 
-        if st.session_state["active_view"] == "Macro":
+        if active_view() == "Macro":
             self._render_tab_safe("Macro", self.macro_page.render)
             return
 
@@ -115,22 +111,18 @@ class DashboardApp:
         self._render_navigation(etf_universe)
 
     def _render_navigation(self, etf_universe) -> None:
-        """Render primary/secondary nav buttons and update session state on selection."""
+        """Render the primary navigation strip, highlighting the active view."""
         nav_columns = st.columns([2.2, 0.9, 1.0, 0.9, 0.9, 2.2], vertical_alignment="center")
-        for column, view_name in zip(nav_columns[1:5], NAVIGATION_VIEWS, strict=False):
+        current = active_view()
+        for column, view_name in zip(nav_columns[1:5], VIEWS, strict=False):
             with column:
-                button_type = (
-                    "primary" if st.session_state["active_view"] == view_name else "secondary"
-                )
-                if st.button(
+                nav_button(
+                    view_name,
                     view_name,
                     key=f"nav_{view_name.lower()}",
+                    type="primary" if current == view_name else "secondary",
                     use_container_width=True,
-                    type=button_type,
-                ):
-                    st.session_state["active_view"] = view_name
-                    st.query_params["view"] = view_name.lower()
-                    st.rerun()
+                )
 
     def _render_tab_safe(self, tab_name: str, render_fn, *args) -> None:
         """Call render_fn(*args) and surface any exception as a Streamlit error message."""
@@ -153,5 +145,6 @@ def run_app():
         dependencies["macro_feature_store"],
         dependencies["analytics_service"],
         dependencies["holdings_store"],
+        dependencies["regime_analytics"],
     )
     app.run()

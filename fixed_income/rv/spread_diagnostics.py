@@ -4,9 +4,16 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
+
+from fixed_income import series as ts
+from fixed_income.rv.signals import SignalRegime
+
+if TYPE_CHECKING:
+    from stores.protocols import PriceHistoryReader
 
 try:
     from statsmodels.tsa.stattools import adfuller
@@ -49,20 +56,12 @@ class SpreadDiagnostics:
 
 
 def regime_from_zscore(zscore: float) -> str:
-    """Map a z-score to a lean regime label."""
-    if zscore >= 2.0:
-        return "RICH / EXTREME"
-    if zscore >= 1.0:
-        return "RICH"
-    if zscore <= -2.0:
-        return "CHEAP / EXTREME"
-    if zscore <= -1.0:
-        return "CHEAP"
-    return "NEUTRAL"
+    """Map a z-score to its relative-value regime label."""
+    return SignalRegime.from_zscore(zscore).label
 
 
 def load_pair_prices(
-    price_store,
+    price_store: PriceHistoryReader,
     left_ticker: str,
     right_ticker: str,
     *,
@@ -92,15 +91,13 @@ def log_returns(prices: pd.DataFrame) -> pd.DataFrame:
     """Return aligned daily log returns for a two-column price frame."""
     if prices.empty:
         return pd.DataFrame(columns=["ret_left", "ret_right"])
-    returns = np.log(prices).diff().dropna()
+    returns = ts.log_returns(prices)
     return returns.rename(columns={"close_left": "ret_left", "close_right": "ret_right"})
 
 
 def rolling_beta(returns: pd.DataFrame, window: int = 60) -> pd.Series:
     """Return rolling OLS beta of left returns on right returns."""
-    cov = returns["ret_left"].rolling(window).cov(returns["ret_right"])
-    var = returns["ret_right"].rolling(window).var()
-    return (cov / var).replace([np.inf, -np.inf], np.nan)
+    return ts.RollingWindow(window).beta(returns["ret_left"], returns["ret_right"])
 
 
 def estimate_beta(
@@ -114,15 +111,8 @@ def estimate_beta(
     returns = log_returns(prices)
     if returns.empty:
         return default
-    if source == "full_sample":
-        sample = returns
-    else:
-        sample = returns.tail(lookback or len(returns))
-    var = sample["ret_right"].var()
-    if pd.isna(var) or float(var) == 0:
-        return default
-    beta = sample["ret_left"].cov(sample["ret_right"]) / var
-    return default if pd.isna(beta) else float(beta)
+    sample = returns if source == "full_sample" else returns.tail(lookback or len(returns))
+    return ts.beta(sample["ret_left"], sample["ret_right"], default=default)
 
 
 def build_spread_frame(
@@ -157,12 +147,11 @@ def build_spread_frame(
         frame["spread"] = frame["ret_left"] - beta * frame["ret_right"]
     else:
         frame["spread"] = frame["close_left"] - beta * frame["close_right"]
+    rolling = ts.RollingWindow(z_window)
     frame["spread_change"] = frame["spread"].diff()
-    frame["spread_mean"] = frame["spread"].rolling(z_window).mean()
-    frame["spread_std"] = frame["spread"].rolling(z_window).std(ddof=0)
-    frame["zscore"] = (frame["spread"] - frame["spread_mean"]) / frame["spread_std"].replace(
-        0, np.nan
-    )
+    frame["spread_mean"] = rolling.mean(frame["spread"])
+    frame["spread_std"] = rolling.std(frame["spread"])
+    frame["zscore"] = rolling.zscore(frame["spread"])
     return frame
 
 
@@ -188,12 +177,18 @@ def half_life(series: pd.Series) -> float | None:
     slope, _ = np.polyfit(aligned["lagged"], aligned["delta"], 1)
     if pd.isna(slope) or slope >= 0:
         return None
-    return float(-math.log(2) / slope)
+    estimate = -math.log(2) / slope
+    # A trending spread fits a slope of roughly -0, which produces an astronomically large
+    # half-life rather than a useful one. Reversion slower than the sample is not evidence
+    # of reversion at all, so report it as undefined.
+    if not math.isfinite(estimate) or estimate > len(clean):
+        return None
+    return float(estimate)
 
 
 def cumulative_spread(series: pd.Series, window: int = 5) -> pd.Series:
     """Return a rolling cumulative spread over the given window."""
-    return series.rolling(window).sum()
+    return ts.RollingWindow(window).sum(series)
 
 
 def hurst_exponent(series: pd.Series, max_lag: int = 20) -> float | None:
@@ -214,11 +209,13 @@ def hurst_exponent(series: pd.Series, max_lag: int = 20) -> float | None:
 
 def zero_crossings(series: pd.Series) -> int:
     """Count how often the demeaned spread crosses zero."""
-    clean = (series.dropna() - series.dropna().mean()).dropna()
+    clean = series.dropna()
     if len(clean) < 2:
         return 0
-    signs = np.sign(clean)
-    return int(((signs * signs.shift(1)) < 0).sum())
+    # A spread that lands exactly on the mean is neither side of it; carrying the previous
+    # sign forward keeps that day from hiding the crossing that surrounds it.
+    signs = np.sign(clean - clean.mean()).replace(0, np.nan).ffill().dropna()
+    return int((signs * signs.shift(1) < 0).sum())
 
 
 def adf_diagnostics(series: pd.Series) -> tuple[float | None, float | None, bool | None]:

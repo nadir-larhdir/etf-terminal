@@ -1,6 +1,9 @@
 """SQLAlchemy engine factory supporting local SQLite and Supabase/Postgres backends."""
 
+from typing import Any
+
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 from sqlalchemy.pool import NullPool, QueuePool
 
 from config import APP_ENV, DATA_BACKEND, DATABASE_URL, DB_PATH, DB_SCHEMA
@@ -11,7 +14,7 @@ def _sqlite_url(app_env: str) -> str:
     return f"sqlite:///{DB_PATH.parent / f'market_data_{app_env}.db'}"
 
 
-def _supabase_connect_args(schema_name: str) -> dict:
+def _supabase_connect_args(schema_name: str) -> dict[str, str]:
     """Return psycopg connect_args that pin the Postgres search path to the given schema."""
     return {"options": f"-csearch_path={schema_name}"}
 
@@ -51,7 +54,7 @@ def get_engine(
     data_backend: str | None = None,
     app_env: str | None = None,
     database_url: str | None = None,
-):
+) -> Engine:
     """Create and return a SQLAlchemy engine for the resolved backend.
 
     Falls back to local SQLite when no database URL is available.
@@ -65,7 +68,7 @@ def get_engine(
         return create_engine(_sqlite_url(env), future=True).execution_options(schema_name=None)
 
     normalized_url = _ensure_sslmode(_normalize_postgres_url(resolved_url))
-    engine_kwargs: dict = {
+    engine_kwargs: dict[str, Any] = {
         "future": True,
         "connect_args": _supabase_connect_args(DB_SCHEMA),
         "pool_pre_ping": True,

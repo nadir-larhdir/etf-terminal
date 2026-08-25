@@ -1,0 +1,11 @@
+<div class="rv-metric-card">
+  <div class="rv-metric-accent" style="background:{{ card.color }};"></div>
+  <div class="rv-metric-content">
+    <div class="rv-metric-label">{{ card.label }}</div>
+    <div class="rv-metric-value" style="color:{{ card.color }};">{{ card.value }}</div>
+    {% if card.sub_label %}
+    <div class="rv-metric-sub">{{ card.sub_label }}</div>
+    <div class="rv-metric-sub-value">{{ card.sub_value }}</div>
+    {% endif %}
+  </div>
+</div>

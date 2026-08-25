@@ -5,13 +5,13 @@ from __future__ import annotations
 import pandas as pd
 
 
-def _naive_timestamp(value) -> pd.Timestamp:
+def _naive_timestamp(value: object) -> pd.Timestamp:
     """Parse a value into a timezone-naive Timestamp for safe arithmetic."""
     ts = pd.Timestamp(value)
     return ts.tz_localize(None) if ts.tzinfo is not None else ts
 
 
-def snapshot_age_hours(snapshot, now=None) -> float | None:
+def snapshot_age_hours(snapshot: object, now: object = None) -> float | None:
     """Return the age of a snapshot in hours, measured from updated_at or as_of_date.
 
     Returns None if the snapshot is None or carries no reference timestamp.
@@ -23,12 +23,12 @@ def snapshot_age_hours(snapshot, now=None) -> float | None:
         return None
     current = _naive_timestamp(pd.Timestamp.utcnow() if now is None else now)
     ref = _naive_timestamp(reference)
-    return max((current - ref).total_seconds() / 3600.0, 0.0)
+    return float(max((current - ref).total_seconds() / 3600.0, 0.0))
 
 
 def is_snapshot_stale(
-    snapshot,
-    now=None,
+    snapshot: object,
+    now: object = None,
     ttl_hours: int = 24,
     required_as_of_date: str | None = None,
     required_estimated_duration: float | None = None,

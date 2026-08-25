@@ -8,9 +8,10 @@ from datetime import UTC, datetime, timedelta
 import pandas as pd
 
 from config import MACRO_SERIES_REGISTRY
+from stores.protocols import MacroSeriesClient, MacroSeriesStore
 
 # Re-exported alias kept for backwards compatibility with scripts that import it directly.
-DEFAULT_MACRO_SERIES: dict = MACRO_SERIES_REGISTRY
+DEFAULT_MACRO_SERIES: dict[str, dict[str, str]] = MACRO_SERIES_REGISTRY
 
 
 class MacroDataService:
@@ -30,7 +31,9 @@ class MacroDataService:
         "last_updated_at",
     ]
 
-    def __init__(self, fred_client, macro_store=None):
+    def __init__(
+        self, fred_client: MacroSeriesClient, macro_store: MacroSeriesStore | None = None
+    ) -> None:
         self.fred = fred_client
         self.macro_store = macro_store
 
@@ -54,8 +57,8 @@ class MacroDataService:
         end: str | None = None,
     ) -> dict[str, str]:
         """Fetch only new observations for each series, initialising missing ones from default_start."""
-        self._require_store()
-        latest_dates = self.macro_store.get_latest_stored_dates(series_ids)
+        store = self._require_store()
+        latest_dates = store.get_latest_stored_dates(series_ids)
         effective_end = end or datetime.now(UTC).date().isoformat()
         statuses: dict[str, str] = {}
 
@@ -81,10 +84,11 @@ class MacroDataService:
     # Private helpers
     # ------------------------------------------------------------------
 
-    def _require_store(self) -> None:
-        """Raise if no macro_store was injected — required for all write operations."""
+    def _require_store(self) -> MacroSeriesStore:
+        """Return the injected store, raising if none was provided for a write operation."""
         if self.macro_store is None:
             raise ValueError("MacroDataService requires a macro_store for sync operations.")
+        return self.macro_store
 
     def _resolve_series_details(self, series_id: str) -> dict[str, str]:
         """Merge registry metadata with live FRED metadata, preferring the registry."""
@@ -159,9 +163,9 @@ class MacroDataService:
         """Return the start date for an incremental series fetch."""
         if latest_date is None:
             return default_start
-        return (
-            pd.to_datetime(latest_date).date() - timedelta(days=max(overlap_days, 0))
-        ).isoformat()
+        return str(
+            (pd.Timestamp(latest_date).date() - timedelta(days=max(overlap_days, 0))).isoformat()
+        )
 
     def _write_series_frame(
         self, series_id: str, frame: pd.DataFrame, *, replace_existing: bool
@@ -169,7 +173,8 @@ class MacroDataService:
         """Persist a series frame using replace or upsert depending on replace_existing."""
         if frame.empty:
             return
+        store = self._require_store()
         if replace_existing:
-            self.macro_store.replace_series(series_id, frame)
+            store.replace_series(series_id, frame)
         else:
-            self.macro_store.upsert_series(frame)
+            store.upsert_series(frame)

@@ -118,5 +118,5 @@ if __name__ == "__main__":
         rows = filter_new_ticker_rows(rows, metadata_store.get_existing_tickers())
 
     metadata_store.upsert_metadata(rows)
-    processed = ", ".join(row["ticker"] for row in rows) if rows else "none"
+    processed = ", ".join(str(row["ticker"]) for row in rows) if rows else "none"
     logger.info("Static metadata processed for %s ticker(s): %s", len(rows), processed)

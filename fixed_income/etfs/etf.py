@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
 import pandas as pd
+
+from fixed_income import series as ts
+
+if TYPE_CHECKING:
+    from stores.protocols import DateLike, MetadataReader, PriceHistoryReader
 
 
 def _empty_series() -> pd.Series:
-    return pd.Series(dtype=float)
+    return ts.EMPTY
 
 
 @dataclass
@@ -31,14 +35,29 @@ class ETF:
     def set_metadata(self, metadata: dict[str, Any] | None) -> None:
         self.metadata = metadata.copy() if metadata else {}
 
-    def load_history(self, price_store) -> pd.DataFrame:
+    def load_history(self, price_store: PriceHistoryReader) -> pd.DataFrame:
         self.history = price_store.get_ticker_price_history(self.ticker)
         return self.history
 
-    def load_metadata(self, metadata_store) -> dict[str, Any]:
+    def load_metadata(self, metadata_store: MetadataReader) -> dict[str, Any]:
         loaded = metadata_store.get_ticker_metadata(self.ticker)
         self.metadata = loaded.copy() if loaded else {}
         return self.metadata
+
+    def metadata_number(self, key: str) -> float | None:
+        """Return a provider metadata field as a float, or None if absent or non-numeric.
+
+        Provider feeds use "", "N/A", and NaN interchangeably for a missing value, so all
+        three collapse to None here rather than at each call site.
+        """
+        raw_value = self.metadata.get(key)
+        if raw_value is None or raw_value in ("", "N/A"):
+            return None
+        try:
+            value = float(raw_value)
+        except (TypeError, ValueError):
+            return None
+        return None if pd.isna(value) else value
 
     def last_price(self) -> float | None:
         if self.history.empty or "close" not in self.history.columns:
@@ -69,17 +88,10 @@ class ETF:
         return self.history["volume"].copy()
 
     def returns(self) -> pd.Series:
-        prices = self.adj_close_series()
-        if prices.empty:
-            return _empty_series()
-        return prices.pct_change().dropna()
+        return ts.simple_returns(self.adj_close_series())
 
     def log_returns(self) -> pd.Series:
-        prices = self.adj_close_series()
-        if prices.empty:
-            return _empty_series()
-        logged = pd.Series(np.log(prices.replace(0, np.nan)), index=prices.index).dropna()
-        return logged.diff().dropna()
+        return ts.log_returns(self.adj_close_series())
 
     def normalized_price(self, base: float = 100.0) -> pd.Series:
         close = self.close_series()
@@ -91,12 +103,9 @@ class ETF:
         return (close / first_value) * base
 
     def rolling_volume_mean(self, window: int = 30) -> pd.Series:
-        volume = self.volume_series()
-        if volume.empty:
-            return _empty_series()
-        return volume.rolling(window).mean()
+        return ts.RollingWindow(window).mean(self.volume_series())
 
-    def history_between(self, start_date, end_date) -> pd.DataFrame:
+    def history_between(self, start_date: DateLike, end_date: DateLike) -> pd.DataFrame:
         if self.history.empty:
             return self.history.copy()
         index = pd.to_datetime(self.history.index)
@@ -122,11 +131,7 @@ class ETF:
         average_volume = float(trailing.mean()) if not volume.empty else None
         std_volume = float(trailing.std(ddof=0)) if len(trailing) > 1 else None
         volume_z = None
-        if (
-            std_volume not in (None, 0.0)
-            and current_volume is not None
-            and average_volume is not None
-        ):
+        if std_volume and current_volume is not None and average_volume is not None:
             volume_z = (current_volume - average_volume) / std_volume
 
         high = float(self.history["high"].iloc[-1]) if "high" in self.history.columns else None

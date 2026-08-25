@@ -3,8 +3,9 @@ STREAMLIT ?= streamlit
 PYTEST ?= pytest
 RUFF ?= ruff
 BLACK ?= black
+MYPY ?= mypy
 
-.PHONY: run run-local run-supabase refresh refresh-force test lint fmt check clean
+.PHONY: run run-local run-supabase refresh refresh-force test cov lint types fmt check clean
 
 run:
 	$(STREAMLIT) run main.py
@@ -24,14 +25,21 @@ refresh-force:
 test:
 	$(PYTEST)
 
+cov:
+	$(PYTEST) --cov --cov-report=term-missing
+
 lint:
 	$(RUFF) check .
+
+types:
+	$(MYPY) .
 
 fmt:
 	$(BLACK) .
 
+# The full gate, in the same order CI runs it.
 check:
-	$(RUFF) check . && $(BLACK) --check .
+	$(BLACK) --check . && $(RUFF) check . && $(MYPY) . && $(PYTEST)
 
 clean:
 	find . \( -name '__pycache__' -o -name '.pytest_cache' -o -name '.ruff_cache' \) -prune -exec rm -rf {} +

@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 from config import FMP_API_KEY, FMP_BASE_URL, normalize_asset_class
 from services.market.fmp_client import FMPClient
+from stores.protocols import (
+    ETFUniverseWriter,
+    MetadataStorage,
+    PriceHistoryStorage,
+    PriceHistorySyncer,
+)
 
 # Keywords used to confirm that a new symbol is a fixed-income ETF.
 FIXED_INCOME_KEYWORDS = (
@@ -36,8 +44,8 @@ class TickerProfile:
     ticker: str
     name: str
     asset_class: str
-    metadata_row: dict
-    diagnostics: dict
+    metadata_row: dict[str, Any]
+    diagnostics: dict[str, Any]
 
 
 class TickerManagerService:
@@ -45,12 +53,12 @@ class TickerManagerService:
 
     def __init__(
         self,
-        etf_universe_store,
-        price_store,
-        metadata_store,
-        market_data_service,
-        metadata_builder=None,
-    ):
+        etf_universe_store: ETFUniverseWriter,
+        price_store: PriceHistoryStorage,
+        metadata_store: MetadataStorage,
+        market_data_service: PriceHistorySyncer,
+        metadata_builder: Callable[[str], dict[str, Any]] | None = None,
+    ) -> None:
         self.etf_universe_store = etf_universe_store
         self.price_store = price_store
         self.metadata_store = metadata_store
@@ -143,13 +151,13 @@ class TickerManagerService:
         """Concatenate and lowercase a list of strings for keyword matching."""
         return " ".join(v.lower() for v in values if v)
 
-    def _default_metadata_builder(self, ticker: str) -> dict:
+    def _default_metadata_builder(self, ticker: str) -> dict[str, Any]:
         """Build metadata using the enrichment script's production helper."""
         from scripts.market.enrich_metadata_from_fmp import build_metadata_row
 
         return build_metadata_row(ticker)
 
-    def _derive_asset_class(self, metadata_row: dict) -> str:
+    def _derive_asset_class(self, metadata_row: dict[str, Any]) -> str:
         """Infer an asset class label from metadata text fields using keyword matching."""
         blob = self._search_blob(
             [
@@ -159,7 +167,7 @@ class TickerManagerService:
                 metadata_row.get("description") or "",
             ]
         )
-        _RULES = (
+        _RULES: tuple[tuple[tuple[str, ...], Callable[[str], str]], ...] = (
             (
                 ("treasury",),
                 lambda b: (
@@ -182,5 +190,5 @@ class TickerManagerService:
         )
         for keywords, label_fn in _RULES:
             if any(kw in blob for kw in keywords):
-                return label_fn(blob)
+                return str(label_fn(blob))
         return "Fixed Income"

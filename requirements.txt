@@ -10,3 +10,4 @@ python-dotenv
 beautifulsoup4
 playwright
 pandas_datareader
+jinja2

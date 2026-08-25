@@ -13,6 +13,8 @@ from dashboard.components.charts import (
 )
 from dashboard.components.controls import DashboardControls
 from dashboard.perf import timed_block
+from dashboard.presenters.rv import PillBadge, RVPresenter
+from dashboard.render import render, stylesheet
 from dashboard.styles.table_styles import DashboardTable
 from fixed_income.etfs import ETF
 from fixed_income.rv.pair_analytics import (
@@ -20,216 +22,14 @@ from fixed_income.rv.pair_analytics import (
     filtered_prices,
     rolling_correlation,
 )
+from fixed_income.rv.signals import SignalRegime
 from fixed_income.rv.spread_definition import SpreadDefinition
 from fixed_income.rv.spread_diagnostics import (
     diagnose_spread,
     forward_spread_reversion_stats,
-    regime_from_zscore,
     spread_stability_score,
 )
-
-_RV_CSS = """
-<style>
-[class^="rv-"], [class^="rv-"] * {
-    font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
-}
-.rv-metric-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 0.55rem;
-    margin-bottom: 0.72rem;
-}
-.rv-metric-card {
-    border: 1px solid #E4E0D8;
-    background: #FBF8F1;
-    border-radius: 8px;
-    padding: 0.70rem 0.92rem;
-    min-height: 112px;
-    display: grid;
-    grid-template-columns: 3px 1fr;
-    gap: 0.75rem;
-}
-.rv-metric-accent {
-    width: 3px;
-    border-radius: 999px;
-    min-height: 100%;
-}
-.rv-metric-content {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-.rv-metric-label {
-    color: var(--etf-ink-muted);
-    font-size: 0.60rem;
-    text-transform: uppercase;
-    letter-spacing: 0.38px;
-    margin-bottom: 0.28rem;
-    font-weight: 700;
-}
-.rv-metric-value {
-    font-size: 0.96rem;
-    font-weight: 700;
-    line-height: 1.08;
-    color: var(--etf-ink);
-    margin-bottom: 0.48rem;
-    text-transform: uppercase;
-}
-.rv-metric-sub {
-    color: #8D8779;
-    font-size: 0.58rem;
-    text-transform: uppercase;
-    letter-spacing: 0.24px;
-    margin-bottom: 0.06rem;
-}
-.rv-metric-sub-value {
-    color: var(--etf-ink);
-    font-size: 0.76rem;
-    font-weight: 700;
-    line-height: 1.1;
-}
-.rv-chart-panel {
-    border: 1px solid #E4E0D8;
-    background: #FBF8F1;
-    border-radius: 8px;
-    padding: 0.60rem 0.75rem 0.35rem 0.75rem;
-    margin-bottom: 0.75rem;
-}
-.rv-chart-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.8rem;
-    margin-bottom: 0.3rem;
-    flex-wrap: wrap;
-}
-.rv-chart-title {
-    color: var(--etf-ink);
-    font-size: 0.78rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.28px;
-}
-.rv-chart-controls {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    flex-wrap: wrap;
-    margin-left: auto;
-}
-div[role="radiogroup"] {
-    display: flex !important;
-    gap: 0 !important;
-    flex-wrap: nowrap !important;
-    border: 1px solid var(--etf-border) !important;
-    border-radius: 4px !important;
-    overflow: hidden !important;
-    background: #FBF8F1 !important;
-}
-div[role="radiogroup"] label[data-baseweb="radio"] {
-    margin: 0 !important;
-    padding: 0.28rem 0.75rem !important;
-    min-height: 30px !important;
-    border: none !important;
-    border-right: 1px solid var(--etf-border) !important;
-    background: #FBF8F1 !important;
-    display: flex !important;
-    align-items: center !important;
-}
-div[role="radiogroup"] label[data-baseweb="radio"]:last-child {
-    border-right: none !important;
-}
-div[role="radiogroup"] label[data-baseweb="radio"] > div:first-child {
-    display: none !important;
-}
-div[role="radiogroup"] label[data-baseweb="radio"] > div:last-child {
-    margin-left: 0 !important;
-}
-div[role="radiogroup"] label[data-baseweb="radio"] p {
-    margin: 0 !important;
-    color: var(--etf-ink-muted) !important;
-    font-size: 0.62rem !important;
-    font-weight: 700 !important;
-    line-height: 1 !important;
-    text-transform: uppercase;
-    letter-spacing: 0.28px !important;
-}
-div[role="radiogroup"] label[data-baseweb="radio"]:has(input:checked) {
-    background: rgba(111,123,70,0.08) !important;
-    border-color: var(--etf-accent) !important;
-}
-div[role="radiogroup"] label[data-baseweb="radio"]:has(input:checked) p {
-    color: var(--etf-accent) !important;
-}
-.rv-col-panel {
-    border: 1px solid #E4E0D8;
-    background: #FBF8F1;
-    border-radius: 8px;
-    padding: 0.62rem 0.76rem;
-    min-height: 100%;
-}
-.rv-col-title {
-    color: #8D8779;
-    font-size: 0.62rem;
-    text-transform: uppercase;
-    letter-spacing: 0.42px;
-    font-weight: 700;
-    margin-bottom: 0.34rem;
-    border-bottom: 1px solid var(--etf-border);
-    padding-bottom: 0.22rem;
-}
-.rv-col-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.15rem 0;
-    border-bottom: 1px solid rgba(216,212,199,0.5);
-}
-.rv-col-row:last-child { border-bottom: none; }
-.rv-col-key {
-    color: var(--etf-ink-muted);
-    font-size: 0.60rem;
-    text-transform: uppercase;
-    letter-spacing: 0.22px;
-}
-.rv-col-val {
-    color: var(--etf-ink);
-    font-size: 0.68rem;
-    font-weight: 700;
-}
-.rv-col-framework-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 0.35rem;
-    padding: 0.16rem 0;
-    border-bottom: 1px solid rgba(216,212,199,0.5);
-}
-.rv-col-framework-row:last-child { border-bottom: none; }
-.rv-col-zone {
-    color: var(--etf-ink-muted);
-    font-size: 0.60rem;
-    text-transform: uppercase;
-    letter-spacing: 0.20px;
-}
-.rv-col-action {
-    font-size: 0.68rem;
-    font-weight: 700;
-    text-transform: uppercase;
-}
-.rv-action-entry { color: var(--etf-up); }
-.rv-action-exit { color: #C4882A; }
-.rv-action-stop { color: #C97C6B; }
-.rv-link {
-    text-align: center;
-    color: #8D8779;
-    font-size: 0.68rem;
-    font-weight: 700;
-    margin-top: 0.45rem;
-    text-transform: uppercase;
-    letter-spacing: 0.26px;
-}
-</style>
-"""
+from fixed_income.series import volume_multiple
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -287,10 +87,9 @@ def _cached_screener_rows(
             if not spread_last.empty and not spread_mean.empty
             else 0.0
         )
-        regime = regime_from_zscore(spread_diagnostics.zscore_last)
+        regime = SignalRegime.from_zscore(spread_diagnostics.zscore_last)
         fwd_10_ret, _, _ = forward_spread_reversion_stats(spread_frame, 10)
         fwd_20_ret, _, _ = forward_spread_reversion_stats(spread_frame, 20)
-        action = _action_label(spread_diagnostics.zscore_last)
         screener_rows.append(
             {
                 "PAIR": SpreadDefinition(base_security.ticker, candidate_security.ticker).name,
@@ -299,35 +98,19 @@ def _cached_screener_rows(
                 "BETA (60D)": beta_60d,
                 "CORR (60D)": corr_60d,
                 "HALF-LIFE": spread_diagnostics.half_life_days or 0.0,
-                "REGIME": regime.replace(" / EXTREME", ""),
+                "REGIME": regime.compact_label,
                 "FWD 10D RET": fwd_10_ret,
                 "FWD 20D RET": fwd_20_ret,
-                "ACTION": _pill_badge(action),
+                "ACTION": _pill_badge(regime.action),
             }
         )
 
     return pd.DataFrame(screener_rows)
 
 
-def _action_label(z: float) -> str:
-    """Map a z-score to a lean screener action."""
-    if abs(z) >= 1.0:
-        return "WATCH"
-    return "HOLD"
-
-
 def _pill_badge(label: str) -> str:
-    """Return an outlined pill badge HTML string."""
-    styles = {
-        "WATCH": "color:#C4882A;border:1px solid rgba(196,136,42,0.45);background:rgba(196,136,42,0.06);",
-        "HOLD": "color:#6B6560;border:1px solid rgba(141,135,121,0.40);background:rgba(141,135,121,0.05);",
-    }
-    style = styles.get(label, styles["HOLD"])
-    return (
-        f"<span style='display:inline-flex;align-items:center;justify-content:center;"
-        f"min-width:56px;padding:0.18rem 0.42rem;border-radius:999px;font-size:0.58rem;"
-        f"font-weight:700;letter-spacing:0.22px;text-transform:uppercase;{style}'>{label}</span>"
-    )
+    """Return the screener's outlined WATCH / HOLD pill."""
+    return render("rv/pill_badge.html", badge=PillBadge.from_label(label))
 
 
 class RVTab:
@@ -335,55 +118,9 @@ class RVTab:
 
     def __init__(self, price_store):
         self.price_store = price_store
+        self.presenter = RVPresenter()
         self.table = DashboardTable()
         self.controls = DashboardControls()
-
-    def _metric_card_html(
-        self,
-        label: str,
-        value: str,
-        sub: str = "",
-        *,
-        value_color: str = "var(--etf-ink)",
-    ) -> str:
-        """Return HTML for a single RV metric card."""
-        accent = value_color if value_color.startswith("var(") else value_color
-        sub_block = ""
-        if sub:
-            title, _, detail = sub.partition("|")
-            sub_block = (
-                f"<div class='rv-metric-sub'>{title}</div>"
-                f"<div class='rv-metric-sub-value'>{detail or title}</div>"
-            )
-        return (
-            f"<div class='rv-metric-card'>"
-            f"<div class='rv-metric-accent' style='background:{accent};'></div>"
-            f"<div class='rv-metric-content'>"
-            f"<div class='rv-metric-label'>{label}</div>"
-            f"<div class='rv-metric-value' style='color:{value_color};'>{value}</div>"
-            f"{sub_block}"
-            f"</div>"
-            f"</div>"
-        )
-
-    def _rv_signal(self, current_z: float) -> str:
-        """Return the compact signal label used in the KPI strip."""
-        if current_z >= 1.0:
-            return "RICH"
-        if current_z <= -1.0:
-            return "CHEAP"
-        return "NEUTRAL"
-
-    def _volume_multiple(self, history: pd.DataFrame) -> float | None:
-        """Return latest volume divided by the 30-day average."""
-        if history.empty or "volume" not in history.columns:
-            return None
-        volume = history["volume"].astype(float)
-        avg = volume.rolling(30, min_periods=5).mean().iloc[-1]
-        current = volume.iloc[-1]
-        if pd.isna(current) or pd.isna(avg) or avg == 0:
-            return None
-        return float(current / avg)
 
     def _render_top_cards(
         self,
@@ -396,42 +133,17 @@ class RVTab:
         fwd_20_n: int,
         fair_value: float,
     ) -> None:
-        """Render the 4 top metric cards: RV SIGNAL / REGIME / DISLOCATION / FWD RETURN 20D."""
-        signal_label = self._rv_signal(current_z)
-        signal_color = (
-            "var(--etf-down)"
-            if signal_label == "RICH"
-            else "var(--etf-up)" if signal_label == "CHEAP" else "var(--etf-ink)"
+        """Render the RV Signal / Regime / Dislocation / Fwd Return headline cards."""
+        cards = self.presenter.top_cards(
+            zscore=current_z,
+            stability=stability,
+            deviation_percent=abs_dev_pct,
+            fair_value_percent=fair_value,
+            forward_return_percent=fwd_20_avg,
+            hit_rate=fwd_20_hit,
+            event_count=fwd_20_n,
         )
-        regime_color = "#C4882A"
-        disloc_color = "var(--etf-down)" if abs_dev_pct >= 0 else "var(--etf-up)"
-        fwd_color = "var(--etf-up)" if fwd_20_avg >= 0 else "var(--etf-down)"
-        cards = "".join(
-            [
-                self._metric_card_html(
-                    "RV Signal", signal_label, f"Z-Score|{current_z:.2f}", value_color=signal_color
-                ),
-                self._metric_card_html(
-                    "Regime",
-                    rv_regime.replace(" / EXTREME", ""),
-                    f"Stability|{stability:.0f} / 100",
-                    value_color=regime_color,
-                ),
-                self._metric_card_html(
-                    "Dislocation",
-                    f"{abs_dev_pct:+.2f}%",
-                    f"Fair Value (20D)|{fair_value:+.2f}%",
-                    value_color=disloc_color,
-                ),
-                self._metric_card_html(
-                    "Fwd Return (20D)",
-                    f"{fwd_20_avg:+.2f}%",
-                    f"Hit Rate|{fwd_20_hit:.0%} ({int(round(fwd_20_hit * fwd_20_n))}/{fwd_20_n})",
-                    value_color=fwd_color,
-                ),
-            ]
-        )
-        st.markdown(f"<div class='rv-metric-grid'>{cards}</div>", unsafe_allow_html=True)
+        st.markdown(render("rv/metric_grid.html", cards=cards), unsafe_allow_html=True)
 
     def _render_three_columns(
         self,
@@ -536,7 +248,7 @@ class RVTab:
 
     def _render_chart_section(
         self, rv_merged: pd.DataFrame, selected_security: str, compare_security: str
-    ) -> None:
+    ) -> str:
         """Render the chart section with compact segmented selectors."""
         st.markdown("<div class='rv-chart-panel'>", unsafe_allow_html=True)
         head_left, head_right = st.columns([0.46, 0.54])
@@ -606,7 +318,7 @@ class RVTab:
 
     def render(self, security: ETF, tickers) -> None:
         """Render the RV Analysis tab: metric cards, chart, three-column panels, and screener."""
-        st.markdown(_RV_CSS, unsafe_allow_html=True)
+        st.markdown(stylesheet("rv_tab.css"), unsafe_allow_html=True)
         st.subheader("RV Analysis")
         hist = security.history
         selected_security = security.ticker
@@ -715,7 +427,7 @@ class RVTab:
         )
         abs_dev_pct = current_spread - fair_value
         half_life = spread_diagnostics.half_life_days or 0.0
-        rv_regime = regime_from_zscore(current_z)
+        rv_regime = SignalRegime.from_zscore(current_z).label
         stability = spread_stability_score(spread_diagnostics)
 
         _, fwd_10_hit, fwd_10_n = forward_spread_reversion_stats(spread_frame, 10)
@@ -729,8 +441,8 @@ class RVTab:
         )
         rv_merged["cum_spread"] = rv_merged["return_spread"].fillna(0.0).cumsum()
 
-        left_liquidity = self._volume_multiple(hist)
-        right_liquidity = self._volume_multiple(compare_hist)
+        left_liquidity = volume_multiple(hist)
+        right_liquidity = volume_multiple(compare_hist)
         r_squared = current_corr_60**2
         residual_5d = (
             float(beta_adj_spread.tail(5).mean()) * 100.0
@@ -799,9 +511,9 @@ class RVTab:
 
         with st.expander("Signal History"):
             signal_history = rv_merged[["zscore"]].copy().reset_index()
-            signal_labels = signal_history["zscore"].apply(self._signal_regime)
-            signal_history["regime"] = signal_labels.map(lambda v: v[0])
-            signal_history["cross"] = signal_labels.map(lambda v: v[1])
+            regimes = signal_history["zscore"].map(SignalRegime.from_zscore)
+            signal_history["regime"] = regimes.map(lambda regime: regime.label)
+            signal_history["cross"] = regimes.map(lambda regime: regime.threshold)
             signal_history["date"] = signal_history["date"].dt.strftime("%Y-%m-%d")
             signal_history["zscore"] = signal_history["zscore"].map(lambda x: f"{x:,.2f}")
             signal_history = signal_history.rename(
@@ -811,20 +523,5 @@ class RVTab:
             self.table.render(signal_history, hide_index=True)
 
     def _format_adf_pvalue(self, value: float | None, is_stationary: bool | None) -> str:
-        """Format ADF p-value with a concise mean-reversion read."""
-        if value is None or is_stationary is None:
-            return "--"
-        label = "MR" if is_stationary else "No MR"
-        return f"{value:.4f} ({label})"
-
-    def _signal_regime(self, z_value: float) -> tuple[str, str]:
-        """Map a z-score to a (regime label, threshold label) pair for the signal-history table."""
-        if z_value >= 2:
-            return "RICH / EXTREME", "+2σ"
-        if z_value >= 1:
-            return "RICH", "+1σ"
-        if z_value <= -2:
-            return "CHEAP / EXTREME", "-2σ"
-        if z_value <= -1:
-            return "CHEAP", "-1σ"
-        return "NEUTRAL", ""
+        """Format the ADF p-value with its mean-reversion read."""
+        return self.presenter.adf_label(value, is_stationary)

@@ -18,7 +18,7 @@ def ewma_blend(values: list[float | None], alpha: float = EWMA_ALPHA) -> float |
     return float(pd.Series(valid, dtype=float).ewm(alpha=alpha, adjust=False).mean().iloc[-1])
 
 
-def _ewma_weights(length: int, lookback_days: int) -> np.ndarray:
+def _ewma_weights(length: int, lookback_days: int) -> np.ndarray[Any, Any]:
     half_life = max(10.0, lookback_days / 3.0)
     ages = np.arange(length - 1, -1, -1, dtype=float)
     return np.power(0.5, ages / half_life)
@@ -31,8 +31,8 @@ def _filter_outliers(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def _weighted_fit(
-    design: np.ndarray, y: np.ndarray, weights: np.ndarray
-) -> tuple[np.ndarray, float | None]:
+    design: np.ndarray[Any, Any], y: np.ndarray[Any, Any], weights: np.ndarray[Any, Any]
+) -> tuple[np.ndarray[Any, Any], float | None]:
     sqrt_w = np.sqrt(weights)
     coeffs = np.linalg.lstsq(design * sqrt_w[:, None], y * sqrt_w, rcond=None)[0]
     fitted = design @ coeffs

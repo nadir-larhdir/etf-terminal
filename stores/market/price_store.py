@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as pd
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
 from db.sql import pandas_to_sql_kwargs, qualified_table
+from stores.protocols import DateLike
 from stores.query_utils import (
     append_date_filters,
     index_history_frame,
@@ -18,7 +22,7 @@ from stores.query_utils import (
 class PriceStore:
     """Persist and retrieve OHLCV price history for ETF tickers."""
 
-    def __init__(self, engine):
+    def __init__(self, engine: Engine) -> None:
         self.engine = engine
 
     # ------------------------------------------------------------------
@@ -84,16 +88,38 @@ class PriceStore:
         normalized = tuple(sorted(tickers)) if tickers else None
         return self._latest_stored_dates(normalized)
 
-    def get_ticker_price_history(self, ticker: str, start_date=None, end_date=None) -> pd.DataFrame:
+    def get_ticker_price_history(
+        self, ticker: str, start_date: DateLike = None, end_date: DateLike = None
+    ) -> pd.DataFrame:
         """Return a date-indexed price history frame for a single ticker."""
         return self._ticker_price_history(ticker, start_date, end_date).copy()
 
     def get_multi_ticker_price_history(
-        self, tickers: list[str], start_date=None, end_date=None
+        self, tickers: list[str], start_date: DateLike = None, end_date: DateLike = None
     ) -> dict[str, pd.DataFrame]:
         """Return a dict of ticker → date-indexed price history for multiple tickers."""
         normalized = tuple(sorted(dict.fromkeys(tickers)))
         frame = self._multi_ticker_history(normalized, start_date, end_date).copy()
+        if frame.empty:
+            return {}
+        return {
+            str(ticker): index_history_frame(ticker_frame.drop(columns=["ticker"]))
+            for ticker, ticker_frame in frame.groupby("ticker", sort=False)
+        }
+
+    def get_recent_price_history(
+        self, tickers: list[str], sessions: int = 30
+    ) -> dict[str, pd.DataFrame]:
+        """Return the last `sessions` rows per ticker.
+
+        The window is applied in SQL rather than by fetching whole histories and slicing
+        in pandas: the homepage only needs the tail, and over a network backend the
+        difference is the entire price table versus a few rows per ticker.
+        """
+        normalized = tuple(sorted(dict.fromkeys(tickers)))
+        if not normalized or sessions < 1:
+            return {}
+        frame = self._recent_history(normalized, sessions).copy()
         if frame.empty:
             return {}
         return {
@@ -107,7 +133,7 @@ class PriceStore:
 
     def _existing_tickers(self, tickers: tuple[str, ...] | None) -> set[str]:
         query = f"SELECT DISTINCT ticker FROM {qualified_table(self.engine, 'price_history')}"
-        params: dict = {}
+        params: dict[str, Any] = {}
         if tickers:
             placeholders, params = sql_in_clause_params("ticker", tickers)
             query += f" WHERE ticker IN ({placeholders})"
@@ -117,7 +143,7 @@ class PriceStore:
 
     def _latest_stored_dates(self, tickers: tuple[str, ...] | None) -> dict[str, str]:
         query = latest_date_query(qualified_table(self.engine, "price_history"), "ticker")
-        params: dict = {}
+        params: dict[str, Any] = {}
         if tickers:
             placeholders, params = sql_in_clause_params("ticker", tickers)
             query += f" WHERE ticker IN ({placeholders})"
@@ -126,13 +152,15 @@ class PriceStore:
             df = pd.read_sql(text(query), conn, params=params)
         return latest_dates_map(df, key_column="ticker")
 
-    def _ticker_price_history(self, ticker: str, start_date=None, end_date=None) -> pd.DataFrame:
+    def _ticker_price_history(
+        self, ticker: str, start_date: DateLike = None, end_date: DateLike = None
+    ) -> pd.DataFrame:
         query = f"""
         SELECT date, open, high, low, close, adj_close, volume
         FROM {qualified_table(self.engine, 'price_history')}
         WHERE ticker = :ticker
         """
-        params: dict = {"ticker": ticker}
+        params: dict[str, Any] = {"ticker": ticker}
         query, params = append_date_filters(query, params, start_date=start_date, end_date=end_date)
         query += " ORDER BY date"
         with self.engine.connect() as conn:
@@ -140,7 +168,7 @@ class PriceStore:
         return index_history_frame(df)
 
     def _multi_ticker_history(
-        self, tickers: tuple[str, ...], start_date=None, end_date=None
+        self, tickers: tuple[str, ...], start_date: DateLike = None, end_date: DateLike = None
     ) -> pd.DataFrame:
         if not tickers:
             return pd.DataFrame(
@@ -154,5 +182,22 @@ class PriceStore:
         """
         query, params = append_date_filters(query, params, start_date=start_date, end_date=end_date)
         query += " ORDER BY ticker, date"
+        with self.engine.connect() as conn:
+            return pd.read_sql(text(query), conn, params=params)
+
+    def _recent_history(self, tickers: tuple[str, ...], sessions: int) -> pd.DataFrame:
+        """Return the newest `sessions` rows per ticker, oldest first within each ticker."""
+        placeholders, name_params = sql_in_clause_params("ticker", tickers)
+        params: dict[str, Any] = {**name_params, "sessions": sessions}
+        query = f"""
+        WITH ranked AS (
+            SELECT ticker, date, open, high, low, close, adj_close, volume,
+                   ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY date DESC) AS rn
+            FROM {qualified_table(self.engine, 'price_history')}
+            WHERE ticker IN ({placeholders})
+        )
+        SELECT ticker, date, open, high, low, close, adj_close, volume
+        FROM ranked WHERE rn <= :sessions ORDER BY ticker, date
+        """
         with self.engine.connect() as conn:
             return pd.read_sql(text(query), conn, params=params)

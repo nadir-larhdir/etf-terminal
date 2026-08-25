@@ -6,6 +6,7 @@ import streamlit as st
 from pandas import DatetimeIndex
 
 from dashboard.components.controls import WINDOW_LOOKBACK_MAP
+from dashboard.format import Formatter
 from dashboard.mobile import PLOTLY_CHART_CONFIG, responsive_chart_layout
 
 TERMINAL_FONT = (
@@ -20,6 +21,9 @@ CHART_TEAL = "#7FB9AA"
 CHART_UP = "#5DA861"
 CHART_DOWN = "#C46A5A"
 CHART_GOLD = "#C4952A"
+
+
+FMT = Formatter(missing="N/A")
 
 
 def _filter_by_period(hist: pd.DataFrame, period_label: str) -> pd.DataFrame:
@@ -42,15 +46,6 @@ def compute_default_date_range(hist: pd.DataFrame, period_label: str):
     filtered = _filter_by_period(hist, period_label)
     idx = DatetimeIndex(filtered.index)
     return idx.min().date(), idx.max().date()
-
-
-def format_volume_label(value: float) -> str:
-    """Format a raw volume integer as a compact string (e.g. '24M', '1MM')."""
-    if value >= 1_000_000:
-        return f"{value / 1_000_000:.0f}MM"
-    if value >= 1_000:
-        return f"{value / 1_000:.0f}M"
-    return f"{value:.0f}"
 
 
 def _apply_terminal_chart_layout(
@@ -209,7 +204,7 @@ def render_volume_chart(hist: pd.DataFrame, ticker: str, start_date, end_date):
         else 10_000_000 if max_volume <= 100_000_000 else 20_000_000
     )
     tick_vals = list(range(0, int(max_volume * 1.15) + step, step))
-    tick_text = [format_volume_label(v) for v in tick_vals]
+    tick_text = [FMT.compact(v, 0) for v in tick_vals]
 
     fig = go.Figure()
     fig.add_trace(

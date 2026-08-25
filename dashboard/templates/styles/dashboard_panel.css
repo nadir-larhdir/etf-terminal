@@ -1,0 +1,113 @@
+[class^="db-"], [class^="db-"] * {
+    font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+}
+.db-price-card {
+    border: 1px solid var(--etf-border);
+    background: var(--etf-bg-elevated);
+    padding: 0.55rem 0.65rem 0.50rem 0.65rem;
+    margin: 0.35rem 0 0.40rem 0;
+}
+.db-price-ticker {
+    color: var(--etf-ink-muted);
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.42px;
+    margin-bottom: 0.04rem;
+}
+.db-price-value {
+    color: var(--etf-ink);
+    font-size: 1.80rem;
+    font-weight: 700;
+    line-height: 1.04;
+    margin-bottom: 0.12rem;
+    letter-spacing: -0.3px;
+}
+.db-price-chg-row {
+    display: flex;
+    gap: 0.55rem;
+    align-items: baseline;
+}
+.db-price-chg { font-size: 0.86rem; font-weight: 700; }
+.db-price-pos { color: var(--etf-up); }
+.db-price-neg { color: var(--etf-down); }
+.db-meta-list {
+    margin: 0 0 0.40rem 0;
+    border: 1px solid var(--etf-border);
+    background: var(--etf-bg-panel);
+}
+.db-meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0.17rem 0.50rem;
+    border-bottom: 1px solid var(--etf-border);
+    gap: 0.3rem;
+}
+.db-meta-row:last-child { border-bottom: none; }
+.db-meta-key {
+    color: var(--etf-ink-muted);
+    font-size: 0.60rem;
+    text-transform: uppercase;
+    letter-spacing: 0.28px;
+    flex-shrink: 0;
+}
+.db-meta-val {
+    color: var(--etf-ink);
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-align: right;
+    word-break: break-word;
+}
+.db-nav-label {
+    color: var(--etf-ink-muted);
+    font-size: 0.60rem;
+    text-transform: uppercase;
+    letter-spacing: 0.42px;
+    margin: 0.40rem 0 0.10rem 0;
+    font-weight: 700;
+}
+.db-nav-stack {
+    display: grid;
+    gap: 0.08rem;
+    align-items: start;
+    justify-items: center;
+}
+.st-key-db_tab_overview button,
+.st-key-db_tab_holdings button,
+.st-key-db_tab_rv button {
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    display: block !important;
+    box-shadow: none !important;
+    color: var(--etf-ink-muted) !important;
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    padding: 0.26rem 0.55rem !important;
+    border-radius: 0 !important;
+    width: auto !important;
+    min-height: 2.05rem !important;
+    height: 2.05rem !important;
+    line-height: 1 !important;
+    text-align: center !important;
+    justify-content: center !important;
+    margin: 0 auto !important;
+    cursor: pointer !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.38px !important;
+}
+.st-key-db_tab_overview button:hover,
+.st-key-db_tab_holdings button:hover,
+.st-key-db_tab_rv button:hover {
+    background: rgba(111,123,70,0.06) !important;
+    color: var(--etf-ink) !important;
+    border-bottom-color: var(--etf-border-strong) !important;
+}
+.st-key-db_tab_overview button[kind="primary"],
+.st-key-db_tab_holdings button[kind="primary"],
+.st-key-db_tab_rv button[kind="primary"] {
+    color: var(--etf-accent) !important;
+    font-weight: 600 !important;
+    background: transparent !important;
+    border-bottom-color: var(--etf-accent) !important;
+}

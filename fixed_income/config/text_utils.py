@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 
-def etf_text_blob(etf) -> str:
+if TYPE_CHECKING:
+    from fixed_income.etfs import ETF
+
+
+def etf_text_blob(etf: ETF) -> str:
     """Return a single lowercase string concatenating all text fields of an ETF.
 
     Used by bucket classifiers and proxy selectors to match keywords without

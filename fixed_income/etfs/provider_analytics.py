@@ -4,6 +4,7 @@ import asyncio
 import json
 import re
 from dataclasses import dataclass
+from typing import Any
 
 import pandas as pd
 import requests
@@ -127,7 +128,7 @@ def provider_for_ticker(ticker: str) -> str | None:
     return PROVIDER_BY_TICKER.get(ticker.strip().upper())
 
 
-def _parse_number(value) -> float | None:
+def _parse_number(value: object) -> float | None:
     if value is None:
         return None
     if isinstance(value, int | float):
@@ -136,7 +137,7 @@ def _parse_number(value) -> float | None:
     return float(match.group().replace(",", "")) if match else None
 
 
-def _parse_ishares_as_of(value) -> str | None:
+def _parse_ishares_as_of(value: object) -> str | None:
     text = str(value or "").strip()
     if len(text) != 8 or not text.isdigit():
         return None
@@ -158,11 +159,12 @@ def _ishares_product_data_params(product_id: str, component: str) -> dict[str, s
     }
 
 
-def _ishares_data_points(component: dict) -> dict:
+def _ishares_data_points(component: dict[str, Any]) -> dict[str, Any]:
     """Return the default iShares datapoints map for an API component payload."""
-    return (
+    data_points: dict[str, Any] = (
         component.get("containersByNameMap", {}).get("default", {}).get("dataPointsByNameMap", {})
     )
+    return data_points
 
 
 def _normalize_rating(value: str) -> str:
@@ -284,7 +286,7 @@ class ETFAnalyticsClient:
             as_of=as_of,
         )
 
-    def _fetch_ishares_component(self, component_name: str) -> dict:
+    def _fetch_ishares_component(self, component_name: str) -> dict[str, Any]:
         product_id, _ = ISHARES_FUNDS[self.ticker]
         response = self.session.get(
             _ISHARES_PRODUCT_DATA_URL,
@@ -293,7 +295,9 @@ class ETFAnalyticsClient:
             timeout=20,
         )
         response.raise_for_status()
-        component = response.json().get("componentsByNameMap", {}).get(component_name)
+        component: dict[str, Any] | None = (
+            response.json().get("componentsByNameMap", {}).get(component_name)
+        )
         if not component:
             raise RuntimeError(f"[{self.ticker}] iShares {component_name} component not found")
         return component
@@ -330,7 +334,7 @@ class ETFAnalyticsClient:
         )
         analytics.raise_for_status()
 
-        by_code = {}
+        by_code: dict[str, Any] = {}
         for entry in analytics.json():
             code = entry.get("analyticCode")
             if code not in {"MODFDDURTN", "OAS", "AVGCNVXTY"}:
@@ -418,7 +422,7 @@ class ETFAnalyticsClient:
         hidden = soup.find("input", {"id": "quality-breakdown-fund"})
         if not hidden or not hidden.get("value"):
             return {}
-        data = json.loads(hidden["value"])
+        data = json.loads(str(hidden["value"]))
         return {
             str(item.get("name", {}).get("value") or ""): float(
                 item.get("weight", {}).get("originalValue") or 0.0
@@ -468,20 +472,20 @@ class ETFAnalyticsClient:
         return html
 
     @staticmethod
-    async def _fetch_invesco_breakdown_async(cusip: str, breakdown: str) -> list[dict]:
+    async def _fetch_invesco_breakdown_async(cusip: str, breakdown: str) -> list[dict[str, Any]]:
         """Intercept the weightedHoldings breakdown API call made by the Invesco product page."""
         from playwright.async_api import async_playwright
 
         _, slug = next(
             (cusip_, slug_) for _, (cusip_, slug_) in INVESCO_FUNDS.items() if cusip_ == cusip
         )
-        captured: list[dict] = []
+        captured: list[dict[str, Any]] = []
 
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=True)
             page = await browser.new_page()
 
-            async def _intercept(route, request):
+            async def _intercept(route: Any, request: Any) -> None:
                 resp = await route.fetch()
                 url = request.url
                 if (

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from typing import Any, Protocol
+
 import requests
+from sqlalchemy.engine import Engine
 
 from fixed_income.etfs.provider_analytics import (
     ETFAnalytics,
@@ -23,8 +26,14 @@ def duration_source_details(ticker: str) -> tuple[str, str]:
     return ("PCF", provider)
 
 
+class DurationAnalyticsSource(Protocol):
+    """Anything that can supply per-ticker duration analytics."""
+
+    def get_analytics(self, ticker: str) -> ETFAnalytics | None: ...
+
+
 class ETFDurationEstimator:
-    def __init__(self, engine=None, session: requests.Session | None = None):
+    def __init__(self, engine: Engine | None = None, session: Any = None) -> None:
         self.engine = engine
         self.session = session or requests.Session()
         self._analytics_cache: dict[str, ETFAnalytics] = {}

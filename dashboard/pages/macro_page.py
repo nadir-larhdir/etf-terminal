@@ -9,8 +9,12 @@ from scipy.optimize import minimize
 from dashboard.cache import app_cache_key, cached_feature_matrix
 from dashboard.components import DashboardControls, InfoPanel
 from dashboard.components.controls import WINDOW_LOOKBACK_MAP
+from dashboard.format import Formatter, MacroUnit, macro_unit
 from dashboard.mobile import PLOTLY_CHART_CONFIG, responsive_chart_layout
 from dashboard.perf import timed_block
+from dashboard.presenters.macro import MacroRegimes, Regime, StateCard, Tone
+from dashboard.render import render
+from fixed_income.series import RollingWindow
 
 CARD_CONFIG = [
     ("10Y yield", "UST_10Y_LEVEL", "UST_10Y_Z20", "Rates"),
@@ -68,36 +72,13 @@ FEATURE_LABELS = {
     "HY_MINUS_IG_OAS": "HY-IG OAS",
 }
 
-OAS_FEATURES = {
-    "IG_OAS_LEVEL",
-    "HY_OAS_LEVEL",
-    "BBB_OAS_LEVEL",
-    "SINGLE_B_OAS_LEVEL",
-    "HY_MINUS_IG_OAS",
-    "BBB_MINUS_IG_OAS",
-    "SINGLE_B_MINUS_HY_OAS",
-}
+FMT = Formatter(missing="n/a")
 
-PERCENT_LEVEL_FEATURES = {
-    "UST_10Y_LEVEL",
-    "UST_2S10S",
-    "UST_5S30S",
-    "BEI_5Y",
-    "CPI_YOY",
-    "FEDFUNDS_LEVEL",
-    "UNRATE_LEVEL",
-}
 
-Z_SCORE_FEATURES = {
-    "UST_10Y_Z20",
-    "UST_2S10S_Z20",
-    "UST_2S10S_Z60",
-    "UST_5S30S_Z20",
-    "BEI_5Y_Z20",
-    "IG_OAS_Z20",
-    "HY_OAS_Z20",
-    "HY_MINUS_IG_OAS_Z20",
-}
+def _is_bps(feature_name: str) -> bool:
+    """True when a feature is quoted in basis points and so needs x100 chart scaling."""
+    return macro_unit(feature_name) is MacroUnit.BPS
+
 
 LOOKBACK_MAP = {**WINDOW_LOOKBACK_MAP, "5Y": 1260, "ALL": None}
 CHART_PALETTE = ["#6F7B46", "#5F8D84", "#A55C45", "#4E7B52"]
@@ -142,190 +123,6 @@ class MacroPage:
         self.controls = DashboardControls()
         self.info_panel = InfoPanel()
 
-    def _format_value(self, value: float | None) -> str:
-        """Format a float to a 2dp comma-separated string, returning 'n/a' for missing values."""
-        if value is None or pd.isna(value):
-            return "n/a"
-        return f"{value:,.2f}"
-
-    def _format_delta(self, value: float | None) -> str:
-        """Format a float as a signed 2dp string, returning 'n/a' for missing values."""
-        if value is None or pd.isna(value):
-            return "n/a"
-        return f"{value:+.2f}"
-
-    def _format_feature_value(
-        self, feature_name: str, value: float | None, signed: bool = False
-    ) -> str:
-        """Format a feature value in its natural unit (bps for OAS, % for rates, plain otherwise)."""
-        if feature_name in OAS_FEATURES:
-            if value is None or pd.isna(value):
-                return "n/a"
-            number = value * 100.0
-            return f"{number:+.0f} bps" if signed else f"{number:,.0f} bps"
-        if feature_name in PERCENT_LEVEL_FEATURES:
-            if value is None or pd.isna(value):
-                return "n/a"
-            return f"{value:+.2f}%" if signed else f"{value:,.2f}%"
-        formatter = self._format_delta if signed else self._format_value
-        return formatter(value)
-
-    def _format_delta_value(self, feature_name: str, value: float | None) -> str:
-        """Format a delta value with appropriate unit label (z-score prefix, bps, or signed float)."""
-        if value is None or pd.isna(value):
-            return "n/a"
-        if feature_name in Z_SCORE_FEATURES:
-            return f"z {value:+.2f}"
-        if feature_name in OAS_FEATURES or feature_name in PERCENT_LEVEL_FEATURES:
-            return f"{value * 100:+.0f} bps"
-        return self._format_feature_value(feature_name, value, signed=True)
-
-    def _badge_html(self, label: str, tone: str) -> str:
-        """Return an HTML badge span colored by tone (positive / negative / neutral)."""
-        color_map = {
-            "positive": ("rgba(78, 123, 82, 0.10)", "#4E7B52"),
-            "negative": ("rgba(165, 92, 69, 0.10)", "#A55C45"),
-            "neutral": ("rgba(111, 123, 70, 0.10)", "#6F7B46"),
-        }
-        background, text = color_map.get(tone, color_map["neutral"])
-        return (
-            f"<div style='margin-top:0.36rem;'>"
-            f"<span class='bb-regime-badge' style='border:1px solid {text};"
-            f"background:{background};color:{text};'>"
-            f"{label}</span></div>"
-        )
-
-    def _metric_tone(self, value: float | None) -> str:
-        """Return 'positive', 'negative', or 'neutral' based on the sign of value."""
-        if value is None or pd.isna(value):
-            return "neutral"
-        if value > 0:
-            return "positive"
-        if value < 0:
-            return "negative"
-        return "neutral"
-
-    def _number(self, value: float | None, default: float = 0.0) -> float:
-        """Return a safe float for rule logic and chart labels."""
-        if value is None or pd.isna(value):
-            return default
-        return float(value)
-
-    def _slope_bps(
-        self,
-        latest: dict[str, float | None],
-        short_feature: str,
-        long_feature: str,
-    ) -> float | None:
-        """Return long-minus-short curve slope in basis points."""
-        short_value = latest.get(short_feature)
-        long_value = latest.get(long_feature)
-        if short_value is None or long_value is None:
-            return None
-        if pd.isna(short_value) or pd.isna(long_value):
-            return None
-        return (float(long_value) - float(short_value)) * 100.0
-
-    def _curve_regime_label(self, latest: dict[str, float | None]) -> tuple[str, str]:
-        """Classify curve shape using 2s10s plus the visible front-to-long curve."""
-        ust_2s10s_bps = self._number(latest.get("UST_2S10S")) * 100.0
-        ust_5s30s_bps = self._number(latest.get("UST_5S30S")) * 100.0
-        full_curve_bps = self._slope_bps(latest, "UST_3M_LEVEL", "UST_30Y_LEVEL")
-
-        if full_curve_bps is not None:
-            if full_curve_bps <= -25:
-                return (
-                    "Curve Inverted",
-                    f"3M-to-30Y is inverted by {abs(full_curve_bps):.0f} bps.",
-                )
-            if full_curve_bps >= 75:
-                return (
-                    "Curve Steep",
-                    f"3M-to-30Y slopes upward by {full_curve_bps:.0f} bps.",
-                )
-            if abs(full_curve_bps) <= 35 and abs(ust_2s10s_bps) <= 25:
-                return (
-                    "Curve Flat",
-                    "Front-to-long and 2s10s slopes are both compressed.",
-                )
-
-        if ust_2s10s_bps <= -10:
-            return "Curve Inverted", f"2s10s is inverted by {abs(ust_2s10s_bps):.0f} bps."
-        if ust_2s10s_bps >= 25 or ust_5s30s_bps >= 35:
-            return (
-                "Curve Steep",
-                f"2s10s is {ust_2s10s_bps:.0f} bps and 5s30s is {ust_5s30s_bps:.0f} bps.",
-            )
-        return "Curve Flat", "2s10s is near zero and the curve slope is compressed."
-
-    def _duration_regime_label(self, latest: dict[str, float | None]) -> tuple[str, str]:
-        """Classify duration backdrop from recent 10Y yield changes."""
-        ust_10y_change_20d_bps = self._number(latest.get("UST_10Y_CHANGE_20D")) * 100.0
-        if ust_10y_change_20d_bps <= -10:
-            return (
-                "Duration Bullish",
-                f"10Y yields have fallen {abs(ust_10y_change_20d_bps):.0f} bps over the last 20 trading days.",
-            )
-        if ust_10y_change_20d_bps >= 10:
-            return (
-                "Duration Bearish",
-                f"10Y yields have risen {ust_10y_change_20d_bps:.0f} bps over the last 20 trading days.",
-            )
-        return (
-            "Duration Neutral",
-            f"10Y yields are range-bound, moving {ust_10y_change_20d_bps:+.0f} bps over the last 20 trading days.",
-        )
-
-    def _inflation_regime_label(self, latest: dict[str, float | None]) -> tuple[str, str]:
-        """Classify inflation tone from CPI and breakeven changes."""
-        cpi_yoy = self._number(latest.get("CPI_YOY"))
-        cpi_3m_ann = self._number(latest.get("CPI_3M_ANN"))
-        bei_5y_change_20d_bps = self._number(latest.get("BEI_5Y_CHANGE_20D")) * 100.0
-
-        if cpi_yoy > 3.0 or cpi_3m_ann > 3.0:
-            return (
-                "Inflation Hot",
-                "Headline inflation or its short-term annualized pace remains above 3%.",
-            )
-        if bei_5y_change_20d_bps >= 25:
-            return (
-                "Inflation Repricing",
-                f"5Y breakevens have risen {bei_5y_change_20d_bps:.0f} bps over the last 20 trading days.",
-            )
-        return (
-            "Inflation Cooling",
-            "CPI YoY is below 3% and 3M annualized inflation is contained.",
-        )
-
-    def _growth_regime_label(self, latest: dict[str, float | None]) -> tuple[str, str]:
-        """Classify growth backdrop from unemployment changes."""
-        unrate_3m_change_bps = self._number(latest.get("UNRATE_3M_CHANGE")) * 100.0
-        if unrate_3m_change_bps <= -10:
-            return (
-                "Growth Improving",
-                f"Unemployment has fallen {abs(unrate_3m_change_bps):.0f} bps over the last three months.",
-            )
-        if unrate_3m_change_bps >= 10:
-            return (
-                "Growth Deteriorating",
-                f"Unemployment has risen {unrate_3m_change_bps:.0f} bps over the last three months.",
-            )
-        return (
-            "Growth Stable",
-            f"Unemployment is broadly stable, moving {unrate_3m_change_bps:+.0f} bps over three months.",
-        )
-
-    def _delta_html(self, label: str, text: str, value: float | None) -> str:
-        """Return an HTML delta row with a directional arrow and tone-based CSS class."""
-        tone = self._metric_tone(value)
-        tone_class = {
-            "positive": "bb-macro-card-delta--positive",
-            "negative": "bb-macro-card-delta--negative",
-            "neutral": "bb-macro-card-delta--neutral",
-        }[tone]
-        arrow = {"positive": "↑", "negative": "↓", "neutral": "→"}[tone]
-        return f"<div class='bb-macro-card-delta {tone_class}'>{label}: {arrow} {text}</div>"
-
     def _latest_change(self, matrix: pd.DataFrame, feature_name: str) -> float | None:
         """Return the most recent day-over-day change for a feature, or None if insufficient data."""
         if feature_name not in matrix.columns:
@@ -335,20 +132,9 @@ class MacroPage:
             return None
         return float(series.iloc[-1] - series.iloc[-2])
 
-    def _rule_based_regimes(self, matrix: pd.DataFrame) -> dict[str, tuple[str, str]]:
-        """Derive duration, curve, inflation, and growth regime labels from current macro levels."""
-        latest = {column: self._latest_value(matrix, column) for column in matrix.columns}
-        duration, duration_body = self._duration_regime_label(latest)
-        curve, curve_body = self._curve_regime_label(latest)
-        inflation, inflation_body = self._inflation_regime_label(latest)
-        growth, growth_body = self._growth_regime_label(latest)
-
-        return {
-            "duration_regime": (duration, duration_body),
-            "curve_regime": (curve, curve_body),
-            "inflation_regime": (inflation, inflation_body),
-            "growth_regime": (growth, growth_body),
-        }
+    def _rule_based_regimes(self, matrix: pd.DataFrame) -> dict[str, Regime]:
+        """Derive duration, curve, inflation, and growth regime labels from current levels."""
+        return MacroRegimes.from_matrix(matrix).all()
 
     def _latest_value(self, matrix: pd.DataFrame, feature_name: str) -> float | None:
         """Return the most recent non-null value for a feature column, or None if unavailable."""
@@ -370,17 +156,7 @@ class MacroPage:
 
     def _display_series(self, feature_name: str, series: pd.Series) -> pd.Series:
         """Convert a raw feature series to display units (multiply OAS by 100 for basis points)."""
-        return series * 100.0 if feature_name in OAS_FEATURES else series
-
-    def _zscore(self, series: pd.Series, window: int) -> pd.Series:
-        """Compute a rolling z-score over the given lookback window."""
-        rolling_mean = series.rolling(window).mean()
-        rolling_std = series.rolling(window).std(ddof=0)
-        return (series - rolling_mean) / rolling_std.replace(0, np.nan)
-
-    def _change(self, series: pd.Series, periods: int) -> pd.Series:
-        """Return the absolute change in a series over the given number of periods."""
-        return series - series.shift(periods)
+        return series * 100.0 if _is_bps(feature_name) else series
 
     def _ensure_display_features(self, matrix: pd.DataFrame) -> pd.DataFrame:
         """Derive any display-only features (e.g. z-scores) not present in the stored matrix."""
@@ -390,7 +166,7 @@ class MacroPage:
         enriched = matrix.copy()
 
         if "UST_10Y_Z20" not in enriched.columns and "UST_10Y_LEVEL" in enriched.columns:
-            enriched["UST_10Y_Z20"] = self._zscore(enriched["UST_10Y_LEVEL"], 20)
+            enriched["UST_10Y_Z20"] = RollingWindow(20).zscore(enriched["UST_10Y_LEVEL"])
 
         return enriched
 
@@ -564,23 +340,16 @@ class MacroPage:
             value = self._latest_value(matrix, feature_name)
             delta_value = self._latest_change(matrix, feature_name)
             badge_value = self._latest_value(matrix, badge_feature) if badge_feature else None
-            delta_text = self._format_delta_value(feature_name, delta_value)
-            if badge_feature:
-                footer_html = self._badge_html(
-                    f"{badge_label} z {self._format_value(badge_value)}",
-                    self._metric_tone(badge_value),
-                )
-            else:
-                footer_html = ""
-
-            cards.append(
-                "<div class='bb-macro-card'>"
-                f"<div class='bb-macro-card-label'>{label.upper()}</div>"
-                f"<div class='bb-macro-card-value'>{self._format_feature_value(feature_name, value)}</div>"
-                f"{self._delta_html('Latest change', delta_text, delta_value)}"
-                f"{footer_html}"
-                "</div>"
+            delta_text = macro_unit(feature_name).delta(delta_value, FMT)
+            card = StateCard(
+                label=label,
+                value=macro_unit(feature_name).level(value, FMT),
+                delta=delta_text,
+                delta_tone=Tone.from_change(delta_value),
+                badge=f"{badge_label} {FMT.zscore(badge_value)}" if badge_feature else "",
+                badge_tone=Tone.from_change(badge_value),
             )
+            cards.append(render("macro/state_card.html", card=card))
 
         st.markdown(
             f"""
@@ -772,7 +541,7 @@ class MacroPage:
                         connectgaps=False,
                         hovertemplate=(
                             "%{x|%Y-%m-%d}<br>%{y:.0f} bps<extra></extra>"
-                            if feature_name in OAS_FEATURES
+                            if _is_bps(feature_name)
                             else None
                         ),
                     )
@@ -784,7 +553,7 @@ class MacroPage:
             return
 
         yaxis_title = None
-        if any(name in OAS_FEATURES for name in feature_names):
+        if any(_is_bps(name) for name in feature_names):
             yaxis_title = "bps"
         elif any(name in PERCENT_CHART_FEATURES for name in feature_names):
             yaxis_title = "%"

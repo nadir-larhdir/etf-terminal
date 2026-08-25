@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as pd
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
+from db.schema import EXPECTED_MACRO_DATA_COLUMNS
 from db.sql import pandas_to_sql_kwargs, qualified_table
 from stores.query_utils import (
     append_date_filters,
@@ -19,7 +23,7 @@ from stores.query_utils import (
 class MacroStore:
     """Persist and retrieve raw FRED macro series stored in the macro_data table."""
 
-    def __init__(self, engine):
+    def __init__(self, engine: Engine) -> None:
         self.engine = engine
 
     # ------------------------------------------------------------------
@@ -74,7 +78,7 @@ class MacroStore:
     def get_latest_stored_dates(self, series_ids: list[str] | None = None) -> dict[str, str]:
         """Return a mapping of series_id → latest stored date string."""
         query = latest_date_query(qualified_table(self.engine, "macro_data"), "series_id")
-        params: dict = {}
+        params: dict[str, Any] = {}
         if series_ids:
             placeholders, params = sql_in_clause_params("series_id", series_ids)
             query += f" WHERE series_id IN ({placeholders})"
@@ -95,7 +99,7 @@ class MacroStore:
         FROM {qualified_table(self.engine, 'macro_data')}
         WHERE series_id = :series_id
         """
-        params: dict = {"series_id": series_id}
+        params: dict[str, Any] = {"series_id": series_id}
         query, params = append_date_filters(query, params, start_date=start_date, end_date=end_date)
         query += " ORDER BY date"
         with self.engine.connect() as conn:
@@ -127,7 +131,7 @@ class MacroStore:
         FROM {qualified_table(self.engine, 'macro_data')}
         WHERE is_active = 1
         """
-        params: dict = {}
+        params: dict[str, Any] = {}
         if series_ids:
             placeholders, params = sql_in_clause_params("series_id", series_ids)
             query += f" AND series_id IN ({placeholders})"
@@ -138,12 +142,25 @@ class MacroStore:
 
     @staticmethod
     def _normalize_frame_for_write(df: pd.DataFrame) -> pd.DataFrame:
-        """Coerce date and last_updated_at columns to the types expected by the database."""
+        """Align columns to the macro_data schema and coerce date-like values.
+
+        Callers supplying only the identifying columns get NULLs for the descriptive ones
+        rather than an opaque bind-parameter error, matching MetadataStore.
+        """
         normalized = df.copy()
+        for column in EXPECTED_MACRO_DATA_COLUMNS:
+            if column not in normalized.columns:
+                normalized[column] = None
+        # Reads filter on is_active, so an observation written without it would be stored
+        # and then be invisible. A newly written observation is active by default.
+        normalized["is_active"] = normalized["is_active"].where(normalized["is_active"].notna(), 1)
+        normalized = normalized[EXPECTED_MACRO_DATA_COLUMNS]
         if "date" in normalized.columns:
             series = pd.to_datetime(normalized["date"], errors="coerce")
             normalized["date"] = series.dt.date.where(series.notna(), None)
         if "last_updated_at" in normalized.columns:
             series = pd.to_datetime(normalized["last_updated_at"], errors="coerce")
-            normalized["last_updated_at"] = series.where(series.notna(), None)
+            # A datetime64 column cannot hold None: .where() would leave NaT, which the
+            # DBAPI cannot bind. Casting to object first makes the null a real None.
+            normalized["last_updated_at"] = series.astype(object).where(series.notna(), None)
         return normalized

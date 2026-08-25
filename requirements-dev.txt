@@ -1,4 +1,8 @@
 black
+mypy
+pandas-stubs
 pre-commit
 pytest
+pytest-cov
 ruff
+types-requests

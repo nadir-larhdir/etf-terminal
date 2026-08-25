@@ -1,0 +1,6 @@
+{% if gauge %}
+<div class="an-gauge-track">
+  <div class="an-gauge-fill" style="width:{{ '%.1f' | format(gauge.percent) }}%;"></div>
+</div>
+{% endif %}
+<div class="an-metric-footnote">{{ observations }} observations</div>

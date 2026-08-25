@@ -1,0 +1,8 @@
+<div class="db-meta-list">
+  {% for label, value in rows %}
+  <div class="db-meta-row">
+    <span class="db-meta-key">{{ label }}</span>
+    <span class="db-meta-val">{{ value }}</span>
+  </div>
+  {% endfor %}
+</div>

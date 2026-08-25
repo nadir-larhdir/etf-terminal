@@ -7,6 +7,7 @@ import json
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from typing import Any
 
 import pandas as pd
 import requests
@@ -133,8 +134,8 @@ class BondAnalytics:
             return sum(cf / (1 + r) ** (i + 1) for i, cf in enumerate(cfs)) - price
 
         try:
-            return brentq(pv_diff, 1e-4, 10.0)
-        except Exception:
+            return float(brentq(pv_diff, 1e-4, 10.0))
+        except (ValueError, RuntimeError):
             return None
 
     @staticmethod
@@ -200,7 +201,7 @@ class FINRAClient:
         client_id: str | None = None,
         client_secret: str | None = None,
         *,
-        session: requests.Session | None = None,
+        session: Any = None,
         browser_headless: bool = True,
     ) -> None:
         self.client_id = (client_id or FINRA_CLIENT_ID).strip()
@@ -209,7 +210,7 @@ class FINRAClient:
         self.browser_headless = browser_headless
         self._api_token: str | None = None
         self._api_token_expiry = 0.0
-        self._hidden_session: requests.Session | None = None
+        self._hidden_session: Any = None
         self._xsrf_token: str | None = None
         self._session_last_refresh = 0.0
 
@@ -389,7 +390,9 @@ class FINRAClient:
 
     # ── Hidden endpoint: Bond data ─────────────────────────────────────────────
 
-    async def get_bond_details(self, cusip: str, *, security_type: str = "corporate") -> dict:
+    async def get_bond_details(
+        self, cusip: str, *, security_type: str = "corporate"
+    ) -> dict[str, Any]:
         await self._ensure_fresh_session()
         rows = self._hidden_post(
             self._security_dataset(security_type, "securities"),
@@ -412,7 +415,7 @@ class FINRAClient:
         )
         return rows[0] if rows else {}
 
-    async def get_treasury_details(self, cusip: str) -> dict:
+    async def get_treasury_details(self, cusip: str) -> dict[str, Any]:
         return await self.get_bond_details(cusip, security_type="treasury")
 
     async def get_price_yield(
@@ -541,7 +544,7 @@ class FINRAClient:
 
     def _treasury_trade_activity_payload(
         self, symbol: str, start: str, end: str, limit: int
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Return FINRA TreasuryTradeActivity request payload."""
         return {
             "fields": [
@@ -577,7 +580,7 @@ class FINRAClient:
             "quoteValues": False,
         }
 
-    def _normalize_treasury_trade_activity(self, rows: list[dict]) -> pd.DataFrame:
+    def _normalize_treasury_trade_activity(self, rows: list[dict[str, Any]]) -> pd.DataFrame:
         """Return cleaned TreasuryTradeActivity rows."""
         frame = pd.DataFrame(rows)
         if frame.empty:
@@ -591,7 +594,7 @@ class FINRAClient:
 
     async def search_bond_by_name(
         self, issuer_name: str, coupon: float, maturity: str
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         await self._ensure_fresh_session()
         rows = self._hidden_post(
             "CorporateAndAgencySecurities",
@@ -632,13 +635,14 @@ class FINRAClient:
         details = await self.get_bond_details(cusip, security_type=security_type)
         price_yield = await self.get_price_yield(cusip, trade_date, security_type=security_type)
 
-        if not details or price_yield["price"] is None:
-            raise ValueError(f"No data for CUSIP {cusip} on {trade_date}")
+        price, ytm = price_yield["price"], price_yield["ytm"]
+        # FINRA reports no price and no yield for a CUSIP that did not trade that day;
+        # both are required downstream, so treat either being absent as no data.
+        if not details or price is None or ytm is None:
+            raise ValueError(f"No traded price or yield for CUSIP {cusip} on {trade_date}")
 
         coupon = details["couponRate"]
         maturity = datetime.strptime(details["maturityDate"], "%Y-%m-%d").date()
-        price = price_yield["price"]
-        ytm = price_yield["ytm"]
 
         if use_curve:
             curve = USTCurve.get(trade_date)
@@ -670,7 +674,7 @@ class FINRAClient:
 
     # ── Internal helpers ───────────────────────────────────────────────────────
 
-    def _api_post(self, group: str, dataset: str, payload: dict) -> list[dict]:
+    def _api_post(self, group: str, dataset: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
         r = self.session.post(
             f"{_FINRA_API_BASE}/{group}/name/{dataset}",
             headers=self._api_headers(),
@@ -711,7 +715,7 @@ class FINRAClient:
             "X-XSRF-TOKEN": self._xsrf_token,
         }
 
-    def _hidden_post(self, endpoint: str, payload: dict) -> list[dict]:
+    def _hidden_post(self, endpoint: str, payload: dict[str, Any]) -> list[dict[str, Any]]:
         if self._hidden_session is None:
             raise RuntimeError("Call refresh_session() first.")
         r = self._hidden_session.post(
@@ -725,7 +729,8 @@ class FINRAClient:
         if isinstance(data, list):
             return data
         raw = data.get("returnBody", {}).get("data", "[]")
-        return json.loads(raw) if isinstance(raw, str) else raw
+        rows: list[dict[str, Any]] = json.loads(raw) if isinstance(raw, str) else raw
+        return rows
 
     def _security_dataset(self, security_type: str, dataset: str) -> str:
         try:

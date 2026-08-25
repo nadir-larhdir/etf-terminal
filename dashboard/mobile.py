@@ -12,7 +12,7 @@ PLOTLY_CHART_CONFIG = {
 
 _GRID_COLOR = "rgba(200,195,185,0.45)"
 _AXIS_LINE_COLOR = "rgba(200,195,185,0.70)"
-_CHART_BG = "#FFFFFF"
+_CHART_BG = "#FBF8F1"
 
 
 def _responsive_legend(height: int) -> dict:

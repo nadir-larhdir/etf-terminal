@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 import pandas as pd
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
 from db.sql import qualified_table
 from fixed_income.analytics.result_models import ETFAnalyticsSnapshot
@@ -15,7 +16,7 @@ from stores.query_utils import sql_in_clause_params
 class AnalyticsSnapshotStore:
     """Persist and retrieve per-symbol analytics snapshots keyed by (symbol, as_of_date)."""
 
-    def __init__(self, engine):
+    def __init__(self, engine: Engine) -> None:
         self.engine = engine
 
     def upsert_snapshot(self, snapshot: ETFAnalyticsSnapshot, *, as_of_date: str) -> None:

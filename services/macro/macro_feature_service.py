@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
-import numpy as np
 import pandas as pd
+
+from fixed_income.series import RollingWindow
+from stores.protocols import MacroFeatureStorage, MacroSeriesReader
+
+Z20 = RollingWindow(20)
+Z60 = RollingWindow(60)
 
 FEATURE_METADATA = {
     "UST_3M_LEVEL": ("Rates", "Rates Level"),
@@ -100,17 +106,11 @@ class MacroFeatureService:
         "last_updated_at",
     ]
 
-    def __init__(self, macro_store, macro_feature_store):
+    def __init__(
+        self, macro_store: MacroSeriesReader, macro_feature_store: MacroFeatureStorage
+    ) -> None:
         self.macro_store = macro_store
         self.macro_feature_store = macro_feature_store
-
-    def _zscore(self, series: pd.Series, window: int) -> pd.Series:
-        rolling_mean = series.rolling(window).mean()
-        rolling_std = series.rolling(window).std(ddof=0)
-        return (series - rolling_mean) / rolling_std.replace(0, np.nan)
-
-    def _change(self, series: pd.Series, periods: int) -> pd.Series:
-        return series - series.shift(periods)
 
     def _annualized_3m_change(self, series: pd.Series) -> pd.Series:
         return ((series / series.shift(3)) ** 4 - 1.0) * 100.0
@@ -118,7 +118,9 @@ class MacroFeatureService:
     def _year_over_year_change(self, series: pd.Series) -> pd.Series:
         return ((series / series.shift(12)) - 1.0) * 100.0
 
-    def _monthly_feature(self, series: pd.Series, transform) -> pd.Series:
+    def _monthly_feature(
+        self, series: pd.Series, transform: Callable[[pd.Series], pd.Series]
+    ) -> pd.Series:
         clean = series.dropna().sort_index()
         if clean.empty:
             return clean
@@ -189,14 +191,14 @@ class MacroFeatureService:
         feature_map["UST_2S10S"] = ust_2s10s
         feature_map["UST_5S30S"] = ust_5s30s
         feature_map["UST_3M10Y"] = ust_3m10y
-        feature_map["UST_2S10S_CHANGE_20D"] = self._change(ust_2s10s, 20)
-        feature_map["UST_5S30S_CHANGE_20D"] = self._change(ust_5s30s, 20)
-        feature_map["UST_10Y_Z20"] = self._zscore(dgs10, 20)
-        feature_map["UST_2S10S_Z20"] = self._zscore(ust_2s10s, 20)
-        feature_map["UST_2S10S_Z60"] = self._zscore(ust_2s10s, 60)
-        feature_map["UST_5S30S_Z20"] = self._zscore(ust_5s30s, 20)
-        feature_map["UST_10Y_CHANGE_20D"] = self._change(dgs10, 20)
-        feature_map["UST_10Y_CHANGE_60D"] = self._change(dgs10, 60)
+        feature_map["UST_2S10S_CHANGE_20D"] = ust_2s10s.diff(20)
+        feature_map["UST_5S30S_CHANGE_20D"] = ust_5s30s.diff(20)
+        feature_map["UST_10Y_Z20"] = Z20.zscore(dgs10)
+        feature_map["UST_2S10S_Z20"] = Z20.zscore(ust_2s10s)
+        feature_map["UST_2S10S_Z60"] = Z60.zscore(ust_2s10s)
+        feature_map["UST_5S30S_Z20"] = Z20.zscore(ust_5s30s)
+        feature_map["UST_10Y_CHANGE_20D"] = dgs10.diff(20)
+        feature_map["UST_10Y_CHANGE_60D"] = dgs10.diff(60)
 
         cpi = raw.get("CPIAUCSL")
         if cpi is not None:
@@ -204,16 +206,16 @@ class MacroFeatureService:
             feature_map["CPI_3M_ANN"] = self._monthly_feature(cpi, self._annualized_3m_change)
         t5yie = self._clean_series(raw.get("T5YIE"))
         feature_map["BEI_5Y"] = t5yie
-        feature_map["BEI_5Y_CHANGE_20D"] = self._change(t5yie, 20)
-        feature_map["BEI_5Y_Z20"] = self._zscore(t5yie, 20)
+        feature_map["BEI_5Y_CHANGE_20D"] = t5yie.diff(20)
+        feature_map["BEI_5Y_Z20"] = Z20.zscore(t5yie)
         feature_map["REAL_RATE_PROXY"] = self._aligned_difference(dgs10, t5yie)
 
         fedfunds = raw.get("FEDFUNDS")
         if fedfunds is not None:
             fedfunds_monthly = fedfunds.dropna().sort_index()
             feature_map["FEDFUNDS_LEVEL"] = fedfunds_monthly
-            feature_map["FEDFUNDS_CHANGE_3M"] = self._change(fedfunds_monthly, 3)
-            feature_map["FEDFUNDS_CHANGE_12M"] = self._change(fedfunds_monthly, 12)
+            feature_map["FEDFUNDS_CHANGE_3M"] = fedfunds_monthly.diff(3)
+            feature_map["FEDFUNDS_CHANGE_12M"] = fedfunds_monthly.diff(12)
             fedfunds_for_10y = fedfunds_monthly.reindex(dgs10.index).ffill()
             fedfunds_for_2y = fedfunds_monthly.reindex(dgs2.index).ffill()
             feature_map["UST10_MINUS_FEDFUNDS"] = dgs10 - fedfunds_for_10y
@@ -223,8 +225,8 @@ class MacroFeatureService:
         if unrate is not None:
             unrate_monthly = unrate.dropna().sort_index()
             feature_map["UNRATE_LEVEL"] = unrate_monthly
-            feature_map["UNRATE_3M_CHANGE"] = self._change(unrate_monthly, 3)
-            feature_map["UNRATE_12M_CHANGE"] = self._change(unrate_monthly, 12)
+            feature_map["UNRATE_3M_CHANGE"] = unrate_monthly.diff(3)
+            feature_map["UNRATE_12M_CHANGE"] = unrate_monthly.diff(12)
 
         oas_calendar = (
             self._clean_series(raw.get("BAMLC0A0CM"))
@@ -250,21 +252,21 @@ class MacroFeatureService:
         feature_map["HY_OAS_LEVEL"] = hy_oas
         feature_map["BBB_OAS_LEVEL"] = bbb_oas
         feature_map["SINGLE_B_OAS_LEVEL"] = single_b_oas
-        feature_map["IG_OAS_CHANGE_5D"] = self._change(ig_oas, 5)
-        feature_map["IG_OAS_CHANGE_20D"] = self._change(ig_oas, 20)
-        feature_map["HY_OAS_CHANGE_5D"] = self._change(hy_oas, 5)
-        feature_map["HY_OAS_CHANGE_20D"] = self._change(hy_oas, 20)
-        feature_map["BBB_OAS_CHANGE_20D"] = self._change(bbb_oas, 20)
-        feature_map["SINGLE_B_OAS_CHANGE_20D"] = self._change(single_b_oas, 20)
+        feature_map["IG_OAS_CHANGE_5D"] = ig_oas.diff(5)
+        feature_map["IG_OAS_CHANGE_20D"] = ig_oas.diff(20)
+        feature_map["HY_OAS_CHANGE_5D"] = hy_oas.diff(5)
+        feature_map["HY_OAS_CHANGE_20D"] = hy_oas.diff(20)
+        feature_map["BBB_OAS_CHANGE_20D"] = bbb_oas.diff(20)
+        feature_map["SINGLE_B_OAS_CHANGE_20D"] = single_b_oas.diff(20)
         feature_map["HY_MINUS_IG_OAS"] = hy_minus_ig
-        feature_map["HY_MINUS_IG_OAS_CHANGE_20D"] = self._change(hy_minus_ig, 20)
+        feature_map["HY_MINUS_IG_OAS_CHANGE_20D"] = hy_minus_ig.diff(20)
         feature_map["BBB_MINUS_IG_OAS"] = bbb_oas - ig_oas
         feature_map["SINGLE_B_MINUS_HY_OAS"] = single_b_oas - hy_oas
-        feature_map["IG_OAS_Z20"] = self._zscore(ig_oas, 20)
-        feature_map["IG_OAS_Z60"] = self._zscore(ig_oas, 60)
-        feature_map["HY_OAS_Z20"] = self._zscore(hy_oas, 20)
-        feature_map["HY_OAS_Z60"] = self._zscore(hy_oas, 60)
-        feature_map["HY_MINUS_IG_OAS_Z20"] = self._zscore(hy_minus_ig, 20)
+        feature_map["IG_OAS_Z20"] = Z20.zscore(ig_oas)
+        feature_map["IG_OAS_Z60"] = Z60.zscore(ig_oas)
+        feature_map["HY_OAS_Z20"] = Z20.zscore(hy_oas)
+        feature_map["HY_OAS_Z60"] = Z60.zscore(hy_oas)
+        feature_map["HY_MINUS_IG_OAS_Z20"] = Z20.zscore(hy_minus_ig)
 
         return pd.concat(feature_map, axis=1, sort=False).sort_index()
 

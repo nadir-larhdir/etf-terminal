@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pandas as pd
 
+if TYPE_CHECKING:
+    from stores.protocols import MacroSeriesReader
 
-def spread_changes_bps(macro_store, series_id: str, *, start_date: str) -> pd.Series:
+
+def spread_changes_bps(
+    macro_store: MacroSeriesReader, series_id: str, *, start_date: str
+) -> pd.Series:
     """Return a date-indexed Series of daily OAS spread changes in basis points for one series."""
     matrix = macro_store.get_series_matrix([series_id], start_date=start_date)
     if matrix.empty or series_id not in matrix.columns:

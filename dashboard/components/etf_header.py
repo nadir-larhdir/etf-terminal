@@ -4,6 +4,9 @@ import pandas as pd
 import streamlit as st
 
 from dashboard.components.info_panel import InfoPanel
+from dashboard.format import Formatter
+
+FMT = Formatter(missing="N/A")
 
 
 class ETFHeader:
@@ -11,29 +14,6 @@ class ETFHeader:
 
     def __init__(self) -> None:
         self.info_panel = InfoPanel()
-
-    def _format_aum(self, value) -> str:
-        """Format AUM as a compact string: '12.3B', '450.1M', '120.0K', etc."""
-        try:
-            numeric = float(value)
-        except (TypeError, ValueError):
-            return "N/A"
-
-        if numeric >= 1_000_000_000:
-            return f"{numeric / 1_000_000_000:.1f}B"
-        if numeric >= 1_000_000:
-            return f"{numeric / 1_000_000:.1f}M"
-        if numeric >= 1_000:
-            return f"{numeric / 1_000:.1f}K"
-        return f"{numeric:,.0f}"
-
-    def _format_expense_ratio(self, value) -> str:
-        """Format expense ratio as a percentage string, returning 'N/A' for non-numeric values."""
-        try:
-            numeric = float(value)
-        except (TypeError, ValueError):
-            return "N/A"
-        return f"{numeric:.2f}%"
 
     def _header_cell_html(
         self,
@@ -123,10 +103,8 @@ class ETFHeader:
             ),
             self._header_cell_html("VOLUME / 30D", f"{volume:,.0f} / {vol_ratio:.2f}x"),
             self._header_cell_html("EXCHANGE", str(metadata.get("exchange", "N/A"))),
-            self._header_cell_html("AUM", self._format_aum(metadata.get("total_assets"))),
-            self._header_cell_html(
-                "EXP RATIO", self._format_expense_ratio(metadata.get("expense_ratio"))
-            ),
+            self._header_cell_html("AUM", FMT.compact(metadata.get("total_assets"))),
+            self._header_cell_html("EXP RATIO", FMT.percent(metadata.get("expense_ratio"))),
         ]
 
         st.markdown(

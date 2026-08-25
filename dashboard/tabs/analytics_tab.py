@@ -14,59 +14,17 @@ from dashboard.cache import (
     restore_analytics_snapshot,
     snapshot_age_hours,
 )
+from dashboard.format import Formatter
 from dashboard.mobile import PLOTLY_CHART_CONFIG
 from dashboard.perf import timed_block
-from fixed_income.analytics import format_oas_proxy_label
+from dashboard.presenters.analytics import AnalyticsPresenter, DurationScale, Gauge, MetricCard
+from dashboard.render import render, stylesheet
 from fixed_income.analytics.duration_estimator import duration_source_details
 from fixed_income.etfs import ETF
+from fixed_income.series import VOLUME_WINDOW
 
+FMT = Formatter()
 LOGGER = logging.getLogger(__name__)
-
-_ANALYTICS_CSS = """
-<style>
-[class^="an-"], [class^="an-"] * {
-    font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
-}
-.an-metric-card {
-    background: rgba(251, 248, 241, 0.38);
-    border: 1px solid #E4E0D8;
-    border-radius: 8px;
-    padding: 13px 15px 11px 15px;
-    height: 126px;
-}
-.an-metric-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.55px;
-    color: #8D8779;
-    font-weight: 600;
-    margin-bottom: 7px;
-}
-.an-metric-body {
-    height: calc(100% - 18px);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-}
-.an-metric-value {
-    font-size: 2.15rem;
-    font-weight: 700;
-    line-height: 1.05;
-}
-.an-metric-footer {
-    width: 100%;
-    margin-top: 8px;
-    padding-top: 7px;
-    border-top: 1px solid #EDE9E0;
-    color: #8D8779;
-    font-size: 0.70rem;
-    line-height: 1.35;
-    text-align: left;
-}
-</style>
-"""
 
 
 class AnalyticsTab:
@@ -74,6 +32,7 @@ class AnalyticsTab:
 
     def __init__(self, analytics_service) -> None:
         self.analytics_service = analytics_service
+        self.presenter = AnalyticsPresenter()
 
     def render(self, security: ETF) -> None:
         """Render the Analytics tab: metric cards and credit spread diagnostics."""
@@ -81,141 +40,86 @@ class AnalyticsTab:
         self.render_metric_cards(security)
 
     def render_metric_cards(self, security: ETF) -> None:
-        """Render the two rows of analytics metric cards (YTM/OAS/duration/DV01 etc.)."""
-        st.markdown(_ANALYTICS_CSS, unsafe_allow_html=True)
+        """Render the instrument, rate-risk, and credit-spread metric card rows."""
+        st.markdown(stylesheet("analytics_tab.css"), unsafe_allow_html=True)
         with timed_block("analytics.prepare_inputs"):
-            metadata = security.metadata or {}
             analytics = self._analytics_snapshot(security)
-            has_credit_spread = (
-                analytics.spread_proxy_used is not None and analytics.spread_beta_per_bp is not None
-            )
-            duration_method, duration_source = self._duration_source_details(security)
-            duration_footer = self._duration_scale_indicator(analytics.estimated_duration)
-            dv01_footer = self._dv01_change_footer(security, analytics.estimated_duration)
-            ytm = self._metadata_float(metadata, "yield_to_maturity")
-            oas = self._metadata_float(metadata, "oas")
-            years_to_maturity = self._metadata_float(metadata, "years_to_maturity")
-            convexity = self._metadata_float(metadata, "convexity")
-
-        top1, top2, top3, top4 = st.columns(4)
-        with top1:
-            self._render_metric_card(
-                "YTM (SEC)", self._format_percent_points(ytm), "#1F271C", "#8D8779"
-            )
-        with top2:
-            self._render_metric_card("OAS", self._format_bps_value(oas), "#1F271C", "#8D8779")
-        with top3:
-            self._render_metric_card(
-                "Years to Maturity",
-                self._format_years(years_to_maturity),
-                self._duration_risk_color(years_to_maturity),
-                "#8D8779",
-            )
-        with top4:
-            self._render_metric_card(
-                "Convexity", self._format_number(convexity), "#1F271C", "#8D8779"
-            )
-
-        a1, a2, a3, a4 = st.columns(4)
-        with a1:
-            self._render_metric_card(
-                "Est. Duration",
-                self._format_years(analytics.estimated_duration),
-                self._duration_risk_color(analytics.estimated_duration),
-                "#5DA9E9",
-                footer=duration_footer,
-            )
-        with a2:
-            self._render_metric_card(
-                "DV01 / $1MM",
-                self._format_dollar_per_million(analytics.dv01_per_share),
-                self._dv01_risk_color(analytics.dv01_per_share),
-                "#5DA9E9",
-                footer=dv01_footer,
-            )
-        with a3:
-            self._render_metric_card("Duration Method", duration_method, "#1F271C", "#8D8779")
-        with a4:
-            self._render_metric_card("Duration Source", duration_source, "#1F271C", "#8D8779")
-
-        if has_credit_spread:
-            st.markdown(
-                "<div style='height:1px;margin:0.8rem 0 1.0rem 0;background:linear-gradient(90deg, rgba(95,141,132,0.0), rgba(95,141,132,0.45), rgba(111,123,70,0.35), rgba(111,123,70,0.0));'></div>",
-                unsafe_allow_html=True,
-            )
-            s1, s2, s3, s4 = st.columns(4)
-            with s1:
-                self._render_metric_card(
-                    "OAS Proxy Used",
-                    format_oas_proxy_label(analytics.spread_proxy_used),
-                    "#1F271C",
-                    "#8AA05A",
-                )
-            with s2:
-                self._render_metric_card(
-                    "CS Beta",
-                    self._format_spread_beta_bps(analytics.spread_beta_per_bp),
-                    self._cs_beta_risk_color(analytics.spread_beta_per_bp),
-                    "#8AA05A",
-                )
-            with s3:
-                self._render_metric_card(
-                    "Proxy CS01 / $1MM",
-                    self._format_dollar_per_million(analytics.spread_dv01_proxy_per_share),
-                    self._cs01_risk_color(analytics.spread_dv01_proxy_per_share),
-                    "#8AA05A",
-                )
-            with s4:
-                self._render_metric_card(
-                    "Credit Spread R²",
-                    self._format_number(analytics.spread_model_r2),
-                    self._r2_risk_color(analytics.spread_model_r2),
-                    "#8AA05A",
-                    show_bottom_border=False,
-                    footer=(
-                        f"{self._r2_gauge(analytics.spread_model_r2)}"
-                        f"<div style='margin-top:0.35rem;'>"
-                        f"{analytics.observations_used or 'N/A'} observations"
-                        f"</div>"
+            duration_method, duration_source = duration_source_details(security.ticker)
+            duration_scale = DurationScale.from_years(analytics.estimated_duration)
+            cards = [
+                self.presenter.instrument_cards(security),
+                self.presenter.rate_risk_cards(
+                    analytics,
+                    duration_method=duration_method,
+                    duration_source=duration_source,
+                    duration_footer=(
+                        None
+                        if duration_scale is None
+                        else render("analytics/duration_scale.html", scale=duration_scale)
                     ),
+                    dv01_footer=self.presenter.dv01_change_footer(
+                        security, analytics.estimated_duration
+                    ),
+                ),
+            ]
+
+        for row in cards:
+            self._render_card_row(row)
+
+        spread_cards = self.presenter.spread_risk_cards(analytics)
+        if not spread_cards:
+            return
+        st.markdown(render("analytics/section_divider.html"), unsafe_allow_html=True)
+        self._render_card_row(spread_cards, fit_footer_for=analytics)
+
+    def _render_card_row(self, cards: list[MetricCard], *, fit_footer_for=None) -> None:
+        """Lay one row of metric cards across equal columns."""
+        for column, card in zip(st.columns(len(cards)), cards, strict=True):
+            footer = card.footer
+            if fit_footer_for is not None and card.label == "Credit Spread R²":
+                footer = render(
+                    "analytics/fit_footer.html",
+                    gauge=Gauge.from_fraction(fit_footer_for.spread_model_r2),
+                    observations=fit_footer_for.observations_used or "N/A",
+                )
+            with column:
+                st.markdown(
+                    render("analytics/metric_card.html", card=card, footer=footer),
+                    unsafe_allow_html=True,
                 )
 
     def render_narrative_panels(self, security: ETF) -> None:
-        """Render the aligned Current Read and Liquidity Condition panels."""
+        """Render the Current Read and Liquidity Condition panels side by side."""
         with timed_block("analytics.narrative_panels"):
-            metadata = security.metadata or {}
-            snapshot = security.trading_snapshot()
             analytics = self._analytics_snapshot(security)
-            liquidity_regime = self._liquidity_regime(snapshot["volume_z"])
-            duration_method, duration_source = self._duration_source_details(security)
+            snapshot = security.trading_snapshot()
+            duration_method, duration_source = duration_source_details(security.ticker)
 
         left, right = st.columns([3, 2])
         with left:
-            card = st.container(border=True)
-            with card:
+            with st.container(border=True):
                 st.markdown(
-                    (
-                        "<div style='font-size:11px;text-transform:uppercase;letter-spacing:0.55px;"
-                        "color:#8D8779;font-weight:600;margin-bottom:10px;'>Current Read</div>"
-                        f"<div style='color:#1F271C;font-size:0.98rem;font-weight:700;margin-bottom:0.35rem;'>{self._current_read_headline(security, metadata)}</div>"
-                        f"<div style='color:#4F5A49;font-size:0.88rem;line-height:1.55;'>{self._current_read_body(security, metadata, snapshot, analytics, duration_method, duration_source)}</div>"
+                    render(
+                        "analytics/read_panel.html",
+                        kicker="Current Read",
+                        headline=self.presenter.read_headline(security),
+                        body=self.presenter.read_body(
+                            security,
+                            analytics,
+                            duration_method=duration_method,
+                            duration_source=duration_source,
+                        ),
                     ),
                     unsafe_allow_html=True,
                 )
         with right:
-            card = st.container(border=True)
-            with card:
+            with st.container(border=True):
                 st.markdown(
-                    (
-                        "<div>"
-                        "<div style='font-size:11px;text-transform:uppercase;letter-spacing:0.55px;"
-                        "color:#8D8779;font-weight:600;margin-bottom:10px;'>Liquidity Condition</div>"
-                        f"<div style='color:#1F271C;font-size:0.98rem;font-weight:700;margin-bottom:0.35rem;'>{liquidity_regime}</div>"
-                        f"<div style='color:#4F5A49;font-size:0.88rem;line-height:1.5;margin-bottom:0.5rem;'>"
-                        f"Current volume is running at {self._volume_multiple(snapshot):.2f}x the 30-day average."
-                        "</div>"
-                        "<div style='color:#8D8779;font-size:0.78rem;margin-bottom:0.2rem;'>Volume vs 30D average</div>"
-                        "</div>"
+                    render(
+                        "analytics/read_panel.html",
+                        kicker="Liquidity Condition",
+                        headline=self.presenter.liquidity_regime(snapshot["volume_z"]),
+                        body=self.presenter.liquidity_summary(security),
                     ),
                     unsafe_allow_html=True,
                 )
@@ -229,7 +133,7 @@ class AnalyticsTab:
             if not security.history.empty
             else "n/a"
         )
-        metadata_duration = self._metadata_duration(security.metadata or {})
+        metadata_duration = security.metadata_number("duration")
         with timed_block("analytics.fetch_precomputed_snapshot"):
             precomputed = restore_analytics_snapshot(
                 cached_precomputed_analytics_snapshot(
@@ -282,121 +186,6 @@ class AnalyticsTab:
         self.analytics_service.persist_snapshot(analytics, as_of_date=price_as_of)
         return analytics
 
-    def _metadata_duration(self, metadata: dict) -> float | None:
-        """Extract and cast the duration field from metadata, returning None for missing or non-numeric values."""
-        return self._metadata_float(metadata, "duration")
-
-    def _metadata_float(self, metadata: dict, key: str) -> float | None:
-        """Extract and cast a float-like metadata field, returning None for missing or non-numeric values."""
-        raw_value = metadata.get(key)
-        if raw_value in (None, "", "N/A"):
-            return None
-        try:
-            value = float(raw_value)
-            return None if pd.isna(value) else value
-        except (TypeError, ValueError):
-            return None
-
-    def _current_read_headline(self, security: ETF, metadata: dict) -> str:
-        """Build the headline string for the Current Read panel from category and duration bucket."""
-        category = str(metadata.get("category") or security.asset_class or "Fixed Income")
-        duration_bucket = str(metadata.get("duration_bucket") or "").strip()
-        if duration_bucket and duration_bucket.upper() != "N/A":
-            return f"{duration_bucket} {category}"
-        return category
-
-    def _current_read_body(
-        self,
-        security: ETF,
-        metadata: dict,
-        snapshot: dict[str, float | None],
-        analytics,
-        duration_method: str,
-        duration_source: str,
-    ) -> str:
-        """Build the body text for the Current Read panel with benchmark, duration, and DV01 summary."""
-        benchmark = str(metadata.get("benchmark_index") or "N/A")
-        return (
-            f"Benchmark: {benchmark}. Duration is {self._format_years(analytics.estimated_duration)} and DV01 is "
-            f"{self._format_dollar_per_million(analytics.dv01_per_share)} per $1MM from {duration_method.lower()} "
-            f"({duration_source})."
-        )
-
-    def _format_dollar_per_million(self, value: float | None) -> str:
-        """Format a per-share dollar risk as a dollar amount per $1MM notional."""
-        return "-" if value is None or pd.isna(value) else f"${value * 10000:,.0f}"
-
-    def _format_years(self, value: float | None) -> str:
-        """Format a duration in years to one decimal place."""
-        return "-" if value is None or pd.isna(value) else f"{value:.1f}y"
-
-    def _format_number(self, value: float | None) -> str:
-        """Format a float to 2 decimal places."""
-        return "-" if value is None or pd.isna(value) else f"{value:.2f}"
-
-    def _format_percent_points(self, value: float | None) -> str:
-        """Format a percentage-point value such as YTM."""
-        return "-" if value is None or pd.isna(value) else f"{value:.2f}%"
-
-    def _format_bps_value(self, value: float | None) -> str:
-        """Format a level OAS value in basis points."""
-        return "-" if value is None or pd.isna(value) else f"{value:.0f} bps"
-
-    def _format_spread_beta_bps(self, value: float | None) -> str:
-        """Format a spread beta (per decimal) as a signed basis-point string."""
-        return "-" if value is None or pd.isna(value) else f"{value * 10000:+.1f} bps"
-
-    def _format_percent(self, value: float | None) -> str:
-        """Format a decimal proportion as a whole-number percentage string."""
-        return "-" if value is None or pd.isna(value) else f"{value:.0%}"
-
-    def _format_bps_impact(self, value: float | None) -> str:
-        """Format a signed basis-point price impact to 2 decimal places."""
-        return "-" if value is None or pd.isna(value) else f"{value:+.2f} bps"
-
-    def _oas_move_explanation(self, analytics) -> str:
-        """Return a plain-English sentence describing the price impact of a +1 bp OAS move."""
-        if analytics.spread_beta_per_bp is None or not analytics.spread_proxy_used:
-            return "OAS 1 bp move interpretation unavailable."
-        impact_bps = analytics.spread_beta_per_bp * 10000.0
-        return f"+1bp OAS widening -> {self._format_bps_impact(impact_bps)} price change."
-
-    def _duration_source_details(self, security: ETF) -> tuple[str, str]:
-        """Return a (method, source) label pair describing how duration was estimated for this ticker."""
-        return duration_source_details(security.ticker)
-
-    def _render_metric_card(
-        self,
-        label: str,
-        value: str,
-        color: str,
-        border_color: str,
-        *,
-        footer: str | None = None,
-        show_bottom_border: bool = True,
-    ) -> None:
-        """Render a single large-value metric card with a label, colored value, and optional footer HTML."""
-        footer_block = ""
-        if footer:
-            footer_block = f"<div class='an-metric-footer'>{footer}</div>"
-        bottom_accent = (
-            f"border-bottom:1px solid {border_color};"
-            if show_bottom_border
-            else "border-bottom:1px solid #EAE4D8;"
-        )
-        st.markdown(
-            (
-                f"<div class='an-metric-card' style='{bottom_accent}'>"
-                f"<div class='an-metric-label'>{label}</div>"
-                f"<div class='an-metric-body'>"
-                f"<div class='an-metric-value' style='color:{color};'>{value}</div>"
-                f"{footer_block}"
-                f"</div>"
-                f"</div>"
-            ),
-            unsafe_allow_html=True,
-        )
-
     def _render_volume_bars(
         self, security: ETF, *, show_caption: bool = True, height: int = 150
     ) -> None:
@@ -405,8 +194,7 @@ class AnalyticsTab:
         if history.empty or "volume" not in history.columns:
             return
         volume = history["volume"].astype(float)
-        ratio = volume / volume.rolling(30, min_periods=5).mean()
-        ratio = ratio.dropna().tail(30)
+        ratio = (volume / VOLUME_WINDOW.mean(volume)).dropna().tail(30)
         if ratio.empty:
             return
         if show_caption:
@@ -439,120 +227,3 @@ class AnalyticsTab:
             showlegend=False,
         )
         st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CHART_CONFIG)
-
-    def _volume_multiple(self, snapshot: dict[str, float | None]) -> float:
-        """Return the ratio of today's volume to the 30-day average, or 0.0 if unavailable."""
-        current_volume = snapshot["current_volume"]
-        average_volume = snapshot["average_volume"]
-        if current_volume is None or average_volume in (None, 0.0):
-            return 0.0
-        return current_volume / average_volume
-
-    def _liquidity_regime(self, vol_z: float | None) -> str:
-        """Return a liquidity regime label ('HIGH ACTIVITY', 'NORMAL', or 'QUIET') from the volume z-score."""
-        if vol_z is None:
-            return "NORMAL"
-        if vol_z > 2:
-            return "HIGH ACTIVITY"
-        if vol_z < -1:
-            return "QUIET"
-        return "NORMAL"
-
-    def _duration_risk_color(self, value: float | None) -> str:
-        """Return a hex color for the duration metric card: teal ≤3y, amber ≤7y, red otherwise."""
-        if value is None:
-            return "#1F271C"
-        if value <= 3.0:
-            return "#6FAF72"
-        if value <= 7.0:
-            return "#D4A017"
-        return "#C97C6B"
-
-    def _dv01_risk_color(self, value: float | None) -> str:
-        """Return a hex color for the DV01 card: teal ≤$150/MM, amber ≤$500/MM, red otherwise."""
-        if value is None:
-            return "#1F271C"
-        per_million = abs(value * 10000)
-        if per_million <= 150:
-            return "#6FAF72"
-        if per_million <= 500:
-            return "#D4A017"
-        return "#C97C6B"
-
-    def _cs_beta_risk_color(self, value: float | None) -> str:
-        """Return a hex color for the CS beta card: teal ≤1 bp, amber ≤3 bp, red otherwise."""
-        if value is None:
-            return "#1F271C"
-        beta_bps = abs(value * 10000)
-        if beta_bps <= 1.0:
-            return "#6FAF72"
-        if beta_bps <= 3.0:
-            return "#D4A017"
-        return "#C97C6B"
-
-    def _cs01_risk_color(self, value: float | None) -> str:
-        """Return a hex color for the CS01 card: teal ≤$100/MM, amber ≤$400/MM, red otherwise."""
-        if value is None:
-            return "#1F271C"
-        per_million = abs(value * 10000)
-        if per_million <= 100:
-            return "#6FAF72"
-        if per_million <= 400:
-            return "#D4A017"
-        return "#C97C6B"
-
-    def _r2_gauge(self, value: float | None) -> str:
-        """Return an inline HTML progress bar representing the R² model fit quality."""
-        if value is None:
-            return ""
-        pct = max(0.0, min(value, 1.0)) * 100.0
-        return (
-            f"<div style='margin-top:0.35rem;height:6px;background:rgba(111,123,70,0.12);border-radius:999px;'>"
-            f"<div style='width:{pct:.1f}%;height:100%;border-radius:999px;background:linear-gradient(90deg, #7FB9AA, #8AA05A);'></div>"
-            "</div>"
-        )
-
-    def _r2_risk_color(self, value: float | None) -> str:
-        """Return a color for R² quality: red for weak fit, amber for middling fit, teal for strong fit."""
-        if value is None:
-            return "#1F271C"
-        if value < 0.25:
-            return "#C97C6B"
-        if value < 0.6:
-            return "#D4A017"
-        return "#6FAF72"
-
-    def _dv01_change_footer(self, security: ETF, duration: float | None) -> str | None:
-        """Return a 30-day DV01 change label (e.g. '30d ↑ 2.3%'), or None if insufficient history."""
-        if (
-            duration is None
-            or security.history.empty
-            or "adj_close" not in security.history.columns
-        ):
-            return None
-        prices = security.history["adj_close"].astype(float).dropna()
-        if len(prices) < 31:
-            return None
-        current = duration * float(prices.iloc[-1])
-        prior = duration * float(prices.iloc[-31])
-        if prior == 0:
-            return None
-        pct = ((current / prior) - 1.0) * 100.0
-        arrow = "↑" if pct > 0 else "↓" if pct < 0 else "→"
-        return f"30d {arrow} {abs(pct):.1f}%"
-
-    def _duration_scale_indicator(self, duration: float | None) -> str | None:
-        """Return an inline HTML scale bar with a dot marker positioned on a 0–30Y axis."""
-        if duration is None:
-            return None
-        scale_max = 30.0
-        pct = max(0.0, min(duration / scale_max, 1.0)) * 100.0
-        return (
-            "<div style='display:flex;align-items:center;gap:0.45rem;'>"
-            "<span>0Y</span>"
-            f"<div style='position:relative;flex:1;height:4px;background:rgba(111,123,70,0.12);border-radius:999px;'>"
-            f"<div style='position:absolute;left:calc({pct:.1f}% - 5px);top:-3px;width:10px;height:10px;border-radius:50%;background:#7FB9AA;'></div>"
-            "</div>"
-            "<span>30Y</span>"
-            "</div>"
-        )

@@ -1,6 +1,7 @@
 """Database schema definitions, table creation, and incremental migration helpers."""
 
 from sqlalchemy import inspect, text
+from sqlalchemy.engine import Connection, Engine
 
 from db.sql import qualified_table
 from db.sql import schema_name as active_schema_name
@@ -155,13 +156,13 @@ INDEX_DEFINITIONS = {
 }
 
 
-def get_existing_tables(engine) -> set[str]:
+def get_existing_tables(engine: Engine) -> set[str]:
     """Return the set of table names currently present in the active schema."""
     inspector = inspect(engine)
     return set(inspector.get_table_names(schema=active_schema_name(engine)))
 
 
-def create_tables(engine) -> None:
+def create_tables(engine: Engine) -> None:
     """Create all application tables and indexes if they do not already exist.
 
     Also runs incremental column-migration helpers for tables that evolve over time.
@@ -179,7 +180,7 @@ def create_tables(engine) -> None:
         ensure_analytics_snapshot_schema(conn)
 
 
-def ensure_etf_metadata_schema(conn) -> None:
+def ensure_etf_metadata_schema(conn: Connection) -> None:
     """Add any columns missing from etf_metadata introduced after the initial schema."""
     _add_missing_columns(
         conn,
@@ -195,7 +196,7 @@ def ensure_etf_metadata_schema(conn) -> None:
     )
 
 
-def ensure_analytics_snapshot_schema(conn) -> None:
+def ensure_analytics_snapshot_schema(conn: Connection) -> None:
     """Add any columns missing from analytics_snapshots introduced after the initial schema."""
     _add_missing_columns(
         conn,
@@ -220,7 +221,7 @@ def ensure_analytics_snapshot_schema(conn) -> None:
     )
 
 
-def ensure_macro_data_schema(conn) -> None:
+def ensure_macro_data_schema(conn: Connection) -> None:
     """Migrate macro_data to the current column layout if the legacy schema is detected.
 
     This is a one-time destructive migration for SQLite only: it renames the old table,
@@ -269,7 +270,7 @@ def ensure_macro_data_schema(conn) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _rename_existing_table(conn, old_name: str, new_name: str) -> None:
+def _rename_existing_table(conn: Connection, old_name: str, new_name: str) -> None:
     """Rename a legacy managed table if the new table name is not already present."""
     engine = conn.engine
     inspector = inspect(conn)
@@ -280,7 +281,9 @@ def _rename_existing_table(conn, old_name: str, new_name: str) -> None:
     conn.execute(text(f"ALTER TABLE {qualified_table(engine, old_name)} RENAME TO {new_name}"))
 
 
-def _add_missing_columns(conn, table_name: str, missing_columns: dict[str, str]) -> None:
+def _add_missing_columns(
+    conn: Connection, table_name: str, missing_columns: dict[str, str]
+) -> None:
     """ALTER TABLE to add any columns from missing_columns that are not yet present."""
     engine = conn.engine
     inspector = inspect(conn)
@@ -300,7 +303,7 @@ def _add_missing_columns(conn, table_name: str, missing_columns: dict[str, str])
             )
 
 
-def _drop_existing_columns(conn, table_name: str, column_names: list[str]) -> None:
+def _drop_existing_columns(conn: Connection, table_name: str, column_names: list[str]) -> None:
     """Drop obsolete columns that are still present in an existing table."""
     engine = conn.engine
     inspector = inspect(conn)
@@ -320,7 +323,7 @@ def _drop_existing_columns(conn, table_name: str, column_names: list[str]) -> No
             )
 
 
-def _ensure_schema(conn) -> None:
+def _ensure_schema(conn: Connection) -> None:
     """Create the Postgres schema if it does not exist (no-op for SQLite)."""
     if conn.engine.dialect.name != "postgresql":
         return
@@ -328,7 +331,7 @@ def _ensure_schema(conn) -> None:
     conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema}"'))
 
 
-def _qualify_ddl(engine, table_name: str, ddl: str) -> str:
+def _qualify_ddl(engine: Engine, table_name: str, ddl: str) -> str:
     """Prefix the table name with its schema in a CREATE TABLE statement for Postgres."""
     if engine.dialect.name != "postgresql":
         return ddl
@@ -338,7 +341,7 @@ def _qualify_ddl(engine, table_name: str, ddl: str) -> str:
     )
 
 
-def _qualify_index_ddl(engine, ddl: str) -> str:
+def _qualify_index_ddl(engine: Engine, ddl: str) -> str:
     """Prefix all table references in a CREATE INDEX statement with the active schema."""
     if engine.dialect.name != "postgresql":
         return ddl

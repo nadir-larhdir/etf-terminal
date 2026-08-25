@@ -1,8 +1,10 @@
 from fixed_income.analytics.fixed_income_analytics_service import FixedIncomeAnalyticsService
 from fixed_income.analytics.presenters import format_oas_proxy_label
+from fixed_income.analytics.regime_analytics import RegimeAnalytics
 from fixed_income.analytics.result_models import (
     ETFAnalyticsSnapshot,
     RateRiskEstimate,
+    RegimeSnapshot,
     RiskProxySelection,
     SpreadRiskEstimate,
 )
@@ -12,6 +14,8 @@ from fixed_income.analytics.snapshot_utils import is_snapshot_stale, snapshot_ag
 __all__ = [
     "FixedIncomeAnalyticsService",
     "RateRiskEstimate",
+    "RegimeAnalytics",
+    "RegimeSnapshot",
     "RiskProxySelection",
     "RiskProxySelector",
     "ETFAnalyticsSnapshot",

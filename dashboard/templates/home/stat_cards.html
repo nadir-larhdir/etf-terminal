@@ -1,0 +1,12 @@
+<div class="home-stat-grid">
+  {% for card in cards %}
+  <div class="home-stat-card">
+    <div class="home-stat-icon">{% include "home/icons/" ~ card.icon ~ ".svg" %}</div>
+    <div>
+      <div class="home-stat-label">{{ card.label }}</div>
+      <div class="home-stat-value{% if card.is_date %} home-stat-value--date{% endif %}">{{ card.value }}</div>
+      <div class="home-stat-note">{{ card.note }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>

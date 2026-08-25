@@ -9,6 +9,7 @@ import pandas as pd
 
 from config import FMP_API_KEY, FMP_BASE_URL
 from services.market.fmp_client import FMPClient
+from stores.protocols import PriceHistoryStorage
 
 _EMPTY_PRICE_COLUMNS = ["date", "open", "high", "low", "close", "adj_close", "volume", "ticker"]
 
@@ -16,7 +17,7 @@ _EMPTY_PRICE_COLUMNS = ["date", "open", "high", "low", "close", "adj_close", "vo
 class MarketDataService:
     """Fetch ETF price history from FMP and synchronise it into the price store."""
 
-    def __init__(self, price_store):
+    def __init__(self, price_store: PriceHistoryStorage) -> None:
         self.price_store = price_store
         self.fmp_client = FMPClient(api_key=FMP_API_KEY, base_url=FMP_BASE_URL)
 

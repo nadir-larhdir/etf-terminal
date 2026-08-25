@@ -11,6 +11,7 @@ import pandas as pd
 from config import DEFAULT_TICKERS, FMP_API_KEY, FMP_BASE_URL, normalize_asset_class
 from db.connection import get_engine
 from fixed_income.analytics.duration_estimator import (
+    DurationAnalyticsSource,
     ETFDurationEstimator,
     issuer_from_long_name,
 )
@@ -310,7 +311,7 @@ def build_metadata_row(
     ticker: str,
     existing_row: dict | None = None,
     *,
-    duration_estimator: ETFDurationEstimator | None = None,
+    duration_estimator: DurationAnalyticsSource | None = None,
 ) -> dict:
     """Build a complete metadata dict for a ticker by merging FMP, internal, and existing data.
 

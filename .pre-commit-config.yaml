@@ -5,7 +5,20 @@ repos:
       - id: ruff
         args: ["--fix"]
       - id: ruff-format
+
   - repo: https://github.com/psf/black
     rev: 24.10.0
     hooks:
       - id: black
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        # Types are checked against the real dependency set, not mypy's isolated venv.
+        pass_filenames: false
+        args: ["."]
+        additional_dependencies:
+          - pandas-stubs
+          - types-requests
+          - sqlalchemy

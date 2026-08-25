@@ -1,0 +1,16 @@
+<div class="home-market-strip">
+  <div class="home-strip-primary">
+    <div class="home-strip-kicker">Market Snapshot <span class="home-live-chip">LIVE</span></div>
+    <div class="home-strip-sub">As of {{ latest_date }}</div>
+  </div>
+  {% for tile in tiles %}
+  <div class="home-strip-cell">
+    <div class="home-strip-label">{{ tile.label }}</div>
+    <div class="home-strip-mini">{{ tile.sublabel }}</div>
+    <div class="home-strip-value-row">
+      <div class="home-strip-value">{{ tile.value }}</div>
+      <div class="home-strip-delta {{ tile.delta_class }}">{{ tile.indicator }} {{ tile.delta }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
