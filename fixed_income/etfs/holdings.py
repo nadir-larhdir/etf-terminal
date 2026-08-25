@@ -8,6 +8,8 @@ from typing import Any
 import pandas as pd
 import requests
 
+from fixed_income.series import as_text
+
 ISHARES_HOLDINGS_FUNDS = {
     "AGG": ("239458", "ishares-core-us-aggregate-bond-etf"),
     "EMB": ("239572", "ishares-jp-morgan-usd-emerging-markets-bond-etf"),
@@ -85,7 +87,7 @@ def _to_date(series: pd.Series) -> pd.Series:
 
 
 def _normalize_cusip(value: object) -> str | None:
-    text = None if value is None or pd.isna(value) else str(value).strip()
+    text = None if value is None or pd.isna(value) else str(value).strip()  # type: ignore[call-overload]
     if not text or text == "-":
         return None
     return text[2:-1] if len(text) == 12 else text
@@ -153,7 +155,8 @@ class ETFHoldings:
             raise ValueError(f"Unknown ticker '{ticker}'")
 
     def get(self) -> pd.DataFrame:
-        return getattr(self, f"_load_{self.provider}")()
+        frame: pd.DataFrame = getattr(self, f"_load_{self.provider}")()
+        return frame
 
     def _load_ishares(self) -> pd.DataFrame:
         product_id, slug = ISHARES_HOLDINGS_FUNDS[self.ticker]
@@ -182,15 +185,12 @@ class ETFHoldings:
         )
         for column in ["market_value", "face_amount"]:
             if column in frame.columns:
-                frame[column] = _to_num(
-                    frame[column].astype(str).str.replace(r"[$,]", "", regex=True)
-                )
-        frame["maturity_dt"] = _to_date(frame.get("maturity_dt"))
+                frame[column] = _to_num(as_text(frame[column]).str.replace(r"[$,]", "", regex=True))
+        frame["maturity_dt"] = _to_date(frame.get("maturity_dt", pd.Series(dtype=object)))
         frame["price"] = frame["market_value"] / frame["face_amount"] * 100
         if "asset_class" in frame.columns:
             frame = frame[
-                frame["asset_class"]
-                .astype(str)
+                as_text(frame["asset_class"])
                 .str.lower()
                 .isin(["bond", "fixed income", "corporate bond", "treasury", "agency", "municipal"])
             ]
@@ -295,7 +295,7 @@ class ETFHoldings:
                 frame[column] = _to_num(frame[column])
         if "cusip" in frame.columns:
             frame["cusip"] = frame["cusip"].apply(_normalize_cusip)
-        frame["maturity_dt"] = _to_date(frame.get("maturity_dt"))
+        frame["maturity_dt"] = _to_date(frame.get("maturity_dt", pd.Series(dtype=object)))
         frame["price"] = frame["market_value"] / frame["face_amount"] * 100
         return self._finalize(frame)
 

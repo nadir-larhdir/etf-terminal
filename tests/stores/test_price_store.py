@@ -165,7 +165,7 @@ def test_recent_history_returns_the_newest_rows_oldest_first(store: PriceStore) 
 
     frame = store.get_recent_price_history(["IEF"], sessions=3)["IEF"]
 
-    assert list(frame.index.strftime("%Y-%m-%d")) == ["2024-01-08", "2024-01-09", "2024-01-10"]
+    assert [str(d.date()) for d in frame.index] == ["2024-01-08", "2024-01-09", "2024-01-10"]
 
 
 def test_recent_history_matches_the_tail_of_the_full_history(store: PriceStore) -> None:

@@ -8,6 +8,7 @@ infinity when the denominator collapses, so downstream `dropna()` is always suff
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast, overload
 
 import numpy as np
 import pandas as pd
@@ -28,14 +29,14 @@ class RollingWindow:
             raise ValueError(f"window must be >= 1, got {self.window}")
 
     def mean(self, series: pd.Series) -> pd.Series:
-        return self._roll(series).mean()
+        return pd.Series(self._roll(series).mean())
 
     def std(self, series: pd.Series) -> pd.Series:
         """Population standard deviation (ddof=0), matching the z-score convention."""
-        return self._roll(series).std(ddof=0)
+        return pd.Series(self._roll(series).std(ddof=0))
 
     def sum(self, series: pd.Series) -> pd.Series:
-        return self._roll(series).sum()
+        return pd.Series(self._roll(series).sum())
 
     def zscore(self, series: pd.Series) -> pd.Series:
         """Rolling z-score; NaN where the rolling standard deviation is zero."""
@@ -47,12 +48,12 @@ class RollingWindow:
         """Rolling OLS beta of y on x (cov/var); NaN where x has zero variance."""
         if y.empty or x.empty:
             return EMPTY
-        return self._roll(y).cov(x) / _no_zero(self._roll(x).var())
+        return pd.Series(self._roll(y).cov(x) / _no_zero(pd.Series(self._roll(x).var())))
 
     def correlation(self, y: pd.Series, x: pd.Series) -> pd.Series:
         if y.empty or x.empty:
             return EMPTY
-        return self._roll(y).corr(x)
+        return pd.Series(self._roll(y).corr(x))
 
     def ratio_to_mean(self, series: pd.Series) -> float | None:
         """Latest observation divided by its rolling mean, or None when undefined."""
@@ -64,8 +65,17 @@ class RollingWindow:
             return None
         return float(latest / average)
 
-    def _roll(self, series: pd.Series) -> Rolling:
+    def _roll(self, series: pd.Series) -> Rolling[pd.Series]:
         return series.rolling(self.window, min_periods=self.min_periods)
+
+
+def as_text(series: pd.Series) -> pd.Series:
+    """Cast a Series to strings.
+
+    `astype(str)` is mistyped as `Series[bool]` by pandas-stubs, so the cast is made once
+    here rather than suppressed at each call site.
+    """
+    return cast(pd.Series, series.astype(str))
 
 
 def zscore(series: pd.Series) -> pd.Series:
@@ -87,13 +97,22 @@ def beta(y: pd.Series, x: pd.Series, *, default: float = 1.0) -> float:
     return default if pd.isna(estimate) else float(estimate / variance)
 
 
+@overload
+def log_returns(prices: pd.Series) -> pd.Series: ...
+@overload
+def log_returns(prices: pd.DataFrame) -> pd.DataFrame: ...
 def log_returns(prices: pd.DataFrame | pd.Series) -> pd.DataFrame | pd.Series:
     """Daily log returns; non-positive prices are dropped rather than yielding -inf."""
     if prices.empty:
         return prices.iloc[:0].astype(float)
-    return np.log(prices.where(prices > 0)).diff().dropna()
+    positive = prices.where(prices > 0)  # type: ignore[arg-type]
+    return positive.apply(np.log).diff().dropna()
 
 
+@overload
+def simple_returns(prices: pd.Series) -> pd.Series: ...
+@overload
+def simple_returns(prices: pd.DataFrame) -> pd.DataFrame: ...
 def simple_returns(prices: pd.DataFrame | pd.Series) -> pd.DataFrame | pd.Series:
     if prices.empty:
         return prices.iloc[:0].astype(float)

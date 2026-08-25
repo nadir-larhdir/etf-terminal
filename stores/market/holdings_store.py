@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from typing import Any
 
 import pandas as pd
 from sqlalchemy import text
@@ -89,7 +90,7 @@ class HoldingsStore:
         """Return the latest cached snapshot for ticker."""
         self._ensure_schema()
         limit_clause = " LIMIT :limit" if limit is not None else ""
-        params: dict[str, object] = {"ticker": ticker.upper()}
+        params: dict[str, Any] = {"ticker": ticker.upper()}
         if limit is not None:
             params["limit"] = int(limit)
         query = text(f"""

@@ -10,7 +10,7 @@ from sqlalchemy.engine import Engine
 
 from db.sql import qualified_table
 from fixed_income.analytics.result_models import ETFAnalyticsSnapshot
-from stores.query_utils import sql_in_clause_params
+from stores.query_utils import records, sql_in_clause_params
 
 
 class AnalyticsSnapshotStore:
@@ -67,7 +67,7 @@ class AnalyticsSnapshotStore:
             df = pd.read_sql(query, conn, params={"symbol": symbol})
         if df.empty:
             return None
-        return ETFAnalyticsSnapshot.from_record(df.iloc[0].to_dict())
+        return ETFAnalyticsSnapshot.from_record(records(df.head(1))[0])
 
     def get_latest_snapshots(self, symbols: list[str]) -> pd.DataFrame:
         """Return a DataFrame of the most recent snapshot row for each requested symbol."""

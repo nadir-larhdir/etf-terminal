@@ -7,7 +7,7 @@ import pandas as pd
 
 def _naive_timestamp(value: object) -> pd.Timestamp:
     """Parse a value into a timezone-naive Timestamp for safe arithmetic."""
-    ts = pd.Timestamp(value)
+    ts = pd.Timestamp(value)  # type: ignore[arg-type]
     return ts.tz_localize(None) if ts.tzinfo is not None else ts
 
 

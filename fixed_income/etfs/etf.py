@@ -110,7 +110,8 @@ class ETF:
             return self.history.copy()
         index = pd.to_datetime(self.history.index)
         filtered = self.history.loc[
-            (index >= pd.Timestamp(start_date)) & (index <= pd.Timestamp(end_date))
+            (index >= pd.Timestamp(start_date))  # type: ignore[arg-type]
+            & (index <= pd.Timestamp(end_date))  # type: ignore[arg-type]
         ].copy()
         return filtered if not filtered.empty else self.history.tail(1).copy()
 

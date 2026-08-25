@@ -323,10 +323,27 @@ Dashboard tabs:
 Run the validation suite:
 
 ```bash
-python -m ruff check .
+make check
+```
+
+That runs the same four gates as CI, in the same order:
+
+```bash
 python -m black --check .
+python -m ruff check .
+python -m mypy .
 python -m pytest
 ```
+
+Install the dev dependencies first, and reinstall them whenever
+`requirements-dev.txt` changes:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+`mypy` reads `pandas-stubs` from that file. Without it installed, pandas types as
+`Any` locally and `mypy` passes while CI fails.
 
 Recommended change flow:
 

@@ -12,6 +12,7 @@ from sqlalchemy.engine import Engine
 
 from db.schema import create_tables
 from db.sql import qualified_table
+from stores.query_utils import records
 
 
 class MetadataStore:
@@ -92,7 +93,7 @@ class MetadataStore:
             updated_at = excluded.updated_at
         """
         with self.engine.begin() as conn:
-            conn.execute(text(statement), df.to_dict(orient="records"))
+            conn.execute(text(statement), records(df))
 
     def delete_ticker(self, ticker: str) -> None:
         """Remove the metadata row for the given ticker."""
@@ -146,4 +147,4 @@ class MetadataStore:
         """)
         with self.engine.connect() as conn:
             df = pd.read_sql(query, conn, params={"ticker": ticker})
-        return df.iloc[0].to_dict() if not df.empty else None
+        return records(df.head(1))[0] if not df.empty else None

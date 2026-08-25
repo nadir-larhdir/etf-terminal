@@ -10,6 +10,7 @@ import pandas as pd
 from config import normalize_asset_class
 from dashboard.format import Formatter, macro_unit
 from fixed_income.analytics.result_models import RegimeSnapshot
+from fixed_income.series import as_text
 
 FMT = Formatter(missing="n/a")
 
@@ -269,7 +270,7 @@ class HomePresenter:
 
         frame = securities.copy()
         frame["asset_class"] = (
-            frame["asset_class"].fillna("Other").astype(str).str.strip().map(normalize_asset_class)
+            as_text(frame["asset_class"].fillna("Other")).str.strip().map(normalize_asset_class)
         )
         directions = self._daily_directions(histories)
 
@@ -310,4 +311,4 @@ def universe_tickers(securities: pd.DataFrame) -> list[str]:
     """Return the ticker column as plain strings, tolerating an empty universe."""
     if securities.empty or "ticker" not in securities.columns:
         return []
-    return securities["ticker"].astype(str).tolist()
+    return as_text(securities["ticker"]).tolist()

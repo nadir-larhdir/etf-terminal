@@ -9,7 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from db.sql import qualified_table
-from stores.query_utils import append_date_filters, pivot_time_series, sql_in_clause_params
+from stores.query_utils import append_date_filters, pivot_time_series, records, sql_in_clause_params
 
 
 class MacroFeatureStore:
@@ -29,7 +29,7 @@ class MacroFeatureStore:
         """Insert or update feature rows, chunking large batches for Postgres."""
         if df.empty:
             return
-        records = df.to_dict(orient="records")
+        rows = records(df)
         statement = f"""
         INSERT INTO {qualified_table(self.engine, 'macro_features')} (
             feature_name, date, value, category, sub_category, source, last_updated_at
@@ -41,10 +41,10 @@ class MacroFeatureStore:
             sub_category = excluded.sub_category, source = excluded.source,
             last_updated_at = excluded.last_updated_at
         """
-        chunk_size = self._write_chunk_size(len(records))
+        chunk_size = self._write_chunk_size(len(rows))
         with self.engine.begin() as conn:
-            for start in range(0, len(records), chunk_size):
-                conn.execute(text(statement), records[start : start + chunk_size])
+            for start in range(0, len(rows), chunk_size):
+                conn.execute(text(statement), rows[start : start + chunk_size])
 
     def delete_features(
         self, *, start_date: str | None = None, end_date: str | None = None

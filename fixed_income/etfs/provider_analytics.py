@@ -213,7 +213,7 @@ def _credit_quality_df(
     df = pd.DataFrame(rows)
     if normalize:
         df["rating"] = df["rating"].map(_normalize_rating)
-        df = df.groupby("rating", as_index=False)["weight"].sum()
+        df = pd.DataFrame(df.groupby("rating", as_index=False)["weight"].sum())
     df = df.sort_values("weight", ascending=False).reset_index(drop=True)
     df["ticker"] = ticker
     df["provider"] = provider

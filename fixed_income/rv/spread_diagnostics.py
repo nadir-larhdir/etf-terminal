@@ -256,18 +256,18 @@ def forward_spread_reversion_stats(
     for dt, z_val in subset["zscore"].items():
         is_extreme = abs(float(z_val)) >= threshold
         if is_extreme and not prev_is_extreme:
-            event_dates.append(dt)
+            event_dates.append(pd.Timestamp(dt))  # type: ignore[arg-type]
         prev_is_extreme = is_extreme
 
     favorable_moves: list[float] = []
     for dt in event_dates:
         if dt not in subset.index:
             continue
-        z0 = float(subset.at[dt, "zscore"])
+        z0 = float(subset.at[dt, "zscore"])  # type: ignore[arg-type]
         fwd = subset.at[dt, "fwd_spread"]
         if pd.isna(fwd):
             continue
-        favorable_moves.append((-1.0 if z0 > 0 else 1.0) * float(fwd) * 100.0)
+        favorable_moves.append((-1.0 if z0 > 0 else 1.0) * float(fwd) * 100.0)  # type: ignore[arg-type]
 
     if not favorable_moves:
         return 0.0, 0.0, 0

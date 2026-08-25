@@ -184,10 +184,11 @@ def _credit_quality_payload(ticker: str) -> str | None:
     diff = round(100.0 - float(normalized["weight"].sum()), 2)
     if diff:
         idx = normalized["weight"].idxmax()
-        normalized.loc[idx, "weight"] = round(float(normalized.loc[idx, "weight"]) + diff, 2)
+        heaviest = float(normalized["weight"].max())
+        normalized.loc[normalized.index == idx, "weight"] = round(heaviest + diff, 2)
 
     payload = [
-        {"rating": str(row.rating), "weight": float(row.weight)}
+        {"rating": str(row.rating), "weight": float(row.weight)}  # type: ignore[arg-type]
         for row in normalized.sort_values("weight", ascending=False).itertuples(index=False)
     ]
     return json.dumps(payload)

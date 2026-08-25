@@ -1,8 +1,20 @@
 """Small helpers for shaping database query results into app-friendly objects."""
 
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
+
+from fixed_income.series import as_text
+
+
+def records(df: pd.DataFrame) -> list[dict[str, Any]]:
+    """Return a frame's rows as dicts keyed by column name.
+
+    `to_dict(orient="records")` is typed as `Hashable`-keyed because a column label can
+    be any hashable; every frame written here has string columns, so narrow it once
+    rather than casting at each call site.
+    """
+    return cast(list[dict[str, Any]], df.to_dict(orient="records"))
 
 
 def sql_in_clause_params(
@@ -49,8 +61,8 @@ def latest_dates_map(
     latest = df.dropna(subset=[date_column]).copy()
     return dict(
         zip(
-            latest[key_column].astype(str),
-            latest[date_column].astype(str),
+            as_text(latest[key_column]).tolist(),
+            as_text(latest[date_column]).tolist(),
             strict=False,
         )
     )

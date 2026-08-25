@@ -3,6 +3,7 @@
 import argparse
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any
 
 from db.connection import get_engine
 from fixed_income.analytics import (
@@ -13,10 +14,12 @@ from fixed_income.analytics import (
 )
 from fixed_income.analytics.result_models import ETFAnalyticsSnapshot
 from fixed_income.etfs import ETF
+from fixed_income.series import as_text
 from scripts.logging_utils import configure_logging
 from stores.analytics import AnalyticsSnapshotStore
 from stores.macro import MacroStore
 from stores.market import ETFUniverseStore, MetadataStore, PriceStore
+from stores.query_utils import records
 
 logger = logging.getLogger(__name__)
 
@@ -95,13 +98,13 @@ def run_precompute_analytics(
         logger.info("No active ETFs found for analytics precompute.")
         return 0, 0
 
-    tickers = etf_universe["ticker"].astype(str).tolist()
+    tickers = as_text(etf_universe["ticker"]).tolist()
     latest_price_dates = price_store.get_latest_stored_dates(tickers)
     latest_snapshot_rows = snapshot_store.get_latest_snapshots(
-        etf_universe["ticker"].astype(str).tolist()
+        as_text(etf_universe["ticker"]).tolist()
     )
     latest_snapshot_map = (
-        {str(row["symbol"]): row.to_dict() for _, row in latest_snapshot_rows.iterrows()}
+        {str(row["symbol"]): row for row in records(latest_snapshot_rows)}
         if not latest_snapshot_rows.empty
         else {}
     )
@@ -113,7 +116,7 @@ def run_precompute_analytics(
     for _, row in etf_universe.iterrows():
         ticker = str(row["ticker"])
         latest_price_date = latest_price_dates.get(ticker)
-        metadata = metadata_map.get(ticker, {})
+        metadata: dict[str, Any] = metadata_map.get(ticker) or {}
         metadata_duration = ETF(ticker, metadata=metadata).metadata_number("duration")
         snapshot = None
         if ticker in latest_snapshot_map:

@@ -15,6 +15,7 @@ from stores.query_utils import (
     index_history_frame,
     latest_date_query,
     latest_dates_map,
+    records,
     sql_in_clause_params,
 )
 
@@ -45,7 +46,7 @@ class PriceStore:
             volume = excluded.volume, source = excluded.source, updated_at = excluded.updated_at
         """
         with self.engine.begin() as conn:
-            conn.execute(text(statement), df.to_dict(orient="records"))
+            conn.execute(text(statement), records(df))
 
     def replace_ticker_prices(self, ticker: str, df: pd.DataFrame) -> None:
         """Delete all existing rows for ticker and insert the provided frame."""

@@ -8,6 +8,7 @@ from typing import Any
 import pandas as pd
 
 from services.http import JsonApiClient
+from stores.query_utils import records
 
 # Calendar-day lookback per label — padded to account for weekends and holidays.
 _PERIOD_DAY_MAP = {
@@ -92,8 +93,7 @@ class FMPClient(JsonApiClient):
                 frame[col] = pd.to_numeric(frame[col])
             except (TypeError, ValueError):
                 continue
-        holdings: list[dict[str, Any]] = frame.to_dict(orient="records")
-        return holdings
+        return records(frame)
 
     def get_economic_calendar(
         self,

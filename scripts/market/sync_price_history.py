@@ -4,6 +4,7 @@ import argparse
 import logging
 
 from db.connection import get_engine
+from fixed_income.series import as_text
 from scripts.logging_utils import configure_logging
 from scripts.script_helpers import add_ticker_argument, resolve_target_tickers
 from services.market import MarketDataService
@@ -53,7 +54,7 @@ if __name__ == "__main__":
     etf_universe_store = ETFUniverseStore(engine)
     active_securities = etf_universe_store.list_active_etfs()
     db_tickers = (
-        active_securities["ticker"].astype(str).tolist() if not active_securities.empty else []
+        as_text(active_securities["ticker"]).tolist() if not active_securities.empty else []
     )
     tickers = resolve_target_tickers(args.tickers, available_tickers=db_tickers)
 

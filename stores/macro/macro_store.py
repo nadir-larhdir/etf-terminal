@@ -16,6 +16,7 @@ from stores.query_utils import (
     latest_date_query,
     latest_dates_map,
     pivot_time_series,
+    records,
     sql_in_clause_params,
 )
 
@@ -34,7 +35,7 @@ class MacroStore:
         """Insert or update macro observations, overwriting existing (series_id, date) pairs."""
         if df.empty:
             return
-        records = self._normalize_frame_for_write(df).to_dict(orient="records")
+        rows = records(self._normalize_frame_for_write(df))
         statement = f"""
         INSERT INTO {qualified_table(self.engine, 'macro_data')} (
             series_id, date, value, series_name, category, sub_category,
@@ -51,7 +52,7 @@ class MacroStore:
             last_updated_at = excluded.last_updated_at
         """
         with self.engine.begin() as conn:
-            conn.execute(text(statement), records)
+            conn.execute(text(statement), rows)
 
     def replace_series(self, series_id: str, df: pd.DataFrame) -> None:
         """Delete all rows for the series and insert the provided frame."""

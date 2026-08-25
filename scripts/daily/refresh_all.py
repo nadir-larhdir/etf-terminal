@@ -5,6 +5,7 @@ import logging
 
 from config import DEFAULT_TICKERS, FRED_API_KEY, FRED_BASE_URL
 from db.connection import get_engine
+from fixed_income.series import as_text
 from scripts.analytics.precompute_analytics import run_precompute_analytics
 from scripts.logging_utils import configure_logging
 from scripts.market.enrich_metadata_from_fmp import build_metadata_rows
@@ -143,7 +144,7 @@ def main() -> None:
     macro_feature_store = MacroFeatureStore(engine)
 
     active = etf_universe_store.list_active_etfs()
-    tickers = active["ticker"].astype(str).tolist() if not active.empty else []
+    tickers = as_text(active["ticker"]).tolist() if not active.empty else []
     series_ids = list(DEFAULT_MACRO_SERIES.keys())
 
     market_service = MarketDataService(price_store)
@@ -156,7 +157,7 @@ def main() -> None:
     logger.info("Step 1/%s: syncing configured ETF universe...", total_steps)
     universe_rows = _refresh_universe(etf_universe_store)
     active = etf_universe_store.list_active_etfs()
-    tickers = active["ticker"].astype(str).tolist() if not active.empty else []
+    tickers = as_text(active["ticker"]).tolist() if not active.empty else []
 
     logger.info("Step 2/%s: refreshing ETF prices...", total_steps)
     price_statuses = market_service.sync_incremental_updates(
