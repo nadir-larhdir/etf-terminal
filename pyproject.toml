@@ -13,6 +13,7 @@ dependencies = [
     "pandas",
     "numpy",
     "scipy",
+    "statsmodels",
     "sqlalchemy",
     "psycopg[binary]",
     "plotly",
